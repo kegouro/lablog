@@ -1,0 +1,43 @@
+"""Tests del Event Store."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from uuid import uuid4
+
+import pytest
+
+from lablog.event_store import EventStore
+from lablog.events import page_created, text_inserted
+
+
+@pytest.fixture
+def store(tmp_path: Path) -> EventStore:
+    return EventStore(tmp_path)
+
+
+def test_append_and_get_events(store: EventStore) -> None:
+    page_id = str(uuid4())
+    store.append(page_created(page_id=page_id, title="Test"))
+    store.append(text_inserted(page_id=page_id, position=0, text="Hola"))
+
+    events = store.get_events(page_id)
+    assert len(events) == 2
+    assert events[0].type == "page_created"
+    assert events[1].type == "text_inserted"
+
+
+def test_get_events_returns_empty_list(store: EventStore) -> None:
+    events = store.get_events("non-existent")
+    assert events == []
+
+
+def test_events_are_immutable_on_disk(store: EventStore) -> None:
+    page_id = str(uuid4())
+    event = page_created(page_id=page_id, title="Test")
+    store.append(event)
+
+    file_path = store._page_file(page_id)
+    assert file_path.exists()
+    content = file_path.read_text(encoding="utf-8").strip()
+    assert event.id in content

@@ -1,0 +1,52 @@
+[project]
+name = "lablog"
+version = "0.1.0"
+description = "Segundo cerebro científico con LaTeX en vivo, voz y bóveda segura."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [
+    { name = "José Labarca Baeza" }
+]
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "jupyter-client>=8.6",
+    "ipykernel>=6.29",
+    "matplotlib>=3.9",
+    "Pillow>=10.4",
+    "faster-whisper>=1.0",
+    "sounddevice>=0.5",
+    "numpy>=1.26",
+    "requests>=2.32",
+    "python-dotenv>=1.0",
+    "python-multipart>=0.0.9",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.7",
+    "mypy>=1.13",
+]
+
+[project.scripts]
+lablog = "lablog.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+ignore_missing_imports = true
