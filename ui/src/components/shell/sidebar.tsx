@@ -70,10 +70,30 @@ export function Sidebar({ onCreatePage, onUpdatePage, onDeletePage }: SidebarPro
   }
 
   const commitRename = (id: string) => {
-    if (editTitle.trim()) {
-      onUpdatePage(id, { title: editTitle.trim() })
+    const trimmed = editTitle.trim()
+    if (trimmed && trimmed !== pages.find((p) => p.id === id)?.title) {
+      onUpdatePage(id, { title: trimmed })
     }
     setEditingId(null)
+  }
+
+  const handleSelect = (pageId: string) => {
+    if (editingId === pageId) return
+    setActivePageId(pageId)
+  }
+
+  const handleDelete = (e: React.MouseEvent, pageId: string) => {
+    e.stopPropagation()
+    if (window.confirm('¿Eliminar esta página? Esta acción no se puede deshacer.')) {
+      onDeletePage(pageId)
+    }
+  }
+
+  const handleRowKeyDown = (e: React.KeyboardEvent, pageId: string) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      handleSelect(pageId)
+    }
   }
 
   return (
@@ -85,7 +105,13 @@ export function Sidebar({ onCreatePage, onUpdatePage, onDeletePage }: SidebarPro
           </div>
           <span className="font-bold tracking-tight">Páginas</span>
         </div>
-        <Button variant="ghost" size="icon" className="size-7" onClick={onCreatePage} title="Nueva página">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          onClick={onCreatePage}
+          title="Nueva página (Ctrl+N)"
+        >
           <Plus className="size-4" />
         </Button>
       </div>
@@ -116,8 +142,13 @@ export function Sidebar({ onCreatePage, onUpdatePage, onDeletePage }: SidebarPro
                   return (
                     <div
                       key={page.id}
+                      tabIndex={0}
+                      onClick={() => handleSelect(page.id)}
+                      onDoubleClick={() => startRename(page)}
+                      onKeyDown={(e) => handleRowKeyDown(e, page.id)}
+                      title={page.title}
                       className={cn(
-                        'group relative flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all duration-200',
+                        'group relative flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-sm outline-none transition-all duration-200 focus-visible:ring-2 focus-visible:ring-ring',
                         isActive
                           ? 'bg-primary/15 text-primary shadow-sm'
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground',
@@ -131,7 +162,6 @@ export function Sidebar({ onCreatePage, onUpdatePage, onDeletePage }: SidebarPro
                           'size-4 shrink-0 transition-colors',
                           isActive ? 'text-primary' : 'text-muted-foreground/70 group-hover:text-foreground',
                         )}
-                        onClick={() => setActivePageId(page.id)}
                       />
                       {isEditing ? (
                         <Input
@@ -143,29 +173,26 @@ export function Sidebar({ onCreatePage, onUpdatePage, onDeletePage }: SidebarPro
                             if (e.key === 'Enter') commitRename(page.id)
                             if (e.key === 'Escape') setEditingId(null)
                           }}
+                          onClick={(e) => e.stopPropagation()}
                           className="h-6 py-0 text-xs"
                         />
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => setActivePageId(page.id)}
-                          onDoubleClick={() => startRename(page)}
-                          className="flex-1 truncate text-left font-medium outline-none"
-                        >
+                        <span className="flex-1 truncate text-left font-medium">
                           {page.title}
-                        </button>
+                        </span>
                       )}
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-6 opacity-0 group-hover:opacity-100"
-                        onClick={() => {
-                          if (window.confirm('¿Eliminar esta página?')) {
-                            onDeletePage(page.id)
-                          }
-                        }}
+                        title="Eliminar página"
+                        className={cn(
+                          'size-7 shrink-0 transition-opacity focus-visible:opacity-100',
+                          isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100',
+                        )}
+                        onClick={(e) => handleDelete(e, page.id)}
+                        onDoubleClick={(e) => e.stopPropagation()}
                       >
-                        <Trash2 className="size-3" />
+                        <Trash2 className="size-3.5 text-muted-foreground hover:text-destructive" />
                       </Button>
                     </div>
                   )
@@ -174,9 +201,17 @@ export function Sidebar({ onCreatePage, onUpdatePage, onDeletePage }: SidebarPro
             </div>
           ))}
           {filtered.length === 0 && (
-            <p className="px-2 py-4 text-center text-xs text-muted-foreground">
-              {searchQuery ? 'Sin coincidencias' : 'Aún no hay páginas'}
-            </p>
+            <div className="flex flex-col items-center gap-2 px-2 py-4 text-center">
+              <p className="text-xs text-muted-foreground">
+                {searchQuery ? 'Sin coincidencias' : 'Aún no hay páginas'}
+              </p>
+              {!searchQuery && (
+                <Button variant="outline" size="sm" className="h-7 gap-1 text-xs" onClick={onCreatePage}>
+                  <Plus className="size-3.5" />
+                  Crear página
+                </Button>
+              )}
+            </div>
           )}
         </nav>
       </ScrollArea>

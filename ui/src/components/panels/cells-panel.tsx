@@ -1,11 +1,11 @@
 import { Play, Plus, Trash2, X } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { executeCell, insertCell, listCells } from '@/lib/api'
+import { deleteCell, executeCell, getPage, insertCell, listCells, moveCell } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
 const LANGUAGES = [
@@ -14,7 +14,7 @@ const LANGUAGES = [
 ]
 
 export function CellsPanel() {
-  const { activePageId, togglePanel } = useAppStore()
+  const { activePageId, togglePanel, setActiveAst } = useAppStore()
   const [cells, setCells] = useState<Array<{
     cell_id: string
     language: string
@@ -26,13 +26,20 @@ export function CellsPanel() {
   const [newSource, setNewSource] = useState('')
   const [newLang, setNewLang] = useState('python')
 
+  const refreshCells = useCallback(async () => {
+    if (!activePageId) return
+    const [cellList, page] = await Promise.all([listCells(activePageId), getPage(activePageId)])
+    setCells(cellList)
+    setActiveAst(page.ast)
+  }, [activePageId, setActiveAst])
+
   useEffect(() => {
     if (!activePageId) {
       setCells([])
       return
     }
-    listCells(activePageId).then(setCells)
-  }, [activePageId])
+    refreshCells()
+  }, [activePageId, refreshCells])
 
   const addCell = async () => {
     if (!activePageId || !newSource.trim()) return
@@ -42,7 +49,7 @@ export function CellsPanel() {
       source: newSource,
     }
     await insertCell(activePageId, cell)
-    setCells([...cells, { ...cell, output: '', figure_path: null }])
+    await refreshCells()
     setNewSource('')
   }
 
@@ -52,24 +59,29 @@ export function CellsPanel() {
       prev.map((c) => (c.cell_id === cellId ? { ...c, status: 'running' } : c)),
     )
     try {
-      const result = await executeCell(activePageId, cellId)
-      setCells((prev) =>
-        prev.map((c) =>
-          c.cell_id === cellId
-            ? {
-                ...c,
-                output: result.output,
-                figure_path: result.figure_paths[0] ?? null,
-                status: result.status === 'ok' ? 'ok' : 'error',
-              }
-            : c,
-        ),
-      )
+      await executeCell(activePageId, cellId)
+      await refreshCells()
     } catch {
       setCells((prev) =>
         prev.map((c) => (c.cell_id === cellId ? { ...c, status: 'error', output: 'Error al ejecutar' } : c)),
       )
     }
+  }
+
+  const removeCell = async (cellId: string) => {
+    if (!activePageId) return
+    await deleteCell(activePageId, cellId)
+    await refreshCells()
+  }
+
+  const handleMove = async (cellId: string, direction: 'up' | 'down') => {
+    if (!activePageId) return
+    const index = cells.findIndex((c) => c.cell_id === cellId)
+    if (index < 0) return
+    const newIndex = direction === 'up' ? Math.max(0, index - 1) : Math.min(cells.length - 1, index + 1)
+    if (newIndex === index) return
+    await moveCell(activePageId, cellId, newIndex)
+    await refreshCells()
   }
 
   return (
@@ -85,7 +97,7 @@ export function CellsPanel() {
           <p className="text-center text-xs text-muted-foreground">Selecciona una página para añadir celdas.</p>
         )}
 
-        {cells.map((cell) => (
+        {cells.map((cell, idx) => (
           <div key={cell.cell_id} className="rounded-lg border bg-muted/20 p-3">
             <div className="mb-2 flex items-center justify-between">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -98,10 +110,37 @@ export function CellsPanel() {
                   className="size-6"
                   onClick={() => runCell(cell.cell_id)}
                   disabled={cell.status === 'running'}
+                  title="Ejecutar celda"
                 >
                   <Play className="size-3" />
                 </Button>
-                <Button variant="ghost" size="icon" className="size-6" disabled>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() => handleMove(cell.cell_id, 'up')}
+                  disabled={idx === 0}
+                  title="Mover arriba"
+                >
+                  ↑
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6"
+                  onClick={() => handleMove(cell.cell_id, 'down')}
+                  disabled={idx === cells.length - 1}
+                  title="Mover abajo"
+                >
+                  ↓
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-6 hover:text-destructive"
+                  onClick={() => removeCell(cell.cell_id)}
+                  title="Eliminar celda"
+                >
                   <Trash2 className="size-3" />
                 </Button>
               </div>

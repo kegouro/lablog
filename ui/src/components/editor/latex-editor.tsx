@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { Textarea } from '@/components/ui/textarea'
 import { getPage, replacePageLatex } from '@/lib/api'
+import { parseLatex } from '@/lib/latex-parser'
 import { useAppStore } from '@/stores/app-store'
 
 function debounce<T extends (...args: never[]) => void>(fn: T, ms: number) {
@@ -85,19 +86,21 @@ export function LatexEditor() {
       if (!activePageId) return
       setStatus('saving')
       try {
-        await replacePageLatex(activePageId, latex)
+        const result = await replacePageLatex(activePageId, latex)
+        setActiveAst(result.ast)
         setStatus('saved')
       } catch {
         setStatus('error')
       }
     },
-    [activePageId],
+    [activePageId, setActiveAst],
   )
 
-  const debouncedSave = useMemo(() => debounce(save, 900), [save])
+  const debouncedSave = useMemo(() => debounce(save, 600), [save])
 
   const handleChange = (value: string) => {
     setActiveLatex(value)
+    setActiveAst(parseLatex(value))
     setStatus('saving')
     debouncedSave(value)
   }

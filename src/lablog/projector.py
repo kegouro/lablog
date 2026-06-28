@@ -6,6 +6,7 @@ from typing import Any
 
 from lablog.ast_nodes import CellNode, DocumentNode, MathNode, TextNode
 from lablog.events import Event
+from lablog.latex_ast import parse_latex
 
 
 class PageProjection:
@@ -49,7 +50,7 @@ class PageProjection:
 
             case "document_replaced":
                 latex = event.payload.get("latex", "")
-                self.ast.children = [TextNode(text=latex)]
+                self.ast = parse_latex(latex)
 
             case "math_inserted":
                 latex = event.payload.get("latex", "")

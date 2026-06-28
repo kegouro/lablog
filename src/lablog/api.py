@@ -255,10 +255,11 @@ def append_text(page_id: str, payload: TextPayload) -> dict[str, str]:
 
 
 @router.post("/pages/{page_id}/replace", status_code=status.HTTP_201_CREATED)
-def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, str]:
+def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, Any]:
     _events(page_id)
     store.append(document_replaced(page_id=page_id, latex=payload.latex))
-    return {"status": "ok"}
+    proj = project(page_id, _events(page_id))
+    return {"status": "ok", "latex": serialize_ast(proj.ast), "ast": _ast_to_json(proj.ast)}
 
 
 @router.post("/pages/{page_id}/math", status_code=status.HTTP_201_CREATED)

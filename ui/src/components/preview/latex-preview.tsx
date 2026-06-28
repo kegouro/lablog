@@ -1,27 +1,90 @@
 import katex from 'katex'
 import 'katex/dist/katex.min.css'
-import { useEffect, useRef } from 'react'
+import { useMemo } from 'react'
 
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { useAppStore } from '@/stores/app-store'
 import type { CellNode, Page } from '@/types'
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+function applyParameterValues(text: string, values: Record<string, string>): string {
+  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => values[name] ?? `{{${name}}}`)
+}
 
 function renderKatex(latex: string, displayMode: boolean): string {
   try {
     return katex.renderToString(latex, { throwOnError: false, displayMode })
   } catch {
-    return latex
+    return escapeHtml(latex)
   }
 }
 
-function applyParameterValues(text: string, values: Record<string, string>) {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => values[name] ?? `{{${name}}}`)
+function renderTextNode(text: string, values: Record<string, string>): string {
+  text = applyParameterValues(text, values)
+  if (!text.trim()) return ''
+
+  const parts = text.split(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[\s\S]*?\$)/g)
+  let html = ''
+
+  for (const part of parts) {
+    if (!part) continue
+    const trimmed = part.trim()
+
+    if (part.startsWith('$$') && part.endsWith('$$')) {
+      html += `<div class="my-2 block">${renderKatex(trimmed.slice(2, -2).trim(), true)}</div>`
+    } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
+      html += `<div class="my-2 block">${renderKatex(trimmed.slice(2, -2).trim(), true)}</div>`
+    } else if (part.startsWith('$') && part.endsWith('$')) {
+      html += `<span>${renderKatex(trimmed.slice(1, -1).trim(), false)}</span>`
+    } else {
+      html += `<p class="whitespace-pre-wrap break-words">${escapeHtml(part)}</p>`
+    }
+  }
+
+  return html
 }
 
-function renderMixedLatex(container: HTMLDivElement, latex: string, values: Record<string, string>) {
-  container.innerHTML = ''
-  latex = applyParameterValues(latex, values)
-  if (!latex.trim()) {
-    container.innerHTML = `
+function renderMathNode(node: { latex?: string; mode?: string }, values: Record<string, string>): string {
+  const source = applyParameterValues(node.latex ?? '', values)
+  const displayMode = node.mode === 'display'
+  return `<div class="my-2 block">${renderKatex(source, displayMode)}</div>`
+}
+
+function renderCell(cell: CellNode, pageId: string | null): string {
+  const figureHtml =
+    cell.figure_path && pageId
+      ? `<img src="/api/v1/pages/${pageId}/cells/${cell.cell_id}/figure" alt="figura" class="mt-2 max-h-48 rounded border object-contain" />`
+      : ''
+
+  const outputHtml = cell.output
+    ? `<div class="rounded border bg-card p-2 text-xs"><p class="font-semibold text-muted-foreground">Output</p><pre class="whitespace-pre-wrap font-mono">${escapeHtml(cell.output)}</pre></div>`
+    : ''
+
+  return `
+    <div class="my-3 rounded-lg border bg-muted/30 p-3">
+      <div class="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
+        <span>Celda ${escapeHtml(cell.language)}</span>
+      </div>
+      <pre class="mb-2 max-h-24 overflow-auto rounded bg-muted p-2 text-xs font-mono">${escapeHtml(cell.source)}</pre>
+      ${outputHtml}
+      ${figureHtml}
+    </div>
+  `
+}
+
+function renderDocument(
+  ast: Page['ast'],
+  pageId: string | null,
+  values: Record<string, string>,
+): string {
+  if (!ast || ast.length === 0) {
+    return `
       <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
         <div class="rounded-full bg-muted p-4 text-2xl">👀</div>
         <div class="max-w-xs space-y-1">
@@ -33,118 +96,36 @@ function renderMixedLatex(container: HTMLDivElement, latex: string, values: Reco
           </p>
         </div>
       </div>`
-    return
   }
 
-  const parts = latex.split(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[\s\S]*?\$)/g)
-
-  for (const part of parts) {
-    if (!part) continue
-    const trimmed = part.trim()
-
-    if (part.startsWith('$$') && part.endsWith('$$')) {
-      const el = document.createElement('div')
-      el.className = 'my-2 block'
-      el.innerHTML = renderKatex(trimmed.slice(2, -2).trim(), true)
-      container.appendChild(el)
-    } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
-      const el = document.createElement('div')
-      el.className = 'my-2 block'
-      el.innerHTML = renderKatex(trimmed.slice(2, -2).trim(), true)
-      container.appendChild(el)
-    } else if (part.startsWith('$') && part.endsWith('$')) {
-      const el = document.createElement('span')
-      el.innerHTML = renderKatex(trimmed.slice(1, -1).trim(), false)
-      container.appendChild(el)
-    } else {
-      const p = document.createElement('p')
-      p.className = 'whitespace-pre-wrap break-words'
-      p.textContent = part
-      container.appendChild(p)
-    }
-  }
-}
-
-function renderCell(container: HTMLDivElement, cell: CellNode, pageId: string | null) {
-  const wrapper = document.createElement('div')
-  wrapper.className = 'my-3 rounded-lg border bg-muted/30 p-3'
-
-  const header = document.createElement('div')
-  header.className = 'mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground'
-  header.innerHTML = `<span>Celda ${cell.language}</span>`
-  wrapper.appendChild(header)
-
-  const source = document.createElement('pre')
-  source.className = 'mb-2 max-h-24 overflow-auto rounded bg-muted p-2 text-xs font-mono'
-  source.textContent = cell.source
-  wrapper.appendChild(source)
-
-  if (cell.output) {
-    const out = document.createElement('div')
-    out.className = 'rounded border bg-card p-2 text-xs'
-    out.innerHTML = `<p class="font-semibold text-muted-foreground">Output</p><pre class="whitespace-pre-wrap font-mono">${cell.output}</pre>`
-    wrapper.appendChild(out)
-  }
-
-  if (cell.figure_path && pageId) {
-    const img = document.createElement('img')
-    img.src = `/api/v1/pages/${pageId}/cells/${cell.cell_id}/figure`
-    img.alt = 'figura'
-    img.className = 'mt-2 max-h-48 rounded border object-contain'
-    wrapper.appendChild(img)
-  }
-
-  container.appendChild(wrapper)
-}
-
-function renderDocument(
-  container: HTMLDivElement,
-  latex: string,
-  ast: Page['ast'],
-  pageId: string | null,
-  values: Record<string, string>,
-) {
-  container.innerHTML = ''
-
-  if (!ast || ast.length === 0) {
-    renderMixedLatex(container, latex, values)
-    return
-  }
-
+  let html = ''
   for (const node of ast) {
     if (!node || typeof node !== 'object') continue
-    if (node.type === 'cell') {
-      renderCell(container, node as CellNode, pageId)
-    } else if (node.type === 'math') {
-      const el = document.createElement('div')
-      el.className = 'my-2 block'
-      const mode = (node as { mode?: string; latex?: string }).mode ?? 'inline'
-      const latexSource = applyParameterValues((node as { latex?: string }).latex ?? '', values)
-      el.innerHTML = renderKatex(latexSource, mode === 'display')
-      container.appendChild(el)
-    } else if (node.type === 'text') {
-      const text = applyParameterValues((node as { text?: string }).text ?? '', values)
-      const p = document.createElement('p')
-      p.className = 'whitespace-pre-wrap break-words'
-      p.textContent = text
-      container.appendChild(p)
-    } else {
-      const p = document.createElement('p')
-      p.className = 'whitespace-pre-wrap break-words'
-      p.textContent = JSON.stringify(node)
-      container.appendChild(p)
+    switch (node.type) {
+      case 'cell':
+        html += renderCell(node as CellNode, pageId)
+        break
+      case 'math':
+        html += renderMathNode(node as { latex?: string; mode?: string }, values)
+        break
+      case 'text':
+        html += renderTextNode((node as { text?: string }).text ?? '', values)
+        break
+      default:
+        html += `<p class="whitespace-pre-wrap break-words">${escapeHtml(JSON.stringify(node))}</p>`
     }
   }
+  return html
 }
 
 export function LatexPreview() {
-  const { activeLatex, activeAst, activePageId, parameterValues } = useAppStore()
-  const ref = useRef<HTMLDivElement>(null)
+  const { activeAst, activePageId, parameterValues } = useAppStore()
+  const debouncedAst = useDebouncedValue(activeAst, 150)
 
-  useEffect(() => {
-    if (!ref.current) return
-    renderDocument(ref.current, activeLatex, activeAst, activePageId, parameterValues)
-  }, [activeLatex, activeAst, activePageId, parameterValues])
+  const html = useMemo(
+    () => renderDocument(debouncedAst, activePageId, parameterValues),
+    [debouncedAst, activePageId, parameterValues],
+  )
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -154,11 +135,9 @@ export function LatexPreview() {
         </span>
       </div>
       <div
-        ref={ref}
         className="min-h-0 flex-1 overflow-auto rounded-lg border bg-card p-5 text-sm shadow-sm"
-      >
-        <p className="text-muted-foreground italic">La preview aparecerá aquí…</p>
-      </div>
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   )
 }

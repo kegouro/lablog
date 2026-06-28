@@ -23,6 +23,8 @@ def parse_latex(source: str) -> DocumentNode:
         re.DOTALL,
     )
 
+    # Matemática display $$ ... $$
+    display_block_pattern = re.compile(r"\$\$(.*?)\$\$", re.DOTALL)
     # Matemática display \[ ... \]
     display_math_pattern = re.compile(r"\\\[(.*?)\\\]", re.DOTALL)
     # Matemática inline $ ... $
@@ -66,6 +68,19 @@ def parse_latex(source: str) -> DocumentNode:
                         ),
                     )
                 )
+
+        for m in display_block_pattern.finditer(remaining):
+            matches.append(
+                (
+                    m.start(),
+                    m.end(),
+                    "math",
+                    MathNode(
+                        latex=m.group(1).strip(),
+                        mode="display",
+                    ),
+                )
+            )
 
         for m in display_math_pattern.finditer(remaining):
             matches.append(

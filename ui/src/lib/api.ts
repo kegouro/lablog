@@ -79,8 +79,11 @@ export async function appendText(pageId: string, text: string, position = -1): P
   })
 }
 
-export async function replacePageLatex(pageId: string, latex: string): Promise<void> {
-  await fetchJson(`/pages/${pageId}/replace`, {
+export async function replacePageLatex(
+  pageId: string,
+  latex: string,
+): Promise<{ status: string; latex: string; ast: Page['ast'] }> {
+  return fetchJson(`/pages/${pageId}/replace`, {
     method: 'POST',
     body: JSON.stringify({ latex }),
   })
