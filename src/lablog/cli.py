@@ -67,6 +67,12 @@ def cmd_serve(args: argparse.Namespace) -> None:
     uvicorn.run("lablog.api:app", host=args.host, port=args.port, reload=args.reload)
 
 
+def cmd_app(_args: argparse.Namespace) -> None:
+    from lablog.desktop import run
+
+    run()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lablog", description="Engine CLI de lablog")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -107,6 +113,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     serve_parser.add_argument("--reload", action="store_true", help="Recarga automática")
     serve_parser.set_defaults(func=cmd_serve)
+
+    app_parser = subparsers.add_parser(
+        "app", help="Abre lablog como app de escritorio nativa (offline)"
+    )
+    app_parser.set_defaults(func=cmd_app)
 
     args = parser.parse_args(argv)
     args.func(args)

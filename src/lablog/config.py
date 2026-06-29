@@ -6,11 +6,24 @@ Los valores se pueden sobreescribir con variables de entorno (ver `.env.example`
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def ui_dist_dir() -> Path:
+    """Ruta a la UI compilada (``ui/dist``), también dentro de un binario.
+
+    En un bundle de PyInstaller los datos viven bajo ``sys._MEIPASS``; en
+    desarrollo, en la raíz del repositorio.
+    """
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        return Path(base) / "ui" / "dist"
+    return Path(__file__).resolve().parents[2] / "ui" / "dist"
 
 
 class Settings:

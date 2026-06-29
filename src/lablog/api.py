@@ -18,7 +18,7 @@ from pydantic import BaseModel
 
 from lablog.ast_nodes import CellNode, DocumentNode
 from lablog.code_engine import CodeEngine
-from lablog.config import settings
+from lablog.config import settings, ui_dist_dir
 from lablog.event_store import EventStore
 from lablog.events import (
     Event,
@@ -794,6 +794,6 @@ def export_page(page_id: str, format: str) -> Response:
 
 app.include_router(router)
 
-_dist_dir = Path(__file__).resolve().parents[2] / "ui" / "dist"
+_dist_dir = ui_dist_dir()
 if _dist_dir.exists():
     app.mount("/", StaticFiles(directory=_dist_dir, html=True), name="static")
