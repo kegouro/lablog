@@ -22,16 +22,10 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: uv sync --extra dev
-      - name: Export static site
-        run: uv run python - <<'PY'
-          from pathlib import Path
-          from lablog.config import settings
-          from lablog.exporter import export_site
-          settings.data_dir = Path("data").resolve()
-          export_site(Path("site").resolve())
-        PY
+      - name: Build demo site
+        run: uv run python scripts/build_demo_site.py
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
