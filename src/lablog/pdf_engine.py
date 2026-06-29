@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import platform
 import re
 import shutil
 import tarfile
+import tempfile
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from lablog.ast_nodes import CellNode, DocumentNode, MathNode, Node, TextNode
@@ -206,3 +208,88 @@ def tectonic_path(*, download: bool = True) -> Path | None:
     if cached:
         return cached
     return _download_binary() if download else None
+
+
+# Task 3: Async compile + cache
+@dataclass
+class CompileResult:
+    status: str
+    pdf: bytes | None = None
+    errors: list[CompileError] = field(default_factory=list)
+    log: str = ""
+
+
+def document_hash(doc: DocumentNode, title: str) -> str:
+    tex, _m, _f = build_document(doc, title)
+    return hashlib.sha256(tex.encode("utf-8")).hexdigest()[:32]
+
+
+def cached_pdf_path(page_id: str, doc_hash: str) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_-]", "_", page_id)
+    return settings.data_dir / "pdf_cache" / safe / f"{doc_hash}.pdf"
+
+
+def _write_atomic(path: Path, data: bytes) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_bytes(data)
+    tmp.replace(path)
+
+
+async def compile_page(
+    page_id: str,
+    doc: DocumentNode,
+    title: str,
+    *,
+    figures_dir: Path,
+    timeout: float = 120.0,
+) -> CompileResult:
+    doc_hash = document_hash(doc, title)
+    cached = cached_pdf_path(page_id, doc_hash)
+    if cached.exists():
+        return CompileResult(status="ok", pdf=cached.read_bytes())
+
+    binary = tectonic_path()
+    if binary is None:
+        return CompileResult(status="no_engine", log="Tectonic no disponible")
+
+    tex, markers, figures = build_document(doc, title)
+
+    with tempfile.TemporaryDirectory() as td:
+        tdir = Path(td)
+        (tdir / "main.tex").write_text(tex, encoding="utf-8")
+        for fp in figures:
+            src = Path(fp)
+            if not src.is_absolute():
+                src = figures_dir / fp
+            if src.exists():
+                shutil.copy2(src, tdir / figure_basename(fp))
+
+        proc = await asyncio.create_subprocess_exec(
+            str(binary), "main.tex", "--outdir", str(tdir),
+            cwd=str(tdir),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        try:
+            out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+        except TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return CompileResult(status="timeout", log="Timeout de compilación")
+
+        log = out.decode("utf-8", "ignore") if out else ""
+        try:
+            (settings.data_dir / "logs").mkdir(parents=True, exist_ok=True)
+            (settings.data_dir / "logs" / "last_compile.log").write_text(
+                log, encoding="utf-8"
+            )
+        except OSError:
+            pass
+
+        pdf_file = tdir / "main.pdf"
+        if proc.returncode == 0 and pdf_file.exists():
+            data = pdf_file.read_bytes()
+            _write_atomic(cached, data)
+            return CompileResult(status="ok", pdf=data, log=log)
+        return CompileResult(status="error", errors=parse_errors(log, markers), log=log)

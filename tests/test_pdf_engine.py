@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
 import shutil
+
+import pytest
 
 from lablog import pdf_engine
 from lablog.ast_nodes import CellNode, DocumentNode, TextNode
@@ -83,3 +86,28 @@ def test_engine_status_keys() -> None:
 def test_tectonic_path_uses_path_when_present(monkeypatch) -> None:
     monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/tectonic")
     assert str(pdf_engine.tectonic_path()) == "/usr/bin/tectonic"
+
+
+# Task 3: Async compile + cache
+def test_document_hash_stable_and_sensitive() -> None:
+    a = DocumentNode(children=[TextNode(text="x")])
+    b = DocumentNode(children=[TextNode(text="y")])
+    assert pdf_engine.document_hash(a, "T") == pdf_engine.document_hash(a, "T")
+    assert pdf_engine.document_hash(a, "T") != pdf_engine.document_hash(b, "T")
+
+
+def test_cached_pdf_path_under_data_dir(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(pdf_engine.settings, "data_dir", tmp_path)
+    p = pdf_engine.cached_pdf_path("page1", "deadbeef")
+    assert p.name == "deadbeef.pdf" and "page1" in str(p)
+
+
+@pytest.mark.skipif(
+    os.getenv("LABLOG_RUN_TECTONIC_TESTS") != "1",
+    reason="set LABLOG_RUN_TECTONIC_TESTS=1 to exercise real Tectonic",
+)
+def test_real_compile_minimal(tmp_path) -> None:
+    import asyncio as _a
+    doc = DocumentNode(children=[TextNode(text="Hola $x^2$")])
+    res = _a.run(pdf_engine.compile_page("p", doc, "T", figures_dir=tmp_path))
+    assert res.status == "ok" and res.pdf and res.pdf[:4] == b"%PDF"
