@@ -915,6 +915,7 @@ desktop = [
     { name = "pywebview" },
 ]
 dev = [
+    { name = "httpx" },
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
@@ -929,6 +930,7 @@ voice = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.115" },
     { name = "faster-whisper", marker = "extra == 'voice'", specifier = ">=1.0" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27" },
     { name = "ipykernel", specifier = ">=6.29" },
     { name = "jupyter-client", specifier = ">=8.6" },
     { name = "matplotlib", specifier = ">=3.9" },
