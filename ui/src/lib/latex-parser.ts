@@ -1,5 +1,12 @@
 import type { Page } from '@/types'
 
+// Lenguajes que lablog ejecuta como celdas. Cualquier otro \begin{...}
+// (align, equation, itemize, figure, …) es LaTeX normal: se preserva como
+// texto y lo renderiza el preview. Debe coincidir con CODE_ENVIRONMENTS del backend.
+const CODE_ENVIRONMENTS = new Set([
+  'python', 'py', 'code', 'sage', 'julia', 'r', 'octave', 'bash', 'sh',
+])
+
 function extractOption(options: string, key: string): string | undefined {
   const pattern = new RegExp(`\\b${key}\\s*=\\s*([^,\\]]+)`, 'g')
   const m = pattern.exec(options)
@@ -9,6 +16,7 @@ function extractOption(options: string, key: string): string | undefined {
 export function parseLatex(source: string): Page['ast'] {
   const ast: NonNullable<Page['ast']> = []
   let remaining = source
+  let cellCounter = 0
 
   const cellPattern = /\\begin\{([a-zA-Z0-9_]+)\}\s*\[(.*?)\](.*?)\\end\{\1\}/gs
   const cellPatternNoOpts = /\\begin\{([a-zA-Z0-9_]+)\}(.*?)\\end\{\1\}/gs
@@ -25,12 +33,13 @@ export function parseLatex(source: string): Page['ast'] {
 
     for (const m of remaining.matchAll(cellPattern)) {
       if (m.index == null) continue
+      if (!CODE_ENVIRONMENTS.has(m[1])) continue
       matches.push({
         start: m.index,
         end: m.index + m[0].length,
         node: {
           type: 'cell',
-          cell_id: extractOption(m[2], 'label') || extractOption(m[2], 'id') || 'cell_1',
+          cell_id: extractOption(m[2], 'label') || extractOption(m[2], 'id') || '',
           language: m[1],
           source: m[3].trim(),
           output: '',
@@ -42,12 +51,13 @@ export function parseLatex(source: string): Page['ast'] {
     if (matches.length === 0) {
       for (const m of remaining.matchAll(cellPatternNoOpts)) {
         if (m.index == null) continue
+        if (!CODE_ENVIRONMENTS.has(m[1])) continue
         matches.push({
           start: m.index,
           end: m.index + m[0].length,
           node: {
             type: 'cell',
-            cell_id: 'cell_1',
+            cell_id: '',
             language: m[1],
             source: m[2].trim(),
             output: '',
@@ -91,6 +101,14 @@ export function parseLatex(source: string): Page['ast'] {
 
     matches.sort((a, b) => a.start - b.start)
     const { start, end, node } = matches[0]
+
+    if (node.type === 'cell') {
+      const cellNode = node as { cell_id: string }
+      if (!cellNode.cell_id) {
+        cellCounter += 1
+        cellNode.cell_id = `cell_${cellCounter}`
+      }
+    }
 
     if (start > 0) {
       ast.push({ type: 'text', text: remaining.slice(0, start) })

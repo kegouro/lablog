@@ -6,11 +6,19 @@ import re
 
 from lablog.ast_nodes import CellNode, DocumentNode, MathNode, Node, TextNode
 
+# Lenguajes que lablog ejecuta como celdas de código. Cualquier otro
+# \begin{...} (align, equation, itemize, figure, table, …) es LaTeX normal
+# y se preserva verbatim para que lo renderice el preview, no una celda.
+CODE_ENVIRONMENTS = frozenset(
+    {"python", "py", "code", "sage", "julia", "r", "octave", "bash", "sh"}
+)
+
 
 def parse_latex(source: str) -> DocumentNode:
     """Parsea un string LaTeX a un AST mínimo."""
     doc = DocumentNode()
     remaining = source
+    cell_counter = 0
 
     # Patrón para celdas ejecutables
     cell_pattern = re.compile(
@@ -36,9 +44,11 @@ def parse_latex(source: str) -> DocumentNode:
 
         for m in cell_pattern.finditer(remaining):
             lang = m.group(1)
+            if lang not in CODE_ENVIRONMENTS:
+                continue
             opts = m.group(2)
             source_code = m.group(3).strip()
-            cell_id = _extract_option(opts, "label") or _extract_option(opts, "id") or "cell_1"
+            cell_id = _extract_option(opts, "label") or _extract_option(opts, "id") or ""
             matches.append(
                 (
                     m.start(),
@@ -55,6 +65,8 @@ def parse_latex(source: str) -> DocumentNode:
         if not matches:
             for m in cell_pattern_no_opts.finditer(remaining):
                 lang = m.group(1)
+                if lang not in CODE_ENVIRONMENTS:
+                    continue
                 source_code = m.group(2).strip()
                 matches.append(
                     (
@@ -62,7 +74,7 @@ def parse_latex(source: str) -> DocumentNode:
                         m.end(),
                         "cell",
                         CellNode(
-                            cell_id="cell_1",
+                            cell_id="",
                             language=lang,
                             source=source_code,
                         ),
@@ -115,6 +127,11 @@ def parse_latex(source: str) -> DocumentNode:
         # Tomar el match más cercano al inicio
         matches.sort(key=lambda x: x[0])
         start, end, _kind, node = matches[0]
+
+        # Asigna un id único a celdas sin label (evita colisiones "cell_1").
+        if isinstance(node, CellNode) and not node.cell_id:
+            cell_counter += 1
+            node.cell_id = f"cell_{cell_counter}"
 
         if start > 0:
             doc.children.append(TextNode(text=remaining[:start]))

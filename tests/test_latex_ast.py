@@ -55,3 +55,20 @@ def test_roundtrip_cell() -> None:
     doc = parse_latex(original)
     restored = serialize_ast(doc)
     assert restored == original
+
+
+def test_math_environment_is_not_a_cell() -> None:
+    # Regresión: \begin{align} se trataba como celda ejecutable.
+    for env in ("align", "equation", "gather", "itemize", "figure", "table"):
+        src = f"\\begin{{{env}}}\nE = mc^2\n\\end{{{env}}}"
+        doc = parse_latex(src)
+        assert all(not isinstance(c, CellNode) for c in doc.children), env
+        # Se preserva verbatim para el round-trip y el preview.
+        assert serialize_ast(doc) == src, env
+
+
+def test_code_environment_is_a_cell() -> None:
+    for lang in ("python", "bash", "julia", "r"):
+        src = f"\\begin{{{lang}}}\nx = 1\n\\end{{{lang}}}"
+        doc = parse_latex(src)
+        assert any(isinstance(c, CellNode) for c in doc.children), lang

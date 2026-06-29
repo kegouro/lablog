@@ -133,19 +133,29 @@ class PageProjection:
         ]
 
     def _move_cell(self, payload: dict[str, Any]) -> None:
-        """Reubica una celda a un nuevo índice dentro de la lista de celdas."""
+        """Reordena una celda entre las demás celdas, sin alterar el resto.
+
+        Mantiene los nodos de texto en su posición: solo se reordenan las celdas
+        ocupando los mismos "slots" que ya ocupaban en el documento.
+        """
         cell_id = payload.get("cell_id")
         new_index = payload.get("new_index", 0)
-        cells = [child for child in self.ast.children if isinstance(child, CellNode)]
-        other = [child for child in self.ast.children if not isinstance(child, CellNode)]
+        children = self.ast.children
+        slots: list[int] = []
+        cells: list[CellNode] = []
+        for i, c in enumerate(children):
+            if isinstance(c, CellNode):
+                slots.append(i)
+                cells.append(c)
         try:
-            current = next(child for child in cells if child.cell_id == cell_id)
+            current = next(j for j, c in enumerate(cells) if c.cell_id == cell_id)
         except StopIteration:
             return
-        cells.remove(current)
-        new_index = max(0, min(new_index, len(cells)))
-        cells.insert(new_index, current)
-        self.ast.children = other + cells
+        new_index = max(0, min(new_index, len(cells) - 1))
+        moved = cells.pop(current)
+        cells.insert(new_index, moved)
+        for slot, cell in zip(slots, cells, strict=True):
+            children[slot] = cell
 
 
 def project(page_id: str, events: list[Event]) -> PageProjection:
