@@ -1,8 +1,8 @@
-import katex from 'katex'
 import 'katex/dist/katex.min.css'
 import { useMemo } from 'react'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { renderLatexToHtml } from '@/lib/latex-render'
 import { useAppStore } from '@/stores/app-store'
 import type { CellNode, Page } from '@/types'
 
@@ -11,49 +11,6 @@ function escapeHtml(text: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-}
-
-function applyParameterValues(text: string, values: Record<string, string>): string {
-  return text.replace(/\{\{(\w+)\}\}/g, (_, name) => values[name] ?? `{{${name}}}`)
-}
-
-function renderKatex(latex: string, displayMode: boolean): string {
-  try {
-    return katex.renderToString(latex, { throwOnError: false, displayMode })
-  } catch {
-    return escapeHtml(latex)
-  }
-}
-
-function renderTextNode(text: string, values: Record<string, string>): string {
-  text = applyParameterValues(text, values)
-  if (!text.trim()) return ''
-
-  const parts = text.split(/(\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\$[\s\S]*?\$)/g)
-  let html = ''
-
-  for (const part of parts) {
-    if (!part) continue
-    const trimmed = part.trim()
-
-    if (part.startsWith('$$') && part.endsWith('$$')) {
-      html += `<div class="my-2 block">${renderKatex(trimmed.slice(2, -2).trim(), true)}</div>`
-    } else if (part.startsWith('\\[') && part.endsWith('\\]')) {
-      html += `<div class="my-2 block">${renderKatex(trimmed.slice(2, -2).trim(), true)}</div>`
-    } else if (part.startsWith('$') && part.endsWith('$')) {
-      html += `<span>${renderKatex(trimmed.slice(1, -1).trim(), false)}</span>`
-    } else {
-      html += `<p class="whitespace-pre-wrap break-words">${escapeHtml(part)}</p>`
-    }
-  }
-
-  return html
-}
-
-function renderMathNode(node: { latex?: string; mode?: string }, values: Record<string, string>): string {
-  const source = applyParameterValues(node.latex ?? '', values)
-  const displayMode = node.mode === 'display'
-  return `<div class="my-2 block">${renderKatex(source, displayMode)}</div>`
 }
 
 function renderCell(cell: CellNode, pageId: string | null): string {
@@ -98,23 +55,30 @@ function renderDocument(
       </div>`
   }
 
+  // Reconstruye el LaTeX de nodos texto+matemática contiguos y los renderiza
+  // como un solo bloque, para que la matemática inline fluya dentro del párrafo
+  // y los entornos (itemize, …) no lleguen fragmentados. Las celdas, que llevan
+  // output/figura del AST, se renderizan aparte.
   let html = ''
+  let buffer = ''
+  const flush = () => {
+    if (buffer.trim()) html += renderLatexToHtml(buffer, values)
+    buffer = ''
+  }
   for (const node of ast) {
     if (!node || typeof node !== 'object') continue
-    switch (node.type) {
-      case 'cell':
-        html += renderCell(node as CellNode, pageId)
-        break
-      case 'math':
-        html += renderMathNode(node as { latex?: string; mode?: string }, values)
-        break
-      case 'text':
-        html += renderTextNode((node as { text?: string }).text ?? '', values)
-        break
-      default:
-        html += `<p class="whitespace-pre-wrap break-words">${escapeHtml(JSON.stringify(node))}</p>`
+    if (node.type === 'cell') {
+      flush()
+      html += renderCell(node as CellNode, pageId)
+    } else if (node.type === 'math') {
+      const m = node as { latex?: string; mode?: string }
+      const src = m.latex ?? ''
+      buffer += m.mode === 'display' ? `\n\n\\[${src}\\]\n\n` : `$${src}$`
+    } else if (node.type === 'text') {
+      buffer += (node as { text?: string }).text ?? ''
     }
   }
+  flush()
   return html
 }
 
