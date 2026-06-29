@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { toast } from 'sonner'
-import { exportPage, exportPages, replacePageLatex } from '@/lib/api'
+import { compilePdf, exportPage, exportPages, replacePageLatex, PdfCompileError } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
 const FORMATS = [
@@ -36,6 +36,25 @@ export function ExportMenu() {
     }
 
     if (!activePageId) return
+
+    if (format === 'pdf') {
+      try {
+        const blob = await compilePdf(activePageId)
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = 'lablog.pdf'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(url)
+      } catch (err) {
+        console.error(err)
+        toast.error(err instanceof PdfCompileError ? err.message : 'Error al compilar PDF')
+      }
+      return
+    }
+
     try {
       // Congelar placeholders automáticamente antes de exportar
       const hasPlaceholders = /\{\{\w+\}\}/.test(activeLatex)

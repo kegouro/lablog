@@ -1,10 +1,14 @@
 import 'katex/dist/katex.min.css'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { renderLatexToHtml } from '@/lib/latex-render'
+import { compilePdf, pdfEngineStatus, PdfCompileError, type PdfError } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 import type { CellNode, Page } from '@/types'
+import { Button } from '@/components/ui/button'
+import { FileText, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 function escapeHtml(text: string): string {
   return text
@@ -86,22 +90,84 @@ export function LatexPreview() {
   const { activeAst, activePageId, parameterValues } = useAppStore()
   const debouncedAst = useDebouncedValue(activeAst, 150)
 
+  const [compiling, setCompiling] = useState(false)
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null)
+  const [errors, setErrors] = useState<PdfError[]>([])
+
   const html = useMemo(
     () => renderDocument(debouncedAst, activePageId, parameterValues),
     [debouncedAst, activePageId, parameterValues],
   )
 
+  const handleCompile = async () => {
+    if (!activePageId || compiling) return
+    setErrors([])
+    try {
+      const st = await pdfEngineStatus()
+      if (!st.binary_ready) toast.info('Primera vez: preparando el motor (~1 min)')
+    } catch { /* sigue */ }
+    setCompiling(true)
+    try {
+      const blob = await compilePdf(activePageId)
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl)
+      setPdfUrl(URL.createObjectURL(blob))
+    } catch (e) {
+      if (e instanceof PdfCompileError) setErrors(e.errors)
+      toast.error(e instanceof Error ? e.message : 'Error al compilar')
+    } finally {
+      setCompiling(false)
+    }
+  }
+
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="flex items-center justify-between px-1">
-        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-          Vista previa
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+            Vista previa
+          </span>
+          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+            Aproximada
+          </span>
+        </div>
+        <Button variant="outline" size="sm" className="h-7 gap-1.5 text-xs" disabled={!activePageId || compiling} onClick={handleCompile}>
+          {compiling ? <Loader2 className="size-3.5 animate-spin" /> : <FileText className="size-3.5" />}
+          Compilar PDF
+        </Button>
       </div>
-      <div
-        className="min-h-0 flex-1 overflow-auto rounded-lg border bg-card p-5 text-sm shadow-sm"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+
+      {errors.length > 0 && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-2 text-xs">
+          <p className="mb-1 font-semibold text-destructive">Errores de compilación</p>
+          <ul className="space-y-0.5">
+            {errors.map((e, i) => (
+              <li key={i} className="font-mono">
+                {e.kind === 'cell' ? `Celda ${e.ref}` : 'Documento'}
+                {e.source_line != null ? ` · línea ${e.source_line}` : ''}: {e.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="relative min-h-0 flex-1">
+        <div
+          className="h-full overflow-auto rounded-lg border bg-card p-5 text-sm shadow-sm"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+        {pdfUrl && (
+          <div className="absolute inset-0 z-30 flex flex-col bg-card">
+            <div className="flex items-center justify-between border-b px-2 py-1">
+              <span className="text-xs font-medium">PDF compilado</span>
+              <div className="flex gap-1">
+                <a className="text-xs underline" href={pdfUrl} download="lablog.pdf">Descargar</a>
+                <button className="text-xs" onClick={() => { URL.revokeObjectURL(pdfUrl); setPdfUrl(null) }}>Cerrar</button>
+              </div>
+            </div>
+            <iframe src={pdfUrl} title="PDF" className="min-h-0 flex-1" />
+          </div>
+        )}
+      </div>
     </div>
   )
 }
