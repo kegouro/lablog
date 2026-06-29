@@ -18,6 +18,10 @@
   <a href="#license"><img alt="license" src="https://img.shields.io/badge/license-MIT-1C1C1E?style=flat-square&labelColor=1C1C1E&color=F2F2F7" /></a>
 </p>
 
+<p>
+  <a href="https://kegouro.github.io/lablog/"><img alt="Live preview" src="https://img.shields.io/badge/live%20preview-kegouro.github.io%2Flablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
+</p>
+
 <sub>Part of the <strong>Pharos Project</strong> &middot; José Labarca Baeza &middot; USM, Valparaíso</sub>
 
 </div>
