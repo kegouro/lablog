@@ -1,5 +1,8 @@
+import { ArrowDown, ArrowUp, Replace, Search, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { getPage, replacePageLatex } from '@/lib/api'
 import { parseLatex } from '@/lib/latex-parser'
@@ -22,6 +25,8 @@ function escapeHtml(text: string) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 const PARAM_COLORS = [
@@ -49,6 +54,8 @@ function buildOverlayHtml(text: string, hints: Record<string, { description: str
   })
 }
 
+const CLOSERS: Record<string, string> = { '{': '}', '(': ')', '[': ']', '$': '$' }
+
 export function LatexEditor() {
   const {
     activePageId,
@@ -56,17 +63,38 @@ export function LatexEditor() {
     setActiveLatex,
     setActiveAst,
     parameterHints,
+    setInsertAtCursor,
   } = useAppStore()
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const gutterRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
+  // Historial undo/redo (cubre tipeo e inserciones programáticas).
+  const valueRef = useRef('')
+  const undoRef = useRef<string[]>([])
+  const redoRef = useRef<string[]>([])
+  const lastPushRef = useRef(0)
+
+  // Buscar / reemplazar
+  const [findOpen, setFindOpen] = useState(false)
+  const [findQuery, setFindQuery] = useState('')
+  const [replaceText, setReplaceText] = useState('')
+  const findInputRef = useRef<HTMLInputElement>(null)
+
+  const resetHistory = (value: string) => {
+    valueRef.current = value
+    undoRef.current = []
+    redoRef.current = []
+    lastPushRef.current = 0
+  }
+
   useEffect(() => {
     if (!activePageId) {
       setActiveLatex('')
       setActiveAst(undefined)
       setStatus('idle')
+      resetHistory('')
       return
     }
     setStatus('idle')
@@ -74,10 +102,12 @@ export function LatexEditor() {
       .then((page) => {
         setActiveLatex(page.latex)
         setActiveAst(page.ast)
+        resetHistory(page.latex)
       })
       .catch(() => {
         setActiveLatex('')
         setActiveAst(undefined)
+        resetHistory('')
       })
   }, [activePageId, setActiveLatex, setActiveAst])
 
@@ -98,11 +128,193 @@ export function LatexEditor() {
 
   const debouncedSave = useMemo(() => debounce(save, 600), [save])
 
-  const handleChange = (value: string) => {
-    setActiveLatex(value)
-    setActiveAst(parseLatex(value))
-    setStatus('saving')
-    debouncedSave(value)
+  const applyValue = useCallback(
+    (value: string, caret?: number) => {
+      valueRef.current = value
+      setActiveLatex(value)
+      setActiveAst(parseLatex(value))
+      setStatus('saving')
+      debouncedSave(value)
+      if (caret != null) {
+        requestAnimationFrame(() => {
+          const ta = textareaRef.current
+          if (ta) {
+            ta.focus()
+            ta.setSelectionRange(caret, caret)
+          }
+        })
+      }
+    },
+    [setActiveLatex, setActiveAst, debouncedSave],
+  )
+
+  const commit = useCallback(
+    (value: string, caret?: number) => {
+      // Empuja el estado previo al stack de undo, coalescido por ráfagas de tipeo.
+      const now = Date.now()
+      if (now - lastPushRef.current >= 600 || undoRef.current.length === 0) {
+        undoRef.current.push(valueRef.current)
+        if (undoRef.current.length > 200) undoRef.current.shift()
+      }
+      lastPushRef.current = now
+      redoRef.current = []
+      applyValue(value, caret)
+    },
+    [applyValue],
+  )
+
+  const undo = useCallback(() => {
+    if (undoRef.current.length === 0) return
+    const prev = undoRef.current.pop() as string
+    redoRef.current.push(valueRef.current)
+    lastPushRef.current = 0
+    applyValue(prev)
+  }, [applyValue])
+
+  const redo = useCallback(() => {
+    if (redoRef.current.length === 0) return
+    const next = redoRef.current.pop() as string
+    undoRef.current.push(valueRef.current)
+    lastPushRef.current = 0
+    applyValue(next)
+  }, [applyValue])
+
+  const handleChange = (value: string) => commit(value)
+
+  const findNext = useCallback(
+    (forward = true) => {
+      const ta = textareaRef.current
+      if (!ta || !findQuery) return
+      const hay = ta.value.toLowerCase()
+      const needle = findQuery.toLowerCase()
+      let idx: number
+      if (forward) {
+        idx = hay.indexOf(needle, ta.selectionEnd)
+        if (idx === -1) idx = hay.indexOf(needle, 0) // wrap
+      } else {
+        idx = hay.lastIndexOf(needle, Math.max(0, ta.selectionStart - 1))
+        if (idx === -1) idx = hay.lastIndexOf(needle)
+      }
+      if (idx === -1) return
+      ta.focus()
+      ta.setSelectionRange(idx, idx + findQuery.length)
+    },
+    [findQuery],
+  )
+
+  const replaceCurrent = useCallback(() => {
+    const ta = textareaRef.current
+    if (!ta || !findQuery) return
+    const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd)
+    if (sel.toLowerCase() === findQuery.toLowerCase()) {
+      const caret = ta.selectionStart + replaceText.length
+      const next = ta.value.slice(0, ta.selectionStart) + replaceText + ta.value.slice(ta.selectionEnd)
+      commit(next, caret)
+      requestAnimationFrame(() => findNext(true))
+    } else {
+      findNext(true)
+    }
+  }, [findQuery, replaceText, commit, findNext])
+
+  const replaceAll = useCallback(() => {
+    if (!findQuery) return
+    const re = new RegExp(findQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+    const next = valueRef.current.replace(re, replaceText)
+    if (next !== valueRef.current) commit(next)
+  }, [findQuery, replaceText, commit])
+
+  const matchCount = useMemo(() => {
+    if (!findQuery) return 0
+    const re = new RegExp(findQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+    return (activeLatex.match(re) || []).length
+  }, [activeLatex, findQuery])
+
+  const openFind = useCallback(() => {
+    const ta = textareaRef.current
+    const sel = ta ? ta.value.slice(ta.selectionStart, ta.selectionEnd) : ''
+    if (sel && !sel.includes('\n')) setFindQuery(sel)
+    setFindOpen(true)
+    requestAnimationFrame(() => findInputRef.current?.select())
+  }, [])
+
+  // Inserta/envuelve en la selección actual del textarea.
+  const replaceSelection = useCallback(
+    (before: string, after = '', placeholder = '') => {
+      const ta = textareaRef.current
+      if (!ta) return
+      const start = ta.selectionStart
+      const end = ta.selectionEnd
+      const value = ta.value
+      const selected = value.slice(start, end) || placeholder
+      const inserted = before + selected + after
+      const next = value.slice(0, start) + inserted + value.slice(end)
+      // Selección: si había texto, cursor tras el cierre; si no, dentro.
+      const caret = start + before.length + selected.length
+      commit(next, caret)
+    },
+    [commit],
+  )
+
+  // Registro para que paneles de símbolos/snippets inserten en el cursor.
+  useEffect(() => {
+    setInsertAtCursor((text: string) => replaceSelection(text))
+    return () => setInsertAtCursor(null)
+  }, [replaceSelection, setInsertAtCursor])
+
+  // Resincroniza el baseline de undo si activeLatex cambia por fuera (dictado).
+  useEffect(() => {
+    if (activeLatex !== valueRef.current) valueRef.current = activeLatex
+  }, [activeLatex])
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const ta = e.currentTarget
+    const mod = e.metaKey || e.ctrlKey
+
+    if (mod && e.key.toLowerCase() === 'z') {
+      e.preventDefault()
+      if (e.shiftKey) redo()
+      else undo()
+      return
+    }
+    if (mod && e.key.toLowerCase() === 'y') {
+      e.preventDefault()
+      redo()
+      return
+    }
+    if (mod && (e.key.toLowerCase() === 'f' || e.key.toLowerCase() === 'h')) {
+      e.preventDefault()
+      openFind()
+      return
+    }
+    if (e.key === 'Escape' && findOpen) {
+      setFindOpen(false)
+      return
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault()
+      replaceSelection('  ')
+      return
+    }
+    if (mod && e.key.toLowerCase() === 'b') {
+      e.preventDefault()
+      replaceSelection('\\textbf{', '}', 'texto')
+      return
+    }
+    if (mod && e.key.toLowerCase() === 'i') {
+      e.preventDefault()
+      replaceSelection('\\textit{', '}', 'texto')
+      return
+    }
+    if (mod && e.key.toLowerCase() === 'e') {
+      e.preventDefault()
+      replaceSelection('$', '$', 'x')
+      return
+    }
+    // Auto-cierre de delimitadores al rodear una selección.
+    if (CLOSERS[e.key] && ta.selectionStart !== ta.selectionEnd) {
+      e.preventDefault()
+      replaceSelection(e.key, CLOSERS[e.key])
+    }
   }
 
   const syncScroll = () => {
@@ -167,6 +379,70 @@ export function LatexEditor() {
           </div>
         </div>
 
+        {findOpen && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-card/80 p-1.5 shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                ref={findInputRef}
+                value={findQuery}
+                onChange={(e) => setFindQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    findNext(!e.shiftKey)
+                  } else if (e.key === 'Escape') {
+                    setFindOpen(false)
+                  }
+                }}
+                placeholder="Buscar…"
+                className="h-7 w-40 pl-7 text-xs"
+              />
+            </div>
+            <span className="min-w-10 text-center text-[10px] tabular-nums text-muted-foreground">
+              {matchCount}
+            </span>
+            <Button variant="ghost" size="icon" className="size-7" title="Anterior" onClick={() => findNext(false)}>
+              <ArrowUp className="size-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="size-7" title="Siguiente (Enter)" onClick={() => findNext(true)}>
+              <ArrowDown className="size-3.5" />
+            </Button>
+            <div className="relative">
+              <Replace className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={replaceText}
+                onChange={(e) => setReplaceText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    replaceCurrent()
+                  } else if (e.key === 'Escape') {
+                    setFindOpen(false)
+                  }
+                }}
+                placeholder="Reemplazar…"
+                className="h-7 w-40 pl-7 text-xs"
+              />
+            </div>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={replaceCurrent}>
+              Uno
+            </Button>
+            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={replaceAll}>
+              Todo
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto size-7"
+              title="Cerrar (Esc)"
+              onClick={() => setFindOpen(false)}
+            >
+              <X className="size-3.5" />
+            </Button>
+          </div>
+        )}
+
         <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/50 shadow-sm">
           <div
             ref={gutterRef}
@@ -193,6 +469,7 @@ export function LatexEditor() {
             ref={textareaRef}
             value={activeLatex}
             onChange={(e) => handleChange(e.target.value)}
+            onKeyDown={handleKeyDown}
             onScroll={syncScroll}
             className="relative z-30 h-full flex-1 resize-none overflow-auto rounded-none border-0 bg-transparent py-3 pl-12 pr-4 font-mono text-sm leading-6 text-foreground shadow-none focus-visible:ring-0"
             placeholder="Escribe tu bitácora en LaTeX...\n\section{Introducción}\nLa energía se conserva: $E = mc^2$."

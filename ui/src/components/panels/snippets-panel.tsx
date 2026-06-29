@@ -88,6 +88,7 @@ function SnippetCard({ snippet }: { snippet: Snippet }) {
     setPanel,
     setParameterHints,
     setParameterValue,
+    insertAtCursor,
   } = useAppStore()
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -114,8 +115,6 @@ function SnippetCard({ snippet }: { snippet: Snippet }) {
 
   const insert = async () => {
     const code = templateToPlaceholders(snippet.template)
-    const next = activeLatex ? `${activeLatex}\n${code}` : code
-    setActiveLatex(next)
 
     // Registrar hints y valores por defecto para el panel de parámetros
     const hints = Object.fromEntries(
@@ -134,8 +133,13 @@ function SnippetCard({ snippet }: { snippet: Snippet }) {
       setParameterValue(name, values[name] ?? value)
     }
 
-    if (activePageId) {
-      await replacePageLatex(activePageId, next)
+    // Inserta en el cursor (el editor persiste); si no hay editor, añade al final.
+    if (insertAtCursor) {
+      insertAtCursor(code)
+    } else {
+      const next = activeLatex ? `${activeLatex}\n${code}` : code
+      setActiveLatex(next)
+      if (activePageId) await replacePageLatex(activePageId, next)
     }
     setOpen(false)
     setPanel('snippets', false)

@@ -222,7 +222,7 @@ export async function addFavorite(symbolId: string): Promise<void> {
 }
 
 export async function removeFavorite(symbolId: string): Promise<void> {
-  await fetch(`/latex-symbols/favorites/${symbolId}`, { method: 'DELETE' })
+  await fetchJson(`/latex-symbols/favorites/${symbolId}`, { method: 'DELETE' })
 }
 
 export async function exportPage(pageId: string, format: string): Promise<Blob> {

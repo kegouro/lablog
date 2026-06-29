@@ -30,6 +30,8 @@ interface AppState {
   transcription: string
   parameterHints: Record<string, ParameterHint>
   parameterValues: Record<string, string>
+  /** Registrado por el editor: inserta texto en la posición del cursor. */
+  insertAtCursor: ((text: string) => void) | null
   setPages: (pages: Page[]) => void
   setActivePageId: (id: string | null) => void
   setActiveLatex: (latex: string) => void
@@ -52,6 +54,15 @@ interface AppState {
   setParameterHints: (hints: Record<string, ParameterHint>) => void
   setParameterValue: (name: string, value: string) => void
   clearParameters: () => void
+  setInsertAtCursor: (fn: ((text: string) => void) | null) => void
+}
+
+function persist(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // localStorage no disponible (navegación privada)
+  }
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -83,20 +94,28 @@ export const useAppStore = create<AppState>((set) => ({
   transcription: '',
   parameterHints: {},
   parameterValues: {},
+  insertAtCursor: null,
   setPages: (pages) => set({ pages }),
   setActivePageId: (id) => set({ activePageId: id }),
   setActiveLatex: (activeLatex) => set({ activeLatex }),
   setActiveAst: (activeAst) => set({ activeAst }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   togglePanel: (id) =>
-    set((state) => ({
-      panels: { ...state.panels, [id]: !state.panels[id] },
-    })),
+    set((state) => {
+      const panels = { ...state.panels, [id]: !state.panels[id] }
+      persist('lablog-panels', JSON.stringify(panels))
+      return { panels }
+    }),
   setPanel: (id, open) =>
-    set((state) => ({
-      panels: { ...state.panels, [id]: open },
-    })),
-  setLabMode: (active) => set({ labMode: active }),
+    set((state) => {
+      const panels = { ...state.panels, [id]: open }
+      persist('lablog-panels', JSON.stringify(panels))
+      return { panels }
+    }),
+  setLabMode: (active) => {
+    persist('lablog-labMode', String(active))
+    set({ labMode: active })
+  },
   setTheme: (theme) => set({ theme }),
   setAccent: (accent) => set({ accent }),
   setPalette: (palette) => set({ palette }),
@@ -114,4 +133,5 @@ export const useAppStore = create<AppState>((set) => ({
       parameterValues: { ...state.parameterValues, [name]: value },
     })),
   clearParameters: () => set({ parameterHints: {}, parameterValues: {} }),
+  setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
 }))

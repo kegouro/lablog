@@ -1,9 +1,12 @@
 import { Search, Star, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
+import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { addFavorite, removeFavorite } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
 const CATEGORIES = ['all', 'greek', 'operators', 'arrows', 'relations', 'delimiters', 'accents']
@@ -14,6 +17,7 @@ export function SymbolsPanel() {
     favorites,
     setFavorites,
     togglePanel,
+    insertAtCursor,
     setActiveLatex,
     activeLatex,
   } = useAppStore()
@@ -42,17 +46,21 @@ export function SymbolsPanel() {
   }, [symbols, favorites, mode, category, query])
 
   const insert = (latex: string) => {
-    setActiveLatex(activeLatex + latex)
+    if (insertAtCursor) insertAtCursor(latex)
+    else setActiveLatex(activeLatex + latex)
   }
 
   const toggleFavorite = (id: string) => {
+    const wasFav = favorites.includes(id)
     const next = new Set(favorites)
-    if (next.has(id)) {
-      next.delete(id)
-    } else {
-      next.add(id)
-    }
-    setFavorites(Array.from(next))
+    if (wasFav) next.delete(id)
+    else next.add(id)
+    setFavorites(Array.from(next)) // optimista
+    const action = wasFav ? removeFavorite(id) : addFavorite(id)
+    action.catch(() => {
+      setFavorites(favorites) // revierte
+      toast.error('No se pudo guardar el favorito')
+    })
   }
 
   return (
