@@ -35,7 +35,12 @@ export function WelcomeDialog() {
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    const dismissed = localStorage.getItem('lablog-welcome-dismissed')
+    let dismissed: string | null = null
+    try {
+      dismissed = localStorage.getItem('lablog-welcome-dismissed')
+    } catch {
+      // localStorage no disponible (p.ej. navegación privada)
+    }
     if (dismissed !== 'true') {
       setOpen(true)
     }
@@ -43,7 +48,11 @@ export function WelcomeDialog() {
 
   const dismiss = (permanent: boolean) => {
     if (permanent) {
-      localStorage.setItem('lablog-welcome-dismissed', 'true')
+      try {
+        localStorage.setItem('lablog-welcome-dismissed', 'true')
+      } catch {
+        // ignore
+      }
     }
     setOpen(false)
   }

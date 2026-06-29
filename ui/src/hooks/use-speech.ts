@@ -49,11 +49,15 @@ interface SpeechHook {
   stop: () => void
 }
 
+// ponytail: tope de sesión; el reconocedor puede colgarse sin emitir onend.
+const MAX_SESSION_MS = 120_000
+
 export function useSpeechRecognition(): SpeechHook {
   const [listening, setListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const supported =
     typeof window !== 'undefined' &&
@@ -78,6 +82,7 @@ export function useSpeechRecognition(): SpeechHook {
 
     recognition.onend = () => {
       setListening(false)
+      if (timerRef.current) clearTimeout(timerRef.current)
     }
 
     recognition.onerror = (event) => {
@@ -130,12 +135,22 @@ export function useSpeechRecognition(): SpeechHook {
     setError(null)
     try {
       recognitionRef.current?.start()
+      if (timerRef.current) clearTimeout(timerRef.current)
+      timerRef.current = setTimeout(() => {
+        try {
+          recognitionRef.current?.stop()
+        } catch {
+          // ignore
+        }
+        setListening(false)
+      }, MAX_SESSION_MS)
     } catch {
       setError('No se pudo iniciar el dictado')
     }
   }, [])
 
   const stop = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current)
     try {
       recognitionRef.current?.stop()
     } catch {

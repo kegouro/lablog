@@ -63,6 +63,11 @@ export function SettingsDialog() {
   const [open, setOpen] = useState(false)
   const [draftColors, setDraftColors] = useState(customColors)
 
+  // Sincroniza el borrador cuando los colores llegan desde localStorage (async).
+  useEffect(() => {
+    setDraftColors(customColors)
+  }, [customColors])
+
   useEffect(() => {
     document.documentElement.style.fontSize = `${fontScale}%`
   }, [fontScale])
@@ -100,8 +105,11 @@ export function SettingsDialog() {
 
   const updateColor = (key: string, value: string) => {
     const next = { ...draftColors, [key]: value }
-    setDraftColors(next)
-    setCustomColors(next)
+    setDraftColors(next) // refleja lo que escribe el usuario
+    // Solo persiste/aplica si es hex válido o vacío (no romper el CSS con basura).
+    if (value === '' || /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
+      setCustomColors(next)
+    }
   }
 
   return (

@@ -42,8 +42,9 @@ export function ExportMenu() {
       let source = activeLatex
       if (hasPlaceholders) {
         source = activeLatex.replace(/\{\{(\w+)\}\}/g, (_, name) => parameterValues[name] ?? `{{${name}}}`)
-        setActiveLatex(source)
-        await replacePageLatex(activePageId, source)
+        // Persiste primero; solo refleja en la UI si el servidor lo aceptó.
+        const result = await replacePageLatex(activePageId, source)
+        setActiveLatex(result.latex)
       }
 
       const blob = await exportPage(activePageId, format)

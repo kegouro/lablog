@@ -12,6 +12,8 @@ import {
 } from 'lucide-react'
 import { useRef, useState } from 'react'
 
+import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -62,8 +64,16 @@ export function VaultPanel() {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleUpload = async (file: File) => {
-    const uploaded = await uploadVaultFile(file)
-    setVaultFiles([uploaded, ...vaultFiles])
+    try {
+      const uploaded = await uploadVaultFile(file)
+      setVaultFiles([uploaded, ...vaultFiles])
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo subir el archivo')
+    } finally {
+      // Permite re-subir el mismo archivo (el input no dispara onChange si no cambia).
+      if (inputRef.current) inputRef.current.value = ''
+    }
   }
 
   const handleDrop = async (e: React.DragEvent) => {
@@ -74,18 +84,30 @@ export function VaultPanel() {
   }
 
   const handleDelete = async (id: string) => {
-    await requestVaultDeletion(id)
-    setVaultFiles(
-      vaultFiles.map((f) => (f.id === id ? { ...f, status: 'pending_deletion' as const } : f)),
-    )
-    if (preview?.fileId === id) setPreview(null)
+    try {
+      await requestVaultDeletion(id)
+      setVaultFiles(
+        vaultFiles.map((f) => (f.id === id ? { ...f, status: 'pending_deletion' as const } : f)),
+      )
+      if (preview?.fileId === id) setPreview(null)
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo programar el borrado')
+    }
   }
 
   const handleCancelDelete = async (id: string) => {
-    await cancelVaultDeletion(id)
-    setVaultFiles(
-      vaultFiles.map((f) => (f.id === id ? { ...f, status: 'active' as const, scheduled_for_deletion_at: null } : f)),
-    )
+    try {
+      await cancelVaultDeletion(id)
+      setVaultFiles(
+        vaultFiles.map((f) =>
+          f.id === id ? { ...f, status: 'active' as const, scheduled_for_deletion_at: null } : f,
+        ),
+      )
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo restaurar el archivo')
+    }
   }
 
   const handlePreview = async (file: { id: string; mime_type: string }) => {

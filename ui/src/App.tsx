@@ -8,13 +8,26 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app-store'
 
 function AppInitializer() {
-  const { setFontScale, setAccent, setPalette, setCustomColors } = useAppStore()
+  const { setFontScale, setAccent, setPalette, setCustomColors, setLabMode, setPanel } =
+    useAppStore()
 
   useEffect(() => {
-    const savedScale = localStorage.getItem('lablog-fontScale')
-    const savedAccent = localStorage.getItem('lablog-accent')
-    const savedPalette = localStorage.getItem('lablog-palette')
-    const savedCustom = localStorage.getItem('lablog-custom-colors')
+    let savedScale: string | null = null
+    let savedAccent: string | null = null
+    let savedPalette: string | null = null
+    let savedCustom: string | null = null
+    let savedLabMode: string | null = null
+    let savedPanels: string | null = null
+    try {
+      savedScale = localStorage.getItem('lablog-fontScale')
+      savedAccent = localStorage.getItem('lablog-accent')
+      savedPalette = localStorage.getItem('lablog-palette')
+      savedCustom = localStorage.getItem('lablog-custom-colors')
+      savedLabMode = localStorage.getItem('lablog-labMode')
+      savedPanels = localStorage.getItem('lablog-panels')
+    } catch {
+      // localStorage no disponible
+    }
     if (savedScale) setFontScale(Number(savedScale))
     if (savedAccent) {
       setAccent(savedAccent)
@@ -32,7 +45,18 @@ function AppInitializer() {
         // ignore
       }
     }
-  }, [setFontScale, setAccent, setPalette, setCustomColors])
+    if (savedLabMode === 'true') setLabMode(true)
+    if (savedPanels) {
+      try {
+        const panels = JSON.parse(savedPanels) as Record<string, boolean>
+        for (const [id, open] of Object.entries(panels)) {
+          setPanel(id as Parameters<typeof setPanel>[0], open)
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }, [setFontScale, setAccent, setPalette, setCustomColors, setLabMode, setPanel])
 
   return null
 }
