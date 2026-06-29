@@ -57,8 +57,15 @@ router = APIRouter(prefix="/api/v1")
 
 
 @router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "tools": {
+            "pandoc": which("pandoc") is not None,
+            "xelatex": which("xelatex") is not None,
+            "pdflatex": which("pdflatex") is not None,
+        },
+    }
 
 
 @router.post("/export")
@@ -334,7 +341,14 @@ def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
     result = get_engine().execute(cell.source, figure_dir=figure_dir)
 
     output_text = result.text
-    figure_path = result.figure_paths[0] if result.figure_paths else None
+    figure_path: str | None = None
+    if result.figure_paths:
+        # Guarda la ruta RELATIVA a figures_dir: sobrevive a mover el data dir.
+        abs_path = Path(result.figure_paths[0])
+        try:
+            figure_path = str(abs_path.relative_to(settings.figures_dir))
+        except ValueError:
+            figure_path = str(abs_path)
     store.append(
         cell_executed(
             page_id=page_id,
@@ -389,7 +403,13 @@ def get_cell_figure(page_id: str, cell_id: str) -> Response:
     if cell is None or not cell.figure_path:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Figura no encontrada")
 
-    path = Path(cell.figure_path)
+    # Rutas relativas se resuelven contra figures_dir; las absolutas (legado) se
+    # usan tal cual. En ambos casos se exige que queden dentro de figures_dir.
+    raw = Path(cell.figure_path)
+    figures_root = settings.figures_dir.resolve()
+    path = (raw if raw.is_absolute() else figures_root / raw).resolve()
+    if figures_root not in path.parents:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Figura no encontrada")
     if not path.exists():
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Archivo de figura no existe")
 
@@ -485,14 +505,22 @@ def _vault_summary(vf: VaultFile) -> VaultSummary:
     )
 
 
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100 MB
+
+
 @router.post("/vault", status_code=status.HTTP_201_CREATED, response_model=VaultSummary)
 async def upload_vault_file(file: Annotated[UploadFile, File(...)]) -> VaultSummary:
-    if not file.filename:
+    # Solo el nombre base: bloquea path traversal vía filename ("../../x").
+    safe_name = Path(file.filename or "").name
+    if not safe_name:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Nombre de archivo requerido")
+    content = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Archivo demasiado grande")
     temp_path = settings.vault_dir / "tmp_upload"
     temp_path.mkdir(parents=True, exist_ok=True)
-    dest = temp_path / file.filename
-    dest.write_bytes(await file.read())
+    dest = temp_path / safe_name
+    dest.write_bytes(content)
     try:
         vf = vault.add_file(dest)
     finally:
@@ -587,6 +615,25 @@ def purge_vault() -> dict[str, int]:
     return {"purged": len(expired)}
 
 
+_LATEX_ESCAPES = {
+    "\\": "\\textbackslash{}",
+    "&": "\\&",
+    "%": "\\%",
+    "$": "\\$",
+    "#": "\\#",
+    "_": "\\_",
+    "{": "\\{",
+    "}": "\\}",
+    "~": "\\textasciitilde{}",
+    "^": "\\textasciicircum{}",
+}
+
+
+def _escape_latex(text: str) -> str:
+    """Escapa caracteres especiales de LaTeX (evita inyección desde el título)."""
+    return "".join(_LATEX_ESCAPES.get(ch, ch) for ch in text)
+
+
 def _latex_document(latex: str, title: str) -> str:
     return (
         "\\documentclass{article}\n"
@@ -594,7 +641,7 @@ def _latex_document(latex: str, title: str) -> str:
         "\\usepackage{amsmath,amssymb}\n"
         "\\usepackage{graphicx}\n"
         "\\begin{document}\n"
-        f"\\title{{{title}}}\\maketitle\n"
+        f"\\title{{{_escape_latex(title)}}}\\maketitle\n"
         f"{latex}\n"
         "\\end{document}\n"
     )

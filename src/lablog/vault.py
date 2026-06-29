@@ -72,7 +72,10 @@ class VaultService:
                 ),
                 "deletion_phrase": vf.deletion_phrase,
             }
-        self.meta_path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        # Escritura atómica: evita meta.json corrupto si dos escrituras coinciden.
+        tmp = self.meta_path.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        tmp.replace(self.meta_path)
 
     def add_file(self, source: Path) -> VaultFile:
         content = source.read_bytes()

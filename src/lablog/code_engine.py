@@ -66,7 +66,14 @@ class CodeEngine:
         text_parts: list[str] = []
         error_parts: list[str] = []
 
-        self._collect_iopub(msg_id, timeout, outputs, text_parts, error_parts)
+        completed = self._collect_iopub(msg_id, timeout, outputs, text_parts, error_parts)
+
+        if not completed:
+            # El kernel sigue ejecutando (p.ej. bucle infinito): interrúmpelo
+            # para no dejarlo bloqueado tras devolver el timeout.
+            if self._manager is not None:
+                self._manager.interrupt_kernel()
+            error_parts.append(f"Ejecución interrumpida: superó el límite de {timeout:.0f}s.")
 
         status: Literal["ok", "error"] = "error" if error_parts else "ok"
         result_text = "".join(error_parts if error_parts else text_parts)
@@ -89,7 +96,8 @@ class CodeEngine:
         outputs: list[dict[str, Any]],
         text_parts: list[str],
         error_parts: list[str],
-    ) -> None:
+    ) -> bool:
+        """Recolecta salida hasta 'idle'. Devuelve True si terminó a tiempo."""
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
@@ -106,7 +114,7 @@ class CodeEngine:
             match msg_type:
                 case "status":
                     if content["execution_state"] == "idle":
-                        return
+                        return True
                 case "stream":
                     outputs.append(
                         {
@@ -131,6 +139,7 @@ class CodeEngine:
                         }
                     )
                     error_parts.append("\n".join(content["traceback"]))
+        return False
 
     def _save_figures(self, figure_dir: Path) -> list[str]:
         save_code = f"""

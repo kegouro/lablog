@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
 from lablog.events import Event
+
+# page_id solo puede ser un identificador seguro (uuid4 u similar). Bloquea
+# path traversal: un page_id como "../../etc/passwd" no debe escapar root_dir.
+_SAFE_PAGE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
 class EventStore:
@@ -16,6 +21,8 @@ class EventStore:
         self.root_dir.mkdir(parents=True, exist_ok=True)
 
     def _page_file(self, page_id: str) -> Path:
+        if not _SAFE_PAGE_ID.match(page_id):
+            raise ValueError(f"page_id inválido: {page_id!r}")
         return self.root_dir / f"{page_id}.jsonl"
 
     def append(self, event: Event) -> None:
@@ -36,7 +43,11 @@ class EventStore:
                 line = line.strip()
                 if not line:
                     continue
-                events.append(Event.model_validate_json(line))
+                try:
+                    events.append(Event.model_validate_json(line))
+                except ValueError:
+                    # Salta un evento corrupto en vez de tumbar toda la página.
+                    continue
         return events
 
     def iter_events(self, page_id: str) -> Iterator[Event]:
