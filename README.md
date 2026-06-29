@@ -214,6 +214,13 @@ cp .env.example .env
 cd ui && npm install && cd ..
 ```
 
+Optional extras (the core install stays lean):
+
+| Extra | Command | Adds |
+| :--- | :--- | :--- |
+| Desktop app | `uv sync --extra desktop` | `pywebview` &mdash; native window via `lablog app`. |
+| Offline voice | `uv sync --extra voice` | local Whisper model + audio capture (several hundred MB). |
+
 ---
 
 ## Quick start
@@ -246,6 +253,42 @@ uvicorn lablog.api:app --host 127.0.0.1 --port 8000
 ```
 
 The interface is then served statically from `ui/dist` by FastAPI.
+
+---
+
+## Desktop application
+
+`lablog` runs as a **native desktop window** &mdash; no browser, no internet. The engine
+binds to `127.0.0.1` on an ephemeral port inside the process and the interface opens in
+the operating system's own webview (WKWebView on macOS, WebView2 on Windows, WebKitGTK on
+Linux). Every asset &mdash; JavaScript, CSS, fonts and the KaTeX renderer &mdash; is
+bundled, so the application is **fully offline**.
+
+```bash
+uv sync --extra desktop      # installs pywebview
+cd ui && npm run build && cd ..
+lablog app                   # opens the native window
+```
+
+> **Offline note.** The core notebook (editor, live preview, executable cells, vault) is
+> entirely offline. The in-browser dictation button relies on the platform speech API and
+> degrades gracefully when offline; for offline dictation install the local Whisper model
+> with `uv sync --extra voice`.
+
+### Packaging a portable bundle
+
+To ship a self-contained folder that runs without any Python install:
+
+```bash
+./scripts/package_desktop.sh      # builds the UI, then PyInstaller
+# → dist/lablog/  (zip it and run dist/lablog/lablog)
+```
+
+The bundle is described by [`lablog.spec`](lablog.spec). It includes `ui/dist` and the
+Jupyter kernel used for cell execution, and excludes the heavy voice model by default.
+The kernel and `pyzmq` are discovered dynamically, so on a fresh platform the spec's
+`collect_all` lists may need a small adjustment &mdash; treat it as a verified starting
+point rather than a one-click cross-platform installer.
 
 ---
 
@@ -360,10 +403,11 @@ same export in CI and publishes it on every push to `main`. To enable it on a fo
     <tr><td>Vault with previews and time-locked deletion</td><td align="center">Done</td></tr>
     <tr><td>Editor: find &amp; replace, undo / redo, cursor-aware insertion</td><td align="center">Done</td></tr>
     <tr><td>Static export &amp; GitHub Pages deployment</td><td align="center">Done</td></tr>
+    <tr><td>Native desktop app (offline, pywebview)</td><td align="center">Done</td></tr>
+    <tr><td>Portable PyInstaller bundle</td><td align="center">Beta</td></tr>
     <tr><td>In-app PDF compilation with line-aware error reporting</td><td align="center">Planned</td></tr>
     <tr><td>Multi-file documents and BibTeX</td><td align="center">Planned</td></tr>
     <tr><td>Section and equation cross-references</td><td align="center">Planned</td></tr>
-    <tr><td>Tauri desktop bundle</td><td align="center">Planned</td></tr>
     <tr><td>P2P collaboration and device sync</td><td align="center">Exploratory</td></tr>
   </tbody>
 </table>
