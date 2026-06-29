@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
+import platform
 import re
+import shutil
+import tarfile
+import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
 from lablog.ast_nodes import CellNode, DocumentNode, MathNode, Node, TextNode
+from lablog.config import settings
 from lablog.latex_ast import serialize_ast
 
 _PREAMBLE = (
@@ -122,3 +129,80 @@ def parse_errors(log: str, markers: list[SourceMarker]) -> list[CompileError]:
             )
         )
     return errors
+
+
+# Task 2: Tectonic binary acquisition
+TECTONIC_VERSION = "0.15.0"
+# Rellenar con los SHA256 reales de los assets de la release pineada
+# https://github.com/tectonic-typesetting/tectonic/releases/tag/tectonic@0.15.0
+TECTONIC_SHA256: dict[tuple[str, str], str] = {
+    ("Darwin", "arm64"): "",
+    ("Darwin", "x86_64"): "",
+    ("Linux", "x86_64"): "",
+    ("Windows", "AMD64"): "",
+}
+_ASSET = {
+    ("Darwin", "arm64"): "tectonic-{v}-aarch64-apple-darwin.tar.gz",
+    ("Darwin", "x86_64"): "tectonic-{v}-x86_64-apple-darwin.tar.gz",
+    ("Linux", "x86_64"): "tectonic-{v}-x86_64-unknown-linux-gnu.tar.gz",
+    ("Windows", "AMD64"): "tectonic-{v}-x86_64-pc-windows-msvc.zip",
+}
+
+
+def _platform_key() -> tuple[str, str]:
+    return (platform.system(), platform.machine())
+
+
+def _bin_dir() -> Path:
+    d = settings.data_dir / "bin"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def _cached_binary() -> Path | None:
+    name = "tectonic.exe" if platform.system() == "Windows" else "tectonic"
+    p = _bin_dir() / name
+    return p if p.exists() else None
+
+
+def engine_status() -> dict[str, bool]:
+    binary_ready = tectonic_path(download=False) is not None
+    cache_dir = Path(os.path.expanduser("~")) / ".cache" / "Tectonic"
+    return {"binary_ready": binary_ready, "bundle_warmed": cache_dir.exists()}
+
+
+def _download_binary() -> Path | None:
+    key = _platform_key()
+    sha = TECTONIC_SHA256.get(key)
+    asset = _ASSET.get(key)
+    if not sha or not asset:
+        return None
+    fname = asset.format(v=TECTONIC_VERSION)
+    url = (
+        "https://github.com/tectonic-typesetting/tectonic/releases/download/"
+        f"tectonic%40{TECTONIC_VERSION}/{fname}"
+    )
+    archive = _bin_dir() / fname
+    with urllib.request.urlopen(url, timeout=120) as resp:  # noqa: S310
+        data = resp.read()
+    if hashlib.sha256(data).hexdigest() != sha:
+        return None
+    archive.write_bytes(data)
+    if fname.endswith(".tar.gz"):
+        with tarfile.open(archive) as tf:
+            tf.extractall(_bin_dir())  # noqa: S202
+    archive.unlink(missing_ok=True)
+    binary = _cached_binary()
+    if binary:
+        binary.chmod(0o755)
+    return binary
+
+
+def tectonic_path(*, download: bool = True) -> Path | None:
+    found = shutil.which("tectonic")
+    if found:
+        return Path(found)
+    cached = _cached_binary()
+    if cached:
+        return cached
+    return _download_binary() if download else None

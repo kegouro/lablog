@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import shutil
+
+from lablog import pdf_engine
 from lablog.ast_nodes import CellNode, DocumentNode, TextNode
 from lablog.pdf_engine import (
     SourceMarker,
@@ -63,3 +66,20 @@ def test_parse_errors_handles_no_preceding_marker() -> None:
 def test_figure_basename() -> None:
     assert figure_basename("c1/fig_0.png") == "fig_0.png"
     assert figure_basename("/abs/path/p/fig_1.png") == "fig_1.png"
+
+
+# Task 2: Tectonic binary acquisition
+def test_platform_key_shape() -> None:
+    sysname, arch = pdf_engine._platform_key()
+    assert isinstance(sysname, str) and isinstance(arch, str)
+
+
+def test_engine_status_keys() -> None:
+    st = pdf_engine.engine_status()
+    assert set(st) == {"binary_ready", "bundle_warmed"}
+    assert all(isinstance(v, bool) for v in st.values())
+
+
+def test_tectonic_path_uses_path_when_present(monkeypatch) -> None:
+    monkeypatch.setattr(shutil, "which", lambda _name: "/usr/bin/tectonic")
+    assert str(pdf_engine.tectonic_path()) == "/usr/bin/tectonic"
