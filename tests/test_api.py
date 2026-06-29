@@ -132,3 +132,17 @@ def test_latex_symbols_and_favorites() -> None:
 
     res = client.get("/api/v1/latex-symbols/favorites")
     assert "alpha" not in res.json()
+
+
+def test_engine_status_shape() -> None:
+    r = client.get("/api/v1/pdf/engine-status")
+    assert r.status_code == 200
+    assert set(r.json()) == {"binary_ready", "bundle_warmed"}
+
+
+def test_pdf_export_503_without_engine(monkeypatch) -> None:
+    from lablog import pdf_engine
+    monkeypatch.setattr(pdf_engine, "tectonic_path", lambda **_: None)
+    pid = client.post("/api/v1/pages", json={"title": "X"}).json()["page_id"]
+    r = client.get(f"/api/v1/pages/{pid}/export/pdf")
+    assert r.status_code == 503

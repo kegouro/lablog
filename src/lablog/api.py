@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -16,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from lablog import pdf_engine
 from lablog.ast_nodes import CellNode, DocumentNode
 from lablog.code_engine import CodeEngine
 from lablog.config import settings, ui_dist_dir
@@ -68,6 +70,11 @@ def health() -> dict[str, Any]:
     }
 
 
+@router.get("/pdf/engine-status")
+def pdf_engine_status() -> dict[str, bool]:
+    return pdf_engine.engine_status()
+
+
 @router.post("/export")
 def export_pages() -> dict[str, str]:
     out_dir = export_site()
@@ -78,6 +85,15 @@ store = EventStore(settings.event_dir)
 favorites = FavoritesStore()
 vault = VaultService()
 _code_engine: CodeEngine | None = None
+_pdf_locks: dict[str, asyncio.Lock] = {}
+
+
+def _pdf_lock(page_id: str) -> asyncio.Lock:
+    lock = _pdf_locks.get(page_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _pdf_locks[page_id] = lock
+    return lock
 
 
 def get_engine() -> CodeEngine:
@@ -750,6 +766,31 @@ code {{ background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: 
 </html>"""
 
 
+@router.get("/pages/{page_id}/export/pdf")
+async def export_page_pdf(page_id: str) -> Response:
+    events = _events(page_id)
+    proj = project(page_id, events)
+    title = proj.title or "lablog_export"
+    figures_dir = settings.figures_dir / page_id
+    async with _pdf_lock(page_id):
+        result = await pdf_engine.compile_page(page_id, proj.ast, title, figures_dir=figures_dir)
+    if result.status == "ok" and result.pdf is not None:
+        filename = f"{title.replace(' ', '_')}.pdf"
+        return Response(
+            content=result.pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"inline; filename={filename}"},
+        )
+    if result.status == "no_engine":
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Tectonic no disponible")
+    if result.status == "timeout":
+        raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "Compilación excedió el tiempo límite")
+    raise HTTPException(
+        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        detail={"errors": [asdict(e) for e in result.errors], "log": result.log[-4000:]},
+    )
+
+
 @router.get("/pages/{page_id}/export/{format}")
 def export_page(page_id: str, format: str) -> Response:
     events = _events(page_id)
@@ -771,8 +812,6 @@ def export_page(page_id: str, format: str) -> Response:
             media_type="text/plain",
             headers={"Content-Disposition": f"attachment; filename={title.replace(' ', '_')}.txt"},
         )
-    if format == "pdf":
-        return _pandoc_export(latex, title, "pdf", "application/pdf")
     if format == "docx":
         return _pandoc_export(
             latex,
