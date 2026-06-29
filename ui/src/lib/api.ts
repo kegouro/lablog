@@ -233,3 +233,43 @@ export async function exportPage(pageId: string, format: string): Promise<Blob> 
   }
   return res.blob()
 }
+
+export interface PdfError {
+  message: string
+  source_line: number | null
+  ref: string | null
+  kind: string | null
+}
+
+export class PdfCompileError extends Error {
+  status: number
+  errors: PdfError[]
+
+  constructor(status: number, message: string, errors: PdfError[] = []) {
+    super(message)
+    this.status = status
+    this.errors = errors
+  }
+}
+
+export async function pdfEngineStatus(): Promise<{ binary_ready: boolean; bundle_warmed: boolean }> {
+  return fetchJson('/pdf/engine-status')
+}
+
+export async function compilePdf(pageId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/pages/${pageId}/export/pdf`)
+  if (res.ok) return res.blob()
+  let detail: { errors?: PdfError[] } = {}
+  try {
+    const body = await res.json()
+    detail = body.detail ?? body
+  } catch {
+    // sin cuerpo JSON
+  }
+  const msg =
+    res.status === 422 ? 'Errores de compilación LaTeX'
+    : res.status === 504 ? 'La compilación superó el tiempo límite'
+    : res.status === 503 ? 'Motor PDF (Tectonic) no disponible'
+    : `Error ${res.status}`
+  throw new PdfCompileError(res.status, msg, detail.errors ?? [])
+}
