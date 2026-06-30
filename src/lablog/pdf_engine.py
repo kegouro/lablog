@@ -167,10 +167,20 @@ def _cached_binary() -> Path | None:
     return p if p.exists() else None
 
 
+def _tectonic_cache_dir() -> Path:
+    home = Path(os.path.expanduser("~"))
+    system = platform.system()
+    if system == "Darwin":
+        return home / "Library" / "Caches" / "Tectonic"
+    if system == "Windows":
+        base = os.getenv("LOCALAPPDATA", str(home / "AppData" / "Local"))
+        return Path(base) / "TectonicProject" / "Tectonic"
+    return home / ".cache" / "Tectonic"
+
+
 def engine_status() -> dict[str, bool]:
     binary_ready = tectonic_path(download=False) is not None
-    cache_dir = Path(os.path.expanduser("~")) / ".cache" / "Tectonic"
-    return {"binary_ready": binary_ready, "bundle_warmed": cache_dir.exists()}
+    return {"binary_ready": binary_ready, "bundle_warmed": _tectonic_cache_dir().exists()}
 
 
 def _download_binary() -> Path | None:
