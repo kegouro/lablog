@@ -292,6 +292,37 @@ point rather than a one-click cross-platform installer.
 
 ---
 
+## Real PDF compilation
+
+The live preview is fast but **approximate** &mdash; it renders the common subset of
+LaTeX with KaTeX and a focused HTML renderer. For a faithful document, lablog compiles
+the page to a **real PDF** with [Tectonic](https://tectonic-typesetting.github.io/)
+(a self-contained XeTeX engine). The first compile downloads and caches the required
+TeX packages once; **every subsequent compile is fully offline**.
+
+- The **Compilar PDF** button lives in the preview header; the preview itself is
+  labelled **"Aproximada"** so the distinction is explicit.
+- Executable `\begin{python}` cells are rendered into the PDF as **code + output +
+  figure** (code and output via `fancyvrb`, figures via `\includegraphics`).
+- Compilation runs asynchronously with a hard timeout; runaway documents return `504`
+  instead of hanging the engine. Output is cached by document hash, so recompiling an
+  unchanged page is instant.
+- When compilation fails, the error panel maps TeX errors back to the source via
+  injected `% lablog-src` markers, showing **"Celda N · línea M: message"** rather than
+  a meaningless line in the generated `.tex`.
+
+> **Security.** Tectonic runs **without `--shell-escape`** &mdash; LaTeX cannot execute
+> operating-system commands. lablog is local and single-user; the compile endpoint
+> assumes you are compiling your own content and must not be exposed publicly without
+> adding rate limiting and isolation.
+
+> **Engine note.** If `tectonic` is already on your `PATH` it is used directly;
+> otherwise a pinned, checksum-verified binary is downloaded once to
+> `LABLOG_DATA_DIR/bin/`. If neither is available the endpoint returns `503` with a
+> clear message.
+
+---
+
 ## Configuration
 
 All configurable paths and addresses are surfaced through environment variables.
