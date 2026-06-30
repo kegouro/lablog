@@ -316,10 +316,12 @@ TeX packages once; **every subsequent compile is fully offline**.
 > assumes you are compiling your own content and must not be exposed publicly without
 > adding rate limiting and isolation.
 
-> **Engine note.** If `tectonic` is already on your `PATH` it is used directly;
-> otherwise a pinned, checksum-verified binary is downloaded once to
-> `LABLOG_DATA_DIR/bin/`. If neither is available the endpoint returns `503` with a
-> clear message.
+> **Engine note.** If `tectonic` is already on your `PATH` it is used directly.
+> Otherwise the preview shows an **install banner** that downloads the pinned,
+> checksum-verified binary once to `LABLOG_DATA_DIR/bin/` and warms the common
+> packages (offline afterwards). When a managed binary falls behind the version
+> this app pins, the banner offers a verified re-install &mdash; it never fetches
+> "latest" at runtime, preserving the checksum trust chain.
 
 ---
 
