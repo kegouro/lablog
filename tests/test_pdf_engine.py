@@ -27,7 +27,7 @@ def _doc() -> DocumentNode:
 
 def test_build_document_preamble_order_hyperref_last() -> None:
     tex, _markers, _figs = build_document(_doc(), "T")
-    assert "\\usepackage{fancyvrb}" in tex
+    assert "\\usepackage{fvextra}" in tex
     assert "\\usepackage{inputenc}" not in tex
     # hyperref after every other \usepackage
     assert tex.index("hyperref") > tex.rindex("\\usepackage{graphicx}")
@@ -79,8 +79,10 @@ def test_platform_key_shape() -> None:
 
 def test_engine_status_keys() -> None:
     st = pdf_engine.engine_status()
-    assert set(st) == {"binary_ready", "bundle_warmed"}
-    assert all(isinstance(v, bool) for v in st.values())
+    assert {"binary_ready", "bundle_warmed", "managed", "update_available"} <= set(st)
+    assert isinstance(st["binary_ready"], bool)
+    assert isinstance(st["bundle_warmed"], bool)
+    assert st["target_version"] == pdf_engine.TECTONIC_VERSION
 
 
 def test_tectonic_path_uses_path_when_present(monkeypatch) -> None:

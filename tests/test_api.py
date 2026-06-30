@@ -137,7 +137,7 @@ def test_latex_symbols_and_favorites() -> None:
 def test_engine_status_shape() -> None:
     r = client.get("/api/v1/pdf/engine-status")
     assert r.status_code == 200
-    assert set(r.json()) == {"binary_ready", "bundle_warmed"}
+    assert {"binary_ready", "bundle_warmed", "update_available"} <= set(r.json())
 
 
 def test_pdf_export_503_without_engine(monkeypatch) -> None:

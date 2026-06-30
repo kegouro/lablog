@@ -8,9 +8,11 @@ import os
 import platform
 import re
 import shutil
+import subprocess
 import tarfile
 import tempfile
 import urllib.request
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -24,7 +26,7 @@ _PREAMBLE = (
     "\\usepackage{fontspec}\n"
     "\\usepackage{amsmath,amssymb}\n"
     "\\usepackage{graphicx}\n"
-    "\\usepackage{fancyvrb}\n"
+    "\\usepackage{fvextra}\n"  # Verbatim con breaklines/breakanywhere (extiende fancyvrb)
     "\\usepackage{hyperref}\n"  # debe ir último
     "\\begin{document}\n"
 )
@@ -133,15 +135,16 @@ def parse_errors(log: str, markers: list[SourceMarker]) -> list[CompileError]:
     return errors
 
 
-# Task 2: Tectonic binary acquisition
-TECTONIC_VERSION = "0.15.0"
-# Rellenar con los SHA256 reales de los assets de la release pineada
-# https://github.com/tectonic-typesetting/tectonic/releases/tag/tectonic@0.15.0
+# Tectonic binary acquisition.
+# Versión pineada. No hay SHA256SUMS oficial publicado por upstream, así que la
+# cadena de confianza es: TLS de GitHub + tag inmutable. Los hashes se calcularon
+# descargando los assets oficiales de esta release.
+TECTONIC_VERSION = "0.16.9"
 TECTONIC_SHA256: dict[tuple[str, str], str] = {
-    ("Darwin", "arm64"): "",
-    ("Darwin", "x86_64"): "",
-    ("Linux", "x86_64"): "",
-    ("Windows", "AMD64"): "",
+    ("Darwin", "arm64"): "edb67c61aba768289f6da441c9e6f523cfaff4f8b2a5708523ef29c543f8e88e",
+    ("Darwin", "x86_64"): "79d8839fa3594bfea9b2bf2ac0a0455bcc4d0de956a5e5c403107e9a72f79e86",
+    ("Linux", "x86_64"): "f3c825128095dc3399ea11c08c18035b33050a216930c295c79e8eb11bd21de4",
+    ("Windows", "AMD64"): "131a24604785a9600989a3d91225f597df52ac06f00aeffe86fd529f99ee5cdd",
 }
 _ASSET = {
     ("Darwin", "arm64"): "tectonic-{v}-aarch64-apple-darwin.tar.gz",
@@ -178,9 +181,33 @@ def _tectonic_cache_dir() -> Path:
     return home / ".cache" / "Tectonic"
 
 
-def engine_status() -> dict[str, bool]:
-    binary_ready = tectonic_path(download=False) is not None
-    return {"binary_ready": binary_ready, "bundle_warmed": _tectonic_cache_dir().exists()}
+def installed_version(binary: Path) -> str | None:
+    """Versión del binario (`tectonic --version` → '0.16.9'), o None si falla."""
+    try:
+        out = subprocess.run(  # noqa: S603
+            [str(binary), "--version"], capture_output=True, text=True, timeout=10
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r"(\d+\.\d+\.\d+)", out.stdout or out.stderr)
+    return m.group(1) if m else None
+
+
+def engine_status() -> dict[str, object]:
+    binary = tectonic_path(download=False)
+    on_path = shutil.which("tectonic") is not None
+    managed = binary is not None and not on_path  # binario que gestionamos nosotros
+    # Solo proponemos "actualizar" para el binario que gestionamos (no el del sistema).
+    current = installed_version(binary) if (binary and managed) else None
+    update_available = bool(managed and current and current != TECTONIC_VERSION)
+    return {
+        "binary_ready": binary is not None,
+        "bundle_warmed": _tectonic_cache_dir().exists(),
+        "managed": managed,
+        "installed_version": current,
+        "target_version": TECTONIC_VERSION,
+        "update_available": update_available,
+    }
 
 
 def _download_binary() -> Path | None:
@@ -202,7 +229,10 @@ def _download_binary() -> Path | None:
     archive.write_bytes(data)
     if fname.endswith(".tar.gz"):
         with tarfile.open(archive) as tf:
-            tf.extractall(_bin_dir())  # noqa: S202
+            tf.extractall(_bin_dir())  # noqa: S202 (release pineada, sha verificado)
+    elif fname.endswith(".zip"):
+        with zipfile.ZipFile(archive) as zf:
+            zf.extractall(_bin_dir())  # noqa: S202 (release pineada, sha verificado)
     archive.unlink(missing_ok=True)
     binary = _cached_binary()
     if binary:
@@ -303,3 +333,34 @@ async def compile_page(
             _write_atomic(cached, data)
             return CompileResult(status="ok", pdf=data, log=log)
         return CompileResult(status="error", errors=parse_errors(log, markers), log=log)
+
+
+async def install_engine(*, force: bool = False) -> dict[str, object]:
+    """Descarga el motor pineado y precalienta los paquetes comunes (offline luego).
+
+    `force=True` reinstala la versión pineada (para 'actualizar' un binario
+    gestionado a la que trae esta versión de la app).
+    """
+    if force:
+        for name in ("tectonic", "tectonic.exe"):
+            (_bin_dir() / name).unlink(missing_ok=True)
+
+    binary = await asyncio.to_thread(tectonic_path, download=True)
+    if binary is None:
+        return {
+            "installed": False,
+            "warmed": False,
+            "message": "No hay binario de Tectonic disponible para esta plataforma",
+        }
+
+    # Warm: compila un doc mínimo para cachear los paquetes del preámbulo.
+    warm = DocumentNode(children=[TextNode(text="lablog warm-up $x^2$")])
+    res = await compile_page(
+        "__warm__", warm, "warm", figures_dir=settings.data_dir, timeout=300.0
+    )
+    return {
+        "installed": True,
+        "warmed": res.status == "ok",
+        "version": TECTONIC_VERSION,
+        "message": "Motor listo" if res.status == "ok" else f"Instalado; warm: {res.status}",
+    }

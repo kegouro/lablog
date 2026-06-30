@@ -71,8 +71,13 @@ def health() -> dict[str, Any]:
 
 
 @router.get("/pdf/engine-status")
-def pdf_engine_status() -> dict[str, bool]:
+def pdf_engine_status() -> dict[str, object]:
     return pdf_engine.engine_status()
+
+
+@router.post("/pdf/install")
+async def pdf_install(force: bool = False) -> dict[str, object]:
+    return await pdf_engine.install_engine(force=force)
 
 
 @router.post("/export")
