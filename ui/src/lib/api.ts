@@ -252,8 +252,21 @@ export class PdfCompileError extends Error {
   }
 }
 
-export async function pdfEngineStatus(): Promise<{ binary_ready: boolean; bundle_warmed: boolean }> {
+export interface PdfEngineStatus {
+  binary_ready: boolean
+  bundle_warmed: boolean
+  managed: boolean
+  installed_version: string | null
+  target_version: string
+  update_available: boolean
+}
+
+export async function pdfEngineStatus(): Promise<PdfEngineStatus> {
   return fetchJson('/pdf/engine-status')
+}
+
+export async function installPdfEngine(force = false): Promise<{ installed: boolean; warmed: boolean; message: string }> {
+  return fetchJson(`/pdf/install${force ? '?force=true' : ''}`, { method: 'POST' })
 }
 
 export async function compilePdf(pageId: string): Promise<Blob> {

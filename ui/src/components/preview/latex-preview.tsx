@@ -1,13 +1,20 @@
 import 'katex/dist/katex.min.css'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { renderLatexToHtml } from '@/lib/latex-render'
-import { compilePdf, pdfEngineStatus, PdfCompileError, type PdfError } from '@/lib/api'
+import {
+  compilePdf,
+  installPdfEngine,
+  pdfEngineStatus,
+  PdfCompileError,
+  type PdfEngineStatus,
+  type PdfError,
+} from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 import type { CellNode, Page } from '@/types'
 import { Button } from '@/components/ui/button'
-import { FileText, Loader2 } from 'lucide-react'
+import { Download, FileText, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 function escapeHtml(text: string): string {
@@ -93,6 +100,25 @@ export function LatexPreview() {
   const [compiling, setCompiling] = useState(false)
   const [pdfUrl, setPdfUrl] = useState<string | null>(null)
   const [errors, setErrors] = useState<PdfError[]>([])
+  const [engine, setEngine] = useState<PdfEngineStatus | null>(null)
+  const [installing, setInstalling] = useState(false)
+
+  useEffect(() => {
+    pdfEngineStatus().then(setEngine).catch(() => setEngine(null))
+  }, [])
+
+  const handleInstall = async (force: boolean) => {
+    setInstalling(true)
+    try {
+      const r = await installPdfEngine(force)
+      toast[r.installed ? 'success' : 'error'](r.message)
+      setEngine(await pdfEngineStatus())
+    } catch {
+      toast.error('No se pudo instalar el motor PDF')
+    } finally {
+      setInstalling(false)
+    }
+  }
 
   const html = useMemo(
     () => renderDocument(debouncedAst, activePageId, parameterValues),
@@ -135,6 +161,30 @@ export function LatexPreview() {
           Compilar PDF
         </Button>
       </div>
+
+      {engine && !engine.binary_ready && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 p-2 text-xs">
+          <span className="text-muted-foreground">
+            Motor PDF no instalado. Se descarga una vez (~20&nbsp;MB) y luego funciona sin conexión.
+          </span>
+          <Button size="sm" className="h-7 shrink-0 gap-1.5 text-xs" disabled={installing} onClick={() => handleInstall(false)}>
+            {installing ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            {installing ? 'Instalando…' : 'Instalar motor'}
+          </Button>
+        </div>
+      )}
+
+      {engine?.binary_ready && engine.update_available && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-400/40 bg-amber-400/5 p-2 text-xs">
+          <span className="text-muted-foreground">
+            Motor instalado {engine.installed_version} · disponible {engine.target_version}.
+          </span>
+          <Button variant="outline" size="sm" className="h-7 shrink-0 gap-1.5 text-xs" disabled={installing} onClick={() => handleInstall(true)}>
+            {installing ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            Actualizar
+          </Button>
+        </div>
+      )}
 
       {errors.length > 0 && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-2 text-xs">
