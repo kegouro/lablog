@@ -10,6 +10,7 @@ import { useAppStore } from '@/stores/app-store'
 
 import { ExportMenu } from './export-menu'
 import { SettingsDialog } from './settings-dialog'
+import { TemplatesMenu } from './templates-menu'
 import { ThemeToggle } from './theme-toggle'
 
 interface ToolbarProps {
@@ -77,6 +78,7 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
           {listening ? <MicOff className="size-4 animate-pulse" /> : <Mic className="size-4" />}
           <span className="hidden sm:inline">{listening ? 'Detener' : 'Dictar'}</span>
         </Button>
+        <TemplatesMenu />
         <ExportMenu />
         <Button
           variant={labMode ? 'secondary' : 'ghost'}
