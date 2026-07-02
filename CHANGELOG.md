@@ -7,6 +7,16 @@ All notable changes to lablog are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Full LaTeX mode**: pages containing `\documentclass` compile exactly as
+  written (raw XeTeX via Tectonic — no injected preamble). The live preview
+  hides the preamble, renders `\maketitle` as a title block and the `abstract`
+  environment as a styled summary; a "LaTeX completo" badge marks the mode.
+  Compile errors map 1:1 to editor lines and are clickable (jump-to-line).
+- **Templates menu** in the toolbar: five XeTeX-ready starting points
+  (scientific article, lab report, problem set, Beamer presentation, formal
+  letter), each a complete compilable document.
+- **Version diff** in the time-travel panel: a Diff toggle shows added/removed
+  lines between any historical version and the present document.
 - **Time-travel**: a "Historia" panel over the preview exposes the append-only
   event log — scrub any page through its entire history with a slider or event
   list, see the document rendered at that instant, and restore any version.

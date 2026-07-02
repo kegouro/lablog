@@ -95,6 +95,15 @@ function renderProse(text: string): string {
     (_, body) => `<ol class="my-2 ml-5 list-decimal space-y-1">${renderItems(body)}</ol>`,
   )
 
+  // Abstract (article/informe)
+  s = s.replace(
+    /\\begin\{abstract\}([\s\S]*?)\\end\{abstract\}/g,
+    (_, body) =>
+      '<div class="my-3 rounded-lg border bg-muted/30 px-4 py-3 text-sm">' +
+      '<p class="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Resumen</p>' +
+      `<p class="leading-relaxed">${renderInline(body.replace(/\n/g, ' ').trim())}</p></div>`,
+  )
+
   // Encabezados
   s = s.replace(/\\section\*?\{([^{}]*)\}/g, '<h2 class="mt-4 mb-2 text-xl font-bold tracking-tight">$1</h2>')
   s = s.replace(/\\subsection\*?\{([^{}]*)\}/g, '<h3 class="mt-3 mb-1.5 text-lg font-semibold">$1</h3>')
@@ -127,11 +136,14 @@ export function renderLatexToHtml(latex: string, values: Record<string, string> 
   const input = applyParameterValues(latex, values)
   if (!input.trim()) return ''
 
-  // Stash compartido por extracción de cuerpo y matemática.
+  // Stash compartido por extracción de cuerpo y matemática. Delimitador en el
+  // área de uso privado de Unicode: sobrevive a trim()/escapeHtml y no puede
+  // aparecer en LaTeX real (un espacio como delimitador se pierde al recortar
+  // párrafos y deja el placeholder huérfano).
   const tokens: string[] = []
   const stash = (html: string): string => {
     tokens.push(html)
-    return ` ${tokens.length - 1} `
+    return `${tokens.length - 1}`
   }
 
   // Documento LaTeX completo: renderizar solo el cuerpo. \maketitle se vuelve
@@ -142,7 +154,8 @@ export function renderLatexToHtml(latex: string, values: Record<string, string> 
     const preamble = source.slice(0, bodyMatch.index)
     const title = preamble.match(/\\title\{([^{}]*)\}/)?.[1]
     const author = preamble.match(/\\author\{([^{}]*)\}/)?.[1]
-    const date = preamble.match(/\\date\{([^{}]*)\}/)?.[1]
+    const rawDate = preamble.match(/\\date\{([^{}]*)\}/)?.[1]
+    const date = rawDate === '\\today' ? new Date().toLocaleDateString() : rawDate
     const meta = [author, date].filter(Boolean).join(' · ')
     const titleBlock =
       (title ? `<h1 class="mb-1 text-2xl font-bold tracking-tight">${escapeHtml(title)}</h1>` : '') +
@@ -166,9 +179,10 @@ export function renderLatexToHtml(latex: string, values: Record<string, string> 
     .replace(/\$([^$\n][\s\S]*?)\$/g, (_, m) => stash(`<span>${renderKatex(m.trim(), false)}</span>`))
     .replace(/\\\(([\s\S]*?)\\\)/g, (_, m) => stash(`<span>${renderKatex(m.trim(), false)}</span>`))
 
-  // 2) Renderiza la prosa y 3) reinyecta la matemática.
+  // 2) Renderiza la prosa y 3) reinyecta la matemática. El delimitador es el
+  // carácter U+E000 literal (invisible): debe coincidir con el de stash().
   const html = renderProse(text)
-  return html.replace(/ (\d+) /g, (_, i) => tokens[Number(i)] ?? '')
+  return html.replace(/(\d+)/g, (_, i) => tokens[Number(i)] ?? '')
 }
 
 export function renderCell(cell: CellNode, pageId: string | null): string {
