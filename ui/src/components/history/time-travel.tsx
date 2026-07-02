@@ -1,4 +1,4 @@
-import { Clock, RotateCcw, X } from 'lucide-react'
+import { Clock, GitCompare, RotateCcw, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Slider } from '@/components/ui/slider'
 import { getHistory, getPageAt, restoreVersion, type HistoryEvent } from '@/lib/api'
+import { diffLines } from '@/lib/diff'
 import { renderDocument } from '@/lib/latex-render'
 import { useAppStore } from '@/stores/app-store'
 import type { Page } from '@/types'
@@ -16,11 +17,12 @@ interface TimeTravelOverlayProps {
 }
 
 export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
-  const { parameterValues, setActiveLatex, setActiveAst, flushSave } = useAppStore()
+  const { parameterValues, activeLatex, setActiveLatex, setActiveAst, flushSave } = useAppStore()
   const [history, setHistory] = useState<HistoryEvent[]>([])
   const [index, setIndex] = useState(0)
   const [snapshot, setSnapshot] = useState<Page | null>(null)
   const [restoring, setRestoring] = useState(false)
+  const [showDiff, setShowDiff] = useState(false)
   const pendingIndexRef = useRef(0)
   const scrubTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -108,10 +110,39 @@ export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
             ))}
           </ul>
         </ScrollArea>
-        <div
-          className="min-w-0 flex-1 overflow-auto p-4 text-sm"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        {showDiff && snapshot ? (
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <p className="shrink-0 px-3 pt-2 text-[10px] text-muted-foreground">
+              Cambios desde esta versión hasta el estado actual
+            </p>
+            <div className="min-w-0 flex-1 overflow-auto p-3 font-mono text-xs leading-5">
+              {(() => {
+                const diff = diffLines(snapshot.latex, activeLatex)
+                if (!diff) return <p className="text-muted-foreground">Documento muy grande para diff.</p>
+                return diff.map((l, idx) => (
+                  <div
+                    key={idx}
+                    className={
+                      l.kind === 'add'
+                        ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                        : l.kind === 'del'
+                          ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300 line-through decoration-1'
+                          : 'text-muted-foreground'
+                    }
+                  >
+                    <span className="select-none pr-2">{l.kind === 'add' ? '+' : l.kind === 'del' ? '−' : ' '}</span>
+                    {l.text || ' '}
+                  </div>
+                ))
+              })()}
+            </div>
+          </div>
+        ) : (
+          <div
+            className="min-w-0 flex-1 overflow-auto p-4 text-sm"
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        )}
       </div>
 
       <div className="flex items-center gap-3 border-t px-3 py-2">
@@ -127,6 +158,15 @@ export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
           {history.length > 0 ? `evento ${index + 1}/${history.length}` : '—'}
           {selected && ` · ${new Date(selected.timestamp).toLocaleString()}`}
         </span>
+        <Button
+          variant={showDiff ? 'secondary' : 'outline'}
+          size="sm"
+          className="h-7 gap-1.5 text-xs"
+          onClick={() => setShowDiff((v) => !v)}
+        >
+          <GitCompare className="size-3.5" />
+          Diff
+        </Button>
         <Button size="sm" className="h-7 gap-1.5 text-xs" disabled={restoring} onClick={handleRestore}>
           <RotateCcw className="size-3.5" />
           Restaurar
