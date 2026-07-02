@@ -165,9 +165,12 @@ def _bin_dir() -> Path:
 
 
 def _cached_binary() -> Path | None:
-    name = "tectonic.exe" if platform.system() == "Windows" else "tectonic"
-    p = _bin_dir() / name
-    return p if p.exists() else None
+    names = ("tectonic.exe", "tectonic") if platform.system() == "Windows" else ("tectonic",)
+    for name in names:
+        p = _bin_dir() / name
+        if p.exists():
+            return p
+    return None
 
 
 def _tectonic_cache_dir() -> Path:
@@ -335,12 +338,21 @@ async def compile_page(
         return CompileResult(status="error", errors=parse_errors(log, markers), log=log)
 
 
+_install_lock = asyncio.Lock()
+
+
 async def install_engine(*, force: bool = False) -> dict[str, object]:
     """Descarga el motor pineado y precalienta los paquetes comunes (offline luego).
 
     `force=True` reinstala la versión pineada (para 'actualizar' un binario
-    gestionado a la que trae esta versión de la app).
+    gestionado a la que trae esta versión de la app). Serializado con un lock:
+    dos instalaciones concurrentes se corromperían el binario mutuamente.
     """
+    async with _install_lock:
+        return await _install_engine_locked(force=force)
+
+
+async def _install_engine_locked(*, force: bool) -> dict[str, object]:
     if force:
         for name in ("tectonic", "tectonic.exe"):
             (_bin_dir() / name).unlink(missing_ok=True)

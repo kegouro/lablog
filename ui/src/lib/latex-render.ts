@@ -21,7 +21,7 @@ const MATH_ENVS = [
 const MATH_ENV_ALT = MATH_ENVS.map((e) => e.replace('*', '\\*')).join('|')
 const MATH_ENV_RE = new RegExp(`\\\\begin\\{(${MATH_ENV_ALT})\\}([\\s\\S]*?)\\\\end\\{\\1\\}`, 'g')
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

@@ -25,6 +25,12 @@ export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
   const scrubTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
+    return () => {
+      if (scrubTimerRef.current) clearTimeout(scrubTimerRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
     getHistory(pageId)
       .then((h) => {
         setHistory(h)

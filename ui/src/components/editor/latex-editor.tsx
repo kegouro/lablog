@@ -6,19 +6,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { getPage, replacePageLatex } from '@/lib/api'
 import { parseLatex } from '@/lib/latex-parser'
+import { escapeHtml } from '@/lib/latex-render'
 import { useAppStore } from '@/stores/app-store'
 
 function countLines(text: string) {
   return text.split('\n').length
-}
-
-function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
 }
 
 const PARAM_COLORS = [

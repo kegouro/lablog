@@ -32,6 +32,13 @@ export function LatexPreview() {
     pdfEngineStatus().then(setEngine).catch(() => setEngine(null))
   }, [])
 
+  // Un solo dueño del blob URL: se revoca al reemplazarlo, cerrarlo o desmontar.
+  useEffect(() => {
+    return () => {
+      if (pdfUrl) URL.revokeObjectURL(pdfUrl)
+    }
+  }, [pdfUrl])
+
   const handleInstall = async (force: boolean) => {
     setInstalling(true)
     try {
@@ -60,7 +67,6 @@ export function LatexPreview() {
     setCompiling(true)
     try {
       const blob = await compilePdf(activePageId)
-      if (pdfUrl) URL.revokeObjectURL(pdfUrl)
       setPdfUrl(URL.createObjectURL(blob))
     } catch (e) {
       if (e instanceof PdfCompileError) setErrors(e.errors)
@@ -148,7 +154,7 @@ export function LatexPreview() {
               <span className="text-xs font-medium">PDF compilado</span>
               <div className="flex gap-1">
                 <a className="text-xs underline" href={pdfUrl} download="lablog.pdf">Descargar</a>
-                <button className="text-xs" onClick={() => { URL.revokeObjectURL(pdfUrl); setPdfUrl(null) }}>Cerrar</button>
+                <button className="text-xs" onClick={() => setPdfUrl(null)}>Cerrar</button>
               </div>
             </div>
             <iframe src={pdfUrl} title="PDF" className="min-h-0 flex-1" />
