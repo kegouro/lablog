@@ -155,6 +155,13 @@ class PageDetail(BaseModel):
     ast: list[dict[str, Any]]
 
 
+class HistoryEntry(BaseModel):
+    index: int
+    type: str
+    timestamp: datetime
+    summary: str
+
+
 class CellPayload(BaseModel):
     cell_id: str
     language: str = "python"
@@ -321,6 +328,81 @@ def voice_text(page_id: str, payload: VoicePayload) -> dict[str, str]:
 @router.get("/pages/{page_id}/events", response_model=list[Event])
 def get_events(page_id: str) -> list[Event]:
     return store.get_events(page_id)
+
+
+_SUMMARY_LEN = 40
+
+
+def _event_summary(event: Event) -> str:
+    payload = event.payload
+    if event.type.startswith("cell_"):
+        text = str(payload.get("cell_id", ""))
+    elif event.type == "document_replaced":
+        text = f"{len(payload.get('latex', ''))} chars"
+    elif event.type in ("page_created", "page_metadata_updated"):
+        text = str(payload.get("title") or "")
+    elif event.type == "text_inserted":
+        text = str(payload.get("text", ""))
+    elif event.type == "math_inserted":
+        text = str(payload.get("latex", ""))
+    else:
+        text = ""
+    return text[:_SUMMARY_LEN]
+
+
+def _clamp_index(index: int, count: int) -> int:
+    return max(0, min(index, count - 1))
+
+
+def _detail_from(page_id: str, events: list[Event]) -> PageDetail:
+    proj = project(page_id, events)
+    return PageDetail(
+        page_id=page_id,
+        title=proj.title,
+        latex=serialize_ast(proj.ast),
+        ast=_ast_to_json(proj.ast),
+    )
+
+
+@router.get("/pages/{page_id}/history", response_model=list[HistoryEntry])
+def page_history(page_id: str) -> list[HistoryEntry]:
+    events = _events(page_id)
+    return [
+        HistoryEntry(
+            index=i, type=e.type, timestamp=e.timestamp, summary=_event_summary(e)
+        )
+        for i, e in enumerate(events)
+    ]
+
+
+@router.get("/pages/{page_id}/at/{event_index}", response_model=PageDetail)
+def page_at(page_id: str, event_index: int) -> PageDetail:
+    events = _events(page_id)
+    idx = _clamp_index(event_index, len(events))
+    return _detail_from(page_id, events[: idx + 1])
+
+
+@router.post("/pages/{page_id}/restore/{event_index}", response_model=PageDetail)
+def restore_version(page_id: str, event_index: int) -> PageDetail:
+    events = _events(page_id)
+    if project(page_id, events).deleted:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Página eliminada")
+    idx = _clamp_index(event_index, len(events))
+    past = project(page_id, events[: idx + 1])
+    store.append(document_replaced(page_id=page_id, latex=serialize_ast(past.ast)))
+    # serialize_ast no persiste output/figura: re-emitir ejecución de cada celda
+    # para que los resultados sobrevivan el round-trip (append-only).
+    for child in past.ast.children:
+        if isinstance(child, CellNode) and (child.output or child.figure_path):
+            store.append(
+                cell_executed(
+                    page_id=page_id,
+                    cell_id=child.cell_id,
+                    output=child.output or "",
+                    figure_path=child.figure_path,
+                )
+            )
+    return _detail_from(page_id, store.get_events(page_id))
 
 
 @router.post("/pages/{page_id}/cells", status_code=status.HTTP_201_CREATED)

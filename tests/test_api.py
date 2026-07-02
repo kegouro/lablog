@@ -146,3 +146,39 @@ def test_pdf_export_503_without_engine(monkeypatch) -> None:
     pid = client.post("/api/v1/pages", json={"title": "X"}).json()["page_id"]
     r = client.get(f"/api/v1/pages/{pid}/export/pdf")
     assert r.status_code == 503
+
+
+def test_history_shape_and_time_travel() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "TT"}).json()["page_id"]
+    client.post(f"/api/v1/pages/{pid}/replace", json={"latex": "A"})
+    client.post(f"/api/v1/pages/{pid}/replace", json={"latex": "A B"})
+
+    history = client.get(f"/api/v1/pages/{pid}/history").json()
+    assert len(history) == 3
+    assert {"index", "type", "timestamp", "summary"} <= set(history[0])
+    assert history[0]["type"] == "page_created"
+
+    assert client.get(f"/api/v1/pages/{pid}/at/1").json()["latex"] == "A"
+    # clamp documentado: índice alto → estado final; negativo → primer evento
+    assert client.get(f"/api/v1/pages/{pid}/at/999").json()["latex"] == "A B"
+    assert client.get(f"/api/v1/pages/{pid}/at/-5").status_code == 200
+
+
+def test_restore_appends_and_matches_past_state() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "TT2"}).json()["page_id"]
+    client.post(f"/api/v1/pages/{pid}/replace", json={"latex": "v1"})
+    client.post(f"/api/v1/pages/{pid}/replace", json={"latex": "v2"})
+    before = len(client.get(f"/api/v1/pages/{pid}/events").json())
+
+    restored = client.post(f"/api/v1/pages/{pid}/restore/1")
+    assert restored.status_code == 200
+    assert restored.json()["latex"] == "v1"
+    assert len(client.get(f"/api/v1/pages/{pid}/events").json()) == before + 1
+    # la historia previa sigue intacta (append-only)
+    assert client.get(f"/api/v1/pages/{pid}/at/2").json()["latex"] == "v2"
+
+
+def test_restore_deleted_page_is_conflict() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "TT3"}).json()["page_id"]
+    client.delete(f"/api/v1/pages/{pid}")
+    assert client.post(f"/api/v1/pages/{pid}/restore/0").status_code == 409
