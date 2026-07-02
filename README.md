@@ -437,6 +437,7 @@ same export in CI and publishes it on every push to `main`. To enable it on a fo
     <tr><td>Editor: find &amp; replace, undo / redo, cursor-aware insertion</td><td align="center">Done</td></tr>
     <tr><td>Static export &amp; GitHub Pages deployment</td><td align="center">Done</td></tr>
     <tr><td>Native desktop app (offline, pywebview)</td><td align="center">Done</td></tr>
+    <tr><td>Time-travel: scrub and restore any point of a page's history</td><td align="center">Done</td></tr>
     <tr><td>Portable PyInstaller bundle</td><td align="center">Beta</td></tr>
     <tr><td>In-app PDF compilation with line-aware error reporting</td><td align="center">Planned</td></tr>
     <tr><td>Multi-file documents and BibTeX</td><td align="center">Planned</td></tr>

@@ -7,6 +7,13 @@ All notable changes to lablog are documented here. The format is based on
 ## [Unreleased]
 
 ### Added
+- **Time-travel**: a "Historia" panel over the preview exposes the append-only
+  event log — scrub any page through its entire history with a slider or event
+  list, see the document rendered at that instant, and restore any version.
+  Restore never deletes: it appends a new `document_replaced` (plus re-emitted
+  `cell_executed` events so cell outputs survive the round-trip). Design was
+  hardened by an adversarial review panel (index clamping, 409 on deleted pages,
+  autosave flush before restore, out-of-order scrub guard).
 - **Real PDF compilation** with Tectonic (XeTeX). The preview stays fast and is
   labelled "Aproximada"; a **Compilar PDF** button produces a faithful PDF.
   Executable cells render as code + output + figure. Compilation is async with a
