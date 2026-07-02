@@ -18,7 +18,7 @@ import { toast } from 'sonner'
 import { TimeTravelOverlay } from '@/components/history/time-travel'
 
 export function LatexPreview() {
-  const { activeAst, activePageId, parameterValues } = useAppStore()
+  const { activeAst, activeLatex, activePageId, parameterValues, goToLine } = useAppStore()
   const debouncedAst = useDebouncedValue(activeAst, 150)
 
   const [compiling, setCompiling] = useState(false)
@@ -76,6 +76,8 @@ export function LatexPreview() {
     }
   }
 
+  const isFullDoc = activeLatex.includes('\\documentclass')
+
   return (
     <div className="flex h-full flex-col gap-2">
       <div className="flex items-center justify-between px-1">
@@ -86,6 +88,11 @@ export function LatexPreview() {
           <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
             Aproximada
           </span>
+          {isFullDoc && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
+              LaTeX completo
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <Button
@@ -135,8 +142,21 @@ export function LatexPreview() {
           <ul className="space-y-0.5">
             {errors.map((e, i) => (
               <li key={i} className="font-mono">
-                {e.kind === 'cell' ? `Celda ${e.ref}` : 'Documento'}
-                {e.source_line != null ? ` · línea ${e.source_line}` : ''}: {e.message}
+                {e.kind === 'raw' && e.source_line != null ? (
+                  <button
+                    type="button"
+                    className="underline decoration-dotted hover:text-destructive"
+                    onClick={() => goToLine?.(e.source_line as number)}
+                  >
+                    línea {e.source_line}
+                  </button>
+                ) : (
+                  <span>
+                    {e.kind === 'cell' ? `Celda ${e.ref}` : 'Documento'}
+                    {e.source_line != null ? ` · línea ${e.source_line}` : ''}
+                  </span>
+                )}
+                : {e.message}
               </li>
             ))}
           </ul>

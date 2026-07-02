@@ -49,6 +49,7 @@ export function LatexEditor() {
     parameterHints,
     setInsertAtCursor,
     setFlushSave,
+    setGoToLine,
   } = useAppStore()
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -136,6 +137,22 @@ export function LatexEditor() {
     setFlushSave(flushSave)
     return () => setFlushSave(null)
   }, [flushSave, setFlushSave])
+
+  const goToLine = useCallback((line: number) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const lines = ta.value.split('\n')
+    const clamped = Math.max(1, Math.min(line, lines.length))
+    const start = lines.slice(0, clamped - 1).reduce((n, l) => n + l.length + 1, 0)
+    ta.focus()
+    ta.setSelectionRange(start, start + (lines[clamped - 1]?.length ?? 0))
+    ta.scrollTop = Math.max(0, (clamped - 3) * 24) // leading-6 = 24px por línea
+  }, [])
+
+  useEffect(() => {
+    setGoToLine(goToLine)
+    return () => setGoToLine(null)
+  }, [goToLine, setGoToLine])
 
   const applyValue = useCallback(
     (value: string, caret?: number) => {

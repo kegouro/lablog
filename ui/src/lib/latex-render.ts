@@ -123,20 +123,37 @@ function renderProse(text: string): string {
 }
 
 /** Renderiza un fragmento LaTeX (prosa + matemática) a HTML. */
-export function renderLatexToHtml(source: string, values: Record<string, string> = {}): string {
-  const input = applyParameterValues(source, values)
+export function renderLatexToHtml(latex: string, values: Record<string, string> = {}): string {
+  const input = applyParameterValues(latex, values)
   if (!input.trim()) return ''
 
-  // 1) Extrae TODA la matemática a placeholders opacos para que el split de
-  //    prosa (párrafos, listas) no fragmente entornos ni rompa la línea en
-  //    matemática inline. KaTeX produce HTML seguro; se reinyecta al final.
+  // Stash compartido por extracción de cuerpo y matemática.
   const tokens: string[] = []
   const stash = (html: string): string => {
     tokens.push(html)
     return ` ${tokens.length - 1} `
   }
 
-  const text = input
+  // Documento LaTeX completo: renderizar solo el cuerpo. \maketitle se vuelve
+  // un bloque de título con \title/\author/\date del preámbulo.
+  let source = input
+  const bodyMatch = source.match(/\\begin\{document\}([\s\S]*?)(?:\\end\{document\}|$)/)
+  if (bodyMatch && bodyMatch.index != null) {
+    const preamble = source.slice(0, bodyMatch.index)
+    const title = preamble.match(/\\title\{([^{}]*)\}/)?.[1]
+    const author = preamble.match(/\\author\{([^{}]*)\}/)?.[1]
+    const date = preamble.match(/\\date\{([^{}]*)\}/)?.[1]
+    const meta = [author, date].filter(Boolean).join(' · ')
+    const titleBlock =
+      (title ? `<h1 class="mb-1 text-2xl font-bold tracking-tight">${escapeHtml(title)}</h1>` : '') +
+      (meta ? `<p class="mb-4 text-sm text-muted-foreground">${escapeHtml(meta)}</p>` : '')
+    source = bodyMatch[1].replace(/\\maketitle/g, () => stash(titleBlock))
+  }
+
+  // 1) Extrae TODA la matemática a placeholders opacos para que el split de
+  //    prosa (párrafos, listas) no fragmente entornos ni rompa la línea en
+  //    matemática inline. KaTeX produce HTML seguro; se reinyecta al final.
+  const text = source
     .replace(/\$\$([\s\S]*?)\$\$/g, (_, m) =>
       stash(`<div class="my-2 block overflow-x-auto">${renderKatex(m.trim(), true)}</div>`),
     )

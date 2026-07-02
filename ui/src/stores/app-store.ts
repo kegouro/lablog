@@ -34,6 +34,8 @@ interface AppState {
   insertAtCursor: ((text: string) => void) | null
   /** Registrado por el editor: fuerza el guardado inmediato si hay cambios pendientes. */
   flushSave: (() => Promise<void>) | null
+  /** Registrado por el editor: mueve el cursor a la línea indicada (1-based). */
+  goToLine: ((line: number) => void) | null
   setPages: (pages: Page[]) => void
   setActivePageId: (id: string | null) => void
   setActiveLatex: (latex: string) => void
@@ -58,6 +60,7 @@ interface AppState {
   clearParameters: () => void
   setInsertAtCursor: (fn: ((text: string) => void) | null) => void
   setFlushSave: (fn: (() => Promise<void>) | null) => void
+  setGoToLine: (fn: ((line: number) => void) | null) => void
 }
 
 function persist(key: string, value: string): void {
@@ -99,6 +102,7 @@ export const useAppStore = create<AppState>((set) => ({
   parameterValues: {},
   insertAtCursor: null,
   flushSave: null,
+  goToLine: null,
   setPages: (pages) => set({ pages }),
   setActivePageId: (id) => set({ activePageId: id }),
   setActiveLatex: (activeLatex) => set({ activeLatex }),
@@ -139,4 +143,5 @@ export const useAppStore = create<AppState>((set) => ({
   clearParameters: () => set({ parameterHints: {}, parameterValues: {} }),
   setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
   setFlushSave: (flushSave) => set({ flushSave }),
+  setGoToLine: (goToLine) => set({ goToLine }),
 }))
