@@ -32,6 +32,8 @@ interface AppState {
   parameterValues: Record<string, string>
   /** Registrado por el editor: inserta texto en la posición del cursor. */
   insertAtCursor: ((text: string) => void) | null
+  /** Registrado por el editor: fuerza el guardado inmediato si hay cambios pendientes. */
+  flushSave: (() => Promise<void>) | null
   setPages: (pages: Page[]) => void
   setActivePageId: (id: string | null) => void
   setActiveLatex: (latex: string) => void
@@ -55,6 +57,7 @@ interface AppState {
   setParameterValue: (name: string, value: string) => void
   clearParameters: () => void
   setInsertAtCursor: (fn: ((text: string) => void) | null) => void
+  setFlushSave: (fn: (() => Promise<void>) | null) => void
 }
 
 function persist(key: string, value: string): void {
@@ -95,6 +98,7 @@ export const useAppStore = create<AppState>((set) => ({
   parameterHints: {},
   parameterValues: {},
   insertAtCursor: null,
+  flushSave: null,
   setPages: (pages) => set({ pages }),
   setActivePageId: (id) => set({ activePageId: id }),
   setActiveLatex: (activeLatex) => set({ activeLatex }),
@@ -134,4 +138,5 @@ export const useAppStore = create<AppState>((set) => ({
     })),
   clearParameters: () => set({ parameterHints: {}, parameterValues: {} }),
   setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
+  setFlushSave: (flushSave) => set({ flushSave }),
 }))

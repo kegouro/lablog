@@ -8,14 +8,6 @@ import { getPage, replacePageLatex } from '@/lib/api'
 import { parseLatex } from '@/lib/latex-parser'
 import { useAppStore } from '@/stores/app-store'
 
-function debounce<T extends (...args: never[]) => void>(fn: T, ms: number) {
-  let timer: ReturnType<typeof setTimeout>
-  return (...args: Parameters<T>) => {
-    clearTimeout(timer)
-    timer = setTimeout(() => fn(...args), ms)
-  }
-}
-
 function countLines(text: string) {
   return text.split('\n').length
 }
@@ -64,6 +56,7 @@ export function LatexEditor() {
     setActiveAst,
     parameterHints,
     setInsertAtCursor,
+    setFlushSave,
   } = useAppStore()
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -126,7 +119,31 @@ export function LatexEditor() {
     [activePageId, setActiveAst],
   )
 
-  const debouncedSave = useMemo(() => debounce(save, 600), [save])
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const scheduleSave = useCallback(
+    (latex: string) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = setTimeout(() => {
+        saveTimerRef.current = null
+        void save(latex)
+      }, 600)
+    },
+    [save],
+  )
+
+  const flushSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current)
+      saveTimerRef.current = null
+      await save(valueRef.current)
+    }
+  }, [save])
+
+  useEffect(() => {
+    setFlushSave(flushSave)
+    return () => setFlushSave(null)
+  }, [flushSave, setFlushSave])
 
   const applyValue = useCallback(
     (value: string, caret?: number) => {
@@ -134,7 +151,7 @@ export function LatexEditor() {
       setActiveLatex(value)
       setActiveAst(parseLatex(value))
       setStatus('saving')
-      debouncedSave(value)
+      scheduleSave(value)
       if (caret != null) {
         requestAnimationFrame(() => {
           const ta = textareaRef.current
@@ -145,7 +162,7 @@ export function LatexEditor() {
         })
       }
     },
-    [setActiveLatex, setActiveAst, debouncedSave],
+    [setActiveLatex, setActiveAst, scheduleSave],
   )
 
   const commit = useCallback(

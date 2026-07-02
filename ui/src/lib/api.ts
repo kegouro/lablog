@@ -269,6 +269,45 @@ export async function installPdfEngine(force = false): Promise<{ installed: bool
   return fetchJson(`/pdf/install${force ? '?force=true' : ''}`, { method: 'POST' })
 }
 
+export interface HistoryEvent {
+  index: number
+  type: string
+  timestamp: string
+  summary: string
+}
+
+interface PageDetailWire {
+  page_id: string
+  title: string
+  latex: string
+  ast: Page['ast']
+}
+
+function detailToPage(d: PageDetailWire): Page {
+  return {
+    id: d.page_id,
+    title: d.title,
+    project_id: null,
+    latex: d.latex,
+    ast: d.ast,
+    updated_at: new Date().toISOString(),
+  }
+}
+
+export async function getHistory(pageId: string): Promise<HistoryEvent[]> {
+  return fetchJson(`/pages/${pageId}/history`)
+}
+
+export async function getPageAt(pageId: string, index: number): Promise<Page> {
+  return detailToPage(await fetchJson<PageDetailWire>(`/pages/${pageId}/at/${index}`))
+}
+
+export async function restoreVersion(pageId: string, index: number): Promise<Page> {
+  return detailToPage(
+    await fetchJson<PageDetailWire>(`/pages/${pageId}/restore/${index}`, { method: 'POST' }),
+  )
+}
+
 export async function compilePdf(pageId: string): Promise<Blob> {
   const res = await fetch(`${API_BASE}/pages/${pageId}/export/pdf`)
   if (res.ok) return res.blob()
