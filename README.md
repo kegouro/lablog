@@ -474,7 +474,7 @@ If `lablog` supports work that leads to publication, the recommended citation is
 
 `lablog` is part of the **Pharos Project** &mdash; an effort to lower the barrier of entry
 to scientific and educational infrastructure. Identity, logo and banner by
-José&nbsp;Labarca&nbsp;Baeza. Original idea conceived with Vicente.
+José&nbsp;Labarca&nbsp;Baeza. Original idea conceived with Vicente Muñoz Tolosa.
 
 <div align="center">
 
