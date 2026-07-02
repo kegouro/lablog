@@ -69,7 +69,20 @@ def _verbatim(body: str) -> str:
     )
 
 
+def _is_full_document(doc: DocumentNode) -> bool:
+    """Documento LaTeX completo: el usuario trae su propio preámbulo."""
+    return any(
+        isinstance(node, TextNode) and "\\documentclass" in node.text
+        for node in doc.children
+    )
+
+
 def build_document(doc: DocumentNode, title: str) -> tuple[str, list[SourceMarker], list[str]]:
+    if _is_full_document(doc):
+        # Modo raw: compilar exactamente lo escrito. Sin marcadores: la línea
+        # del .tex ES la línea del editor (mapeo 1:1). Celdas no soportadas aquí.
+        return serialize_ast(doc), [], []
+
     parts: list[str] = []
     markers: list[SourceMarker] = []
     figures: list[str] = []
@@ -129,7 +142,7 @@ def parse_errors(log: str, markers: list[SourceMarker]) -> list[CompileError]:
                 message=message,
                 source_line=line,
                 ref=marker.ref if marker else None,
-                kind=marker.kind if marker else None,
+                kind=marker.kind if marker else ("raw" if not markers else None),
             )
         )
     return errors

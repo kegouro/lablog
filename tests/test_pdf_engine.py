@@ -7,6 +7,7 @@ import pytest
 
 from lablog import pdf_engine
 from lablog.ast_nodes import CellNode, DocumentNode, TextNode
+from lablog.latex_ast import parse_latex, serialize_ast
 from lablog.pdf_engine import (
     SourceMarker,
     build_document,
@@ -113,3 +114,28 @@ def test_real_compile_minimal(tmp_path) -> None:
     doc = DocumentNode(children=[TextNode(text="Hola $x^2$")])
     res = _a.run(pdf_engine.compile_page("p", doc, "T", figures_dir=tmp_path))
     assert res.status == "ok" and res.pdf and res.pdf[:4] == b"%PDF"
+
+
+# Task 1: Backend — modo raw
+def test_full_document_compiles_raw() -> None:
+    src = (
+        "\\documentclass{article}\n\\begin{document}\nHola $x$\n\\end{document}"
+    )
+    doc = parse_latex(src)
+    tex, markers, figs = pdf_engine.build_document(doc, "T")
+    assert tex == serialize_ast(doc)  # passthrough exacto
+    assert "fvextra" not in tex  # sin doble preámbulo
+    assert markers == [] and figs == []
+
+
+def test_documentclass_inside_cell_not_raw() -> None:
+    src = "\\begin{python}\nprint('documentclass test \\\\documentclass')\n\\end{python}"
+    doc = parse_latex(src)
+    tex, _markers, _figs = pdf_engine.build_document(doc, "T")
+    assert "fvextra" in tex  # sigue en modo bitácora con nuestro preámbulo
+
+
+def test_parse_errors_without_markers_is_raw() -> None:
+    errors = pdf_engine.parse_errors("main.tex:7: Undefined control sequence", [])
+    assert errors[0].source_line == 7
+    assert errors[0].ref is None and errors[0].kind == "raw"
