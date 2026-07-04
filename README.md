@@ -13,6 +13,7 @@
   <a href="https://github.com/kegouro/lablog/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=CI" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/pages.yml"><img alt="Pages" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/pages.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=Pages" /></a>
   <a href="#testing--quality"><img alt="tests" src="https://img.shields.io/badge/tests-50%20passing-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="#testing--quality"><img alt="coverage" src="https://img.shields.io/badge/coverage-71%25-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="#stack"><img alt="python" src="https://img.shields.io/badge/python-3.11+-1C1C1E?style=flat-square&labelColor=1C1C1E&color=A1A1A6" /></a>
   <a href="#stack"><img alt="react" src="https://img.shields.io/badge/react-19-1C1C1E?style=flat-square&labelColor=1C1C1E&color=A1A1A6" /></a>
   <a href="#license"><img alt="license" src="https://img.shields.io/badge/license-MIT-1C1C1E?style=flat-square&labelColor=1C1C1E&color=F2F2F7" /></a>

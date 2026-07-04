@@ -6,6 +6,8 @@ All notable changes to lablog are documented here. The format is based on
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-07-03
+
 ### Added
 - **Full LaTeX mode**: pages containing `\documentclass` compile exactly as
   written (raw XeTeX via Tectonic — no injected preamble). The live preview
@@ -65,3 +67,6 @@ All notable changes to lablog are documented here. The format is based on
 - lablog is local-first and single-user. The PDF endpoint runs Tectonic without
   `--shell-escape` (no OS command execution) and must not be exposed publicly
   without rate limiting and isolation.
+
+[Unreleased]: https://github.com/kegouro/lablog/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/kegouro/lablog/releases/tag/v0.1.0

@@ -13,7 +13,7 @@ function extractOption(options: string, key: string): string | undefined {
   return m ? m[1].trim() : undefined
 }
 
-export function parseLatex(source: string): Page['ast'] {
+export function parseLatex(source: string): NonNullable<Page['ast']> {
   const ast: NonNullable<Page['ast']> = []
   let remaining = source
   let cellCounter = 0
