@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "lablog: A live LaTeX laboratory notebook for working scientists"
+abstract: "A live LaTeX laboratory notebook with voice dictation, vault preview, and immutable event-sourced history for working scientists."
+authors:
+  - family-names: "Labarca"
+    given-names: "José"
+    name-suffix: "Baeza"
+    orcid: "https://orcid.org/0009-0006-8890-4048"
+repository-code: "https://github.com/kegouro/lablog"
+url: "https://kegouro.github.io/lablog/"
+license: MIT
+version: 0.1.0
+date-released: 2026-07-03
