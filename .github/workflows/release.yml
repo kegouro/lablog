@@ -29,14 +29,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Python dependencies
-        run: uv sync --extra dev
-
       - name: Build UI
         run: |
           cd ui
           npm ci
           npm run build
+
+      - name: Install Python dependencies
+        run: uv sync --extra dev
 
       - name: Run backend tests
         run: uv run pytest -q
