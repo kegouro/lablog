@@ -1,6 +1,6 @@
 # lablog v0.1.0 Release Notes
 
-**Release date:** 2026-07-03  
+**Release date:** 2026-07-03
 **Tag:** [`v0.1.0`](https://github.com/kegouro/lablog/releases/tag/v0.1.0)
 
 ## Highlights

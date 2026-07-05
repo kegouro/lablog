@@ -19,9 +19,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: actions/setup-node@v4
         with:
-          version: "latest"
+          node-version: 22
+      - name: Build UI
+        run: |
+          cd ui
+          npm ci
+          npm run build
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "0.5.x"
       - name: Install Python dependencies
         run: uv sync --extra dev
       - name: Build demo site

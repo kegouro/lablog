@@ -1,6 +1,6 @@
 # lablog · Plan de Implementación
 
-> De cero a segundo cerebro científico, por fases.  
+> De cero a segundo cerebro científico, por fases.
 > **Versión actual:** `v0.1.0` (release pública inicial).
 
 ---

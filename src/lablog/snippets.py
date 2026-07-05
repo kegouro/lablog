@@ -320,4 +320,3 @@ Donde $m = {m}\\,{m_unit}$, $v = {v}\\,{v_unit}$ y $h = {h}\\,{h_unit}$.
         tags=["physics"],
     ),
 ]
-
