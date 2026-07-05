@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import threading
+import uuid
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -19,7 +21,7 @@ from pydantic import BaseModel
 
 from lablog import pdf_engine
 from lablog.ast_nodes import CellNode, DocumentNode
-from lablog.code_engine import CodeEngine
+from lablog.code_engine import CodeEngine, EngineStartError
 from lablog.config import settings, ui_dist_dir
 from lablog.event_store import EventStore
 from lablog.events import (
@@ -58,10 +60,15 @@ app.add_middleware(
 router = APIRouter(prefix="/api/v1")
 
 
+def _engine_ready() -> bool:
+    return _code_engine is not None and _code_engine.is_ready()
+
+
 @router.get("/health")
 def health() -> dict[str, Any]:
     return {
         "status": "ok",
+        "engine_ready": _engine_ready(),
         "tools": {
             "pandoc": which("pandoc") is not None,
             "xelatex": which("xelatex") is not None,
@@ -90,6 +97,7 @@ store = EventStore(settings.event_dir)
 favorites = FavoritesStore()
 vault = VaultService()
 _code_engine: CodeEngine | None = None
+_engine_lock = threading.Lock()
 _pdf_locks: dict[str, asyncio.Lock] = {}
 
 
@@ -104,8 +112,10 @@ def _pdf_lock(page_id: str) -> asyncio.Lock:
 def get_engine() -> CodeEngine:
     global _code_engine
     if _code_engine is None:
-        _code_engine = CodeEngine()
-        _code_engine.start()
+        with _engine_lock:
+            if _code_engine is None:
+                _code_engine = CodeEngine()
+                _code_engine.start()
     return _code_engine
 
 
@@ -201,6 +211,14 @@ class ForceDeletePayload(BaseModel):
     phrase: str
 
 
+def _is_valid_page_id(page_id: str) -> bool:
+    try:
+        uuid.UUID(page_id)
+    except ValueError:
+        return False
+    return True
+
+
 def _events(page_id: str) -> list[Event]:
     events = store.get_events(page_id)
     if not events:
@@ -251,6 +269,8 @@ def list_pages() -> list[PageSummary]:
 
 @router.patch("/pages/{page_id}", response_model=PageSummary)
 def update_page(page_id: str, req: UpdatePageRequest) -> PageSummary:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(
         page_metadata_updated(page_id=page_id, title=req.title, project_id=req.project_id)
@@ -260,6 +280,8 @@ def update_page(page_id: str, req: UpdatePageRequest) -> PageSummary:
 
 @router.delete("/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_page(page_id: str) -> None:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(page_deleted(page_id=page_id))
 
@@ -284,6 +306,8 @@ def get_latex(page_id: str) -> dict[str, str]:
 
 @router.post("/pages/{page_id}/text", status_code=status.HTTP_201_CREATED)
 def append_text(page_id: str, payload: TextPayload) -> dict[str, str]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(text_inserted(page_id=page_id, position=payload.position, text=payload.text))
     return {"status": "ok"}
@@ -291,6 +315,8 @@ def append_text(page_id: str, payload: TextPayload) -> dict[str, str]:
 
 @router.post("/pages/{page_id}/replace", status_code=status.HTTP_201_CREATED)
 def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, Any]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(document_replaced(page_id=page_id, latex=payload.latex))
     proj = project(page_id, _events(page_id))
@@ -299,6 +325,8 @@ def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, Any]:
 
 @router.post("/pages/{page_id}/math", status_code=status.HTTP_201_CREATED)
 def insert_math(page_id: str, payload: MathPayload) -> dict[str, str]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(
         math_inserted(
@@ -313,6 +341,8 @@ def insert_math(page_id: str, payload: MathPayload) -> dict[str, str]:
 
 @router.post("/pages/{page_id}/voice", status_code=status.HTTP_201_CREATED)
 def voice_text(page_id: str, payload: VoicePayload) -> dict[str, str]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     intent = parse_intent(payload.text)
     result = translate(payload.text, intent.type)
@@ -384,6 +414,8 @@ def page_at(page_id: str, event_index: int) -> PageDetail:
 
 @router.post("/pages/{page_id}/restore/{event_index}", response_model=PageDetail)
 def restore_version(page_id: str, event_index: int) -> PageDetail:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     events = _events(page_id)
     if project(page_id, events).deleted:
         raise HTTPException(status.HTTP_409_CONFLICT, "Página eliminada")
@@ -407,6 +439,8 @@ def restore_version(page_id: str, event_index: int) -> PageDetail:
 
 @router.post("/pages/{page_id}/cells", status_code=status.HTTP_201_CREATED)
 def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(
         cell_inserted(
@@ -421,6 +455,8 @@ def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
 
 @router.post("/pages/{page_id}/cells/{cell_id}/update", status_code=status.HTTP_200_OK)
 def update_cell(page_id: str, cell_id: str, payload: CellPayload) -> dict[str, str]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(
         cell_updated(
@@ -435,13 +471,32 @@ def update_cell(page_id: str, cell_id: str, payload: CellPayload) -> dict[str, s
 
 @router.post("/pages/{page_id}/cells/{cell_id}/execute", status_code=status.HTTP_201_CREATED)
 def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     events = _events(page_id)
     cell = _find_cell(page_id, events, cell_id)
     if cell is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Celda no encontrada")
 
+    if cell.language not in CodeEngine.SUPPORTED_LANGUAGES:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            f"Lenguaje no soportado: {cell.language}",
+        )
+
     figure_dir = settings.figures_dir / page_id
-    result = get_engine().execute(cell.source, figure_dir=figure_dir)
+    try:
+        result = get_engine().execute(cell.source, figure_dir=figure_dir)
+    except EngineStartError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"El motor de ejecución no está disponible: {exc}",
+        ) from exc
 
     output_text = result.text
     figure_path: str | None = None
@@ -469,12 +524,16 @@ def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
 
 @router.delete("/pages/{page_id}/cells/{cell_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_cell(page_id: str, cell_id: str) -> None:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(cell_deleted(page_id=page_id, cell_id=cell_id))
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/move", status_code=status.HTTP_200_OK)
 def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str, str]:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
     store.append(cell_moved(page_id=page_id, cell_id=cell_id, new_index=payload.new_index))
     return {"status": "ok"}

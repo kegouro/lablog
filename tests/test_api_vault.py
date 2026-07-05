@@ -111,3 +111,36 @@ def test_purge_endpoint(tmp_path: Path) -> None:
 
     response = client.get(f"/api/v1/vault/{file_id}")
     assert response.status_code == 404
+
+
+def test_preview_not_found() -> None:
+    response = client.get("/api/v1/vault/no-existe/preview")
+    assert response.status_code == 404
+
+
+def test_download_not_found() -> None:
+    response = client.get("/api/v1/vault/no-existe/download")
+    assert response.status_code == 404
+
+
+def test_cancel_and_force_delete_not_found() -> None:
+    response = client.post("/api/v1/vault/no-existe/cancel-delete")
+    assert response.status_code == 404
+
+    response = client.post(
+        "/api/v1/vault/no-existe/force-delete", json={"phrase": "x"}
+    )
+    assert response.status_code == 403
+
+
+def test_download_success() -> None:
+    file_id = _upload("download.txt", b"descargar esto")
+    response = client.get(f"/api/v1/vault/{file_id}/download")
+    assert response.status_code == 200
+    assert response.content == b"descargar esto"
+    assert 'inline; filename="download.txt"' in response.headers["content-disposition"]
+
+
+def test_get_file_not_found() -> None:
+    response = client.get("/api/v1/vault/no-existe")
+    assert response.status_code == 404

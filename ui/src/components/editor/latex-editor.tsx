@@ -41,16 +41,14 @@ function buildOverlayHtml(text: string, hints: Record<string, { description: str
 const CLOSERS: Record<string, string> = { '{': '}', '(': ')', '[': ']', '$': '$' }
 
 export function LatexEditor() {
-  const {
-    activePageId,
-    activeLatex,
-    setActiveLatex,
-    setActiveAst,
-    parameterHints,
-    setInsertAtCursor,
-    setFlushSave,
-    setGoToLine,
-  } = useAppStore()
+  const activePageId = useAppStore((s) => s.activePageId)
+  const activeLatex = useAppStore((s) => s.activeLatex)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const parameterHints = useAppStore((s) => s.parameterHints)
+  const setInsertAtCursor = useAppStore((s) => s.setInsertAtCursor)
+  const setFlushSave = useAppStore((s) => s.setFlushSave)
+  const setGoToLine = useAppStore((s) => s.setGoToLine)
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const gutterRef = useRef<HTMLDivElement>(null)

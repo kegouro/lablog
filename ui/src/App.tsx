@@ -8,8 +8,12 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { useAppStore } from '@/stores/app-store'
 
 function AppInitializer() {
-  const { setFontScale, setAccent, setPalette, setCustomColors, setLabMode, setPanel } =
-    useAppStore()
+  const setFontScale = useAppStore((s) => s.setFontScale)
+  const setAccent = useAppStore((s) => s.setAccent)
+  const setPalette = useAppStore((s) => s.setPalette)
+  const setCustomColors = useAppStore((s) => s.setCustomColors)
+  const setLabMode = useAppStore((s) => s.setLabMode)
+  const setPanel = useAppStore((s) => s.setPanel)
 
   useEffect(() => {
     let savedScale: string | null = null

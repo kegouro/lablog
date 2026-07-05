@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Archive,
   FileText,
@@ -34,15 +35,13 @@ const TOOLS: { id: PanelId; icon: React.ElementType; label: string }[] = [
 ]
 
 export function Sidebar({ onCreatePage, onUpdatePage, onDeletePage }: SidebarProps) {
-  const {
-    pages,
-    activePageId,
-    setActivePageId,
-    searchQuery,
-    setSearchQuery,
-    panels,
-    setPanel,
-  } = useAppStore()
+  const pages = useAppStore((s) => s.pages)
+  const activePageId = useAppStore((s) => s.activePageId)
+  const setActivePageId = useAppStore((s) => s.setActivePageId)
+  const searchQuery = useAppStore((s) => s.searchQuery)
+  const setSearchQuery = useAppStore((s) => s.setSearchQuery)
+  const panels = useAppStore(useShallow((s) => s.panels))
+  const setPanel = useAppStore((s) => s.setPanel)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')

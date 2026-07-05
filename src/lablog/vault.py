@@ -229,7 +229,7 @@ def _extract_docx_text(path: Path) -> str:
         zipfile.ZipFile(path, "r") as zf,
         zf.open("word/document.xml") as xml_file,
     ):
-        tree = ET.parse(xml_file)
+        tree = ET.parse(xml_file)  # nosec B314 (DOCX interno generado por la app)
     for elem in tree.iter():
         if elem.tag == f"{{{ns['w']}}}t":
             paragraphs.append(elem.text or "")

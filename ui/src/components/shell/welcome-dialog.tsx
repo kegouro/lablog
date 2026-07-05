@@ -31,7 +31,7 @@ const STEPS = [
 ]
 
 export function WelcomeDialog() {
-  const { setPanel } = useAppStore()
+  const setPanel = useAppStore((s) => s.setPanel)
   const [open, setOpen] = useState(false)
 
   useEffect(() => {

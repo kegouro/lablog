@@ -23,7 +23,8 @@ class TranslationResult:
     source: str  # "ollama", "openai", "rule"
 
 
-SYSTEM_PROMPT = """Eres un asistente especializado en convertir dictado de voz de físicos experimentales a código LaTeX válido.
+SYSTEM_PROMPT = """Eres un asistente especializado en convertir dictado de voz \
+de físicos experimentales a código LaTeX válido.
 
 Reglas:
 1. Responde SOLO con el código LaTeX, sin explicaciones, sin Markdown, sin comillas.
@@ -117,14 +118,23 @@ def translate_with_rules(text: str, intent_type: str) -> TranslationResult:
         (
             r"integral\s+de\s+(.+?)\s+a\s+(.+?)\s+de\s+(.+?)(?:\s+d([a-z]))?$",
             lambda m: (
-                r"\\int_{" + _to_latex_expr(m.group(1)) + r"}^{" + _to_latex_expr(m.group(2)) + r"} " + _to_latex_expr(m.group(3)) + r" \\, d" + (m.group(4) or "x"),
+                (
+                    r"\\int_{" + _to_latex_expr(m.group(1)) + r"}^{"
+                    + _to_latex_expr(m.group(2)) + r"} "
+                    + _to_latex_expr(m.group(3)) + r" \\, d"
+                    + (m.group(4) or "x")
+                ),
                 "display",
             ),
         ),
         (
             r"integral\s+de\s+(.+?)\s+de\s+(.+?)(?:\s+d([a-z]))?$",
             lambda m: (
-                r"\\int_{" + _to_latex_expr(m.group(1)) + r"} " + _to_latex_expr(m.group(2)) + r" \\, d" + (m.group(3) or "x"),
+                (
+                    r"\\int_{" + _to_latex_expr(m.group(1)) + r"} "
+                    + _to_latex_expr(m.group(2)) + r" \\, d"
+                    + (m.group(3) or "x")
+                ),
                 "display",
             ),
         ),
@@ -199,9 +209,12 @@ def translate_with_rules(text: str, intent_type: str) -> TranslationResult:
     # Limpieza de espacios múltiples
     latex = re.sub(r"\s+", " ", latex).strip()
 
-    if intent_type in ("math", "integral", "equation"):
-        if not latex.startswith("$") and not latex.startswith("\\["):
-            latex = f"\\[{latex}\\]"
+    if (
+        intent_type in ("math", "integral", "equation")
+        and not latex.startswith("$")
+        and not latex.startswith("\\[")
+    ):
+        latex = f"\\[{latex}\\]"
 
     return TranslationResult(latex=latex, mode=_infer_mode(latex, intent_type), source="rule")
 
@@ -225,9 +238,19 @@ def _to_latex_expr(expr: str) -> str:
     expr = re.sub(r"\bpi\b", r"\\pi", expr, flags=re.IGNORECASE)
     expr = re.sub(r"\bmenos\b", r"-", expr, flags=re.IGNORECASE)
     expr = re.sub(r"\bmás\b", r"+", expr, flags=re.IGNORECASE)
-    expr = re.sub(r"\be\s+a\s+la\s+menos\s+([xtyz])\s+cuadrado", r"e^{-\1^{2}}", expr, flags=re.IGNORECASE)
+    expr = re.sub(
+        r"\be\s+a\s+la\s+menos\s+([xtyz])\s+cuadrado",
+        r"e^{-\1^{2}}",
+        expr,
+        flags=re.IGNORECASE,
+    )
     expr = re.sub(r"\be\s+a\s+la\s+menos\s+(.+)", r"e^{-\1}", expr, flags=re.IGNORECASE)
-    expr = re.sub(r"\be\s+a\s+la\s+([xtyz])\s+cuadrado", r"e^{\1^{2}}", expr, flags=re.IGNORECASE)
+    expr = re.sub(
+        r"\be\s+a\s+la\s+([xtyz])\s+cuadrado",
+        r"e^{\1^{2}}",
+        expr,
+        flags=re.IGNORECASE,
+    )
     expr = re.sub(r"\be\s+a\s+la\s+(.+)", r"e^{\1}", expr, flags=re.IGNORECASE)
     expr = re.sub(r"\b([xtyz])\s+cuadrado", r"\1^{2}", expr, flags=re.IGNORECASE)
     return expr

@@ -72,3 +72,21 @@ def test_code_environment_is_a_cell() -> None:
         src = f"\\begin{{{lang}}}\nx = 1\n\\end{{{lang}}}"
         doc = parse_latex(src)
         assert any(isinstance(c, CellNode) for c in doc.children), lang
+
+
+def test_parse_mixed_cells_with_and_without_options() -> None:
+    """Regresión: celdas sin [options] deben parsearse junto a celdas con options."""
+    source = (
+        "\\begin{python}\nprint(1)\n\\end{python}\n"
+        "\\begin{python}[label=second]\nprint(2)\n\\end{python}\n"
+        "\\begin{python}\nprint(3)\n\\end{python}"
+    )
+    doc = parse_latex(source)
+    cells = [c for c in doc.children if isinstance(c, CellNode)]
+    assert len(cells) == 3
+    assert cells[0].cell_id == "cell_1"
+    assert cells[0].source == "print(1)"
+    assert cells[1].cell_id == "second"
+    assert cells[1].source == "print(2)"
+    assert cells[2].cell_id == "cell_2"
+    assert cells[2].source == "print(3)"

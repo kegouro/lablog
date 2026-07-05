@@ -21,7 +21,10 @@ const FORMATS = [
 ]
 
 export function ExportMenu() {
-  const { activePageId, activeLatex, parameterValues, setActiveLatex } = useAppStore()
+  const activePageId = useAppStore((s) => s.activePageId)
+  const activeLatex = useAppStore((s) => s.activeLatex)
+  const parameterValues = useAppStore((s) => s.parameterValues)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
 
   const handleExport = async (format: string, _label: string) => {
     if (format === 'site') {

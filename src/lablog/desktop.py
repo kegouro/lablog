@@ -39,7 +39,7 @@ def _wait_until_ready(url: str, timeout: float = 20.0) -> bool:
     deadline = monotonic() + timeout
     while monotonic() < deadline:
         try:
-            with urllib.request.urlopen(url, timeout=1.0) as resp:
+            with urllib.request.urlopen(url, timeout=1.0) as resp:  # nosec B310 (URL controlada: health-check local)
                 if resp.status == 200:
                     return True
         except (urllib.error.URLError, OSError):

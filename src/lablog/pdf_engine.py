@@ -238,17 +238,17 @@ def _download_binary() -> Path | None:
         f"tectonic%40{TECTONIC_VERSION}/{fname}"
     )
     archive = _bin_dir() / fname
-    with urllib.request.urlopen(url, timeout=120) as resp:  # noqa: S310
+    with urllib.request.urlopen(url, timeout=120) as resp:  # noqa: S310 # nosec B310 (URL fija de release oficial, SHA verificado)
         data = resp.read()
     if hashlib.sha256(data).hexdigest() != sha:
         return None
     archive.write_bytes(data)
     if fname.endswith(".tar.gz"):
         with tarfile.open(archive) as tf:
-            tf.extractall(_bin_dir())  # noqa: S202 (release pineada, sha verificado)
+            tf.extractall(_bin_dir())  # noqa: S202 # nosec B202 (release pineada, SHA verificado)
     elif fname.endswith(".zip"):
         with zipfile.ZipFile(archive) as zf:
-            zf.extractall(_bin_dir())  # noqa: S202 (release pineada, sha verificado)
+            zf.extractall(_bin_dir())  # noqa: S202 # nosec B202 (release pineada, SHA verificado)
     archive.unlink(missing_ok=True)
     binary = _cached_binary()
     if binary:

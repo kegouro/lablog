@@ -20,14 +20,9 @@ def parse_latex(source: str) -> DocumentNode:
     remaining = source
     cell_counter = 0
 
-    # Patrón para celdas ejecutables
+    # Patrón unificado para celdas ejecutables con o sin opciones.
     cell_pattern = re.compile(
-        r"\\begin\{([a-zA-Z0-9_]+)\}\s*\[(.*?)\](.*?)\\end\{\1\}",
-        re.DOTALL,
-    )
-    # Patrón simple para celdas sin opciones
-    cell_pattern_no_opts = re.compile(
-        r"\\begin\{([a-zA-Z0-9_]+)\}(.*?)\\end\{\1\}",
+        r"\\begin\{([a-zA-Z0-9_]+)\}(?:\s*\[(.*?)\])?(.*?)\\end\{\1\}",
         re.DOTALL,
     )
 
@@ -46,7 +41,7 @@ def parse_latex(source: str) -> DocumentNode:
             lang = m.group(1)
             if lang not in CODE_ENVIRONMENTS:
                 continue
-            opts = m.group(2)
+            opts = m.group(2) or ""
             source_code = m.group(3).strip()
             cell_id = _extract_option(opts, "label") or _extract_option(opts, "id") or ""
             matches.append(
@@ -61,25 +56,6 @@ def parse_latex(source: str) -> DocumentNode:
                     ),
                 )
             )
-
-        if not matches:
-            for m in cell_pattern_no_opts.finditer(remaining):
-                lang = m.group(1)
-                if lang not in CODE_ENVIRONMENTS:
-                    continue
-                source_code = m.group(2).strip()
-                matches.append(
-                    (
-                        m.start(),
-                        m.end(),
-                        "cell",
-                        CellNode(
-                            cell_id="",
-                            language=lang,
-                            source=source_code,
-                        ),
-                    )
-                )
 
         for m in display_block_pattern.finditer(remaining):
             matches.append(

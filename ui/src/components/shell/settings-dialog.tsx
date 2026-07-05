@@ -50,16 +50,14 @@ function applyCustomColors(colors: Record<string, string>) {
 }
 
 export function SettingsDialog() {
-  const {
-    fontScale,
-    setFontScale,
-    accent,
-    setAccent,
-    palette,
-    setPalette,
-    customColors,
-    setCustomColors,
-  } = useAppStore()
+  const fontScale = useAppStore((s) => s.fontScale)
+  const setFontScale = useAppStore((s) => s.setFontScale)
+  const accent = useAppStore((s) => s.accent)
+  const setAccent = useAppStore((s) => s.setAccent)
+  const palette = useAppStore((s) => s.palette)
+  const setPalette = useAppStore((s) => s.setPalette)
+  const customColors = useAppStore((s) => s.customColors)
+  const setCustomColors = useAppStore((s) => s.setCustomColors)
   const [open, setOpen] = useState(false)
   const [draftColors, setDraftColors] = useState(customColors)
 

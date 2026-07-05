@@ -34,13 +34,21 @@ export function applyParameterValues(text: string, values: Record<string, string
   return text.replace(/\{\{(\w+)\}\}/g, (_, name) => values[name] ?? `{{${name}}}`)
 }
 
-function renderKatex(latex: string, displayMode: boolean): string {
+export interface RenderError {
+  latex: string
+  message: string
+}
+
+function renderKatex(latex: string, displayMode: boolean, errors?: RenderError[]): string {
   try {
-    // throwOnError:false ya colorea en rojo errores de sintaxis dentro de KaTeX.
-    return katex.renderToString(latex, { throwOnError: false, displayMode })
-  } catch {
+    // throwOnError:true permite capturar fallos de parseo y reportarlos al
+    // llamante sin romper el renderizado del documento completo.
+    return katex.renderToString(latex, { throwOnError: true, displayMode })
+  } catch (err) {
     // Fallo duro: muestra el origen con subrayado punteado en vez de romper.
-    return `<span class="text-destructive underline decoration-dotted" title="Error de LaTeX">${escapeHtml(latex)}</span>`
+    const message = err instanceof Error ? err.message : 'Error de LaTeX'
+    if (errors) errors.push({ latex, message })
+    return `<span class="text-destructive underline decoration-dotted" title="${escapeHtml(message)}">${escapeHtml(latex)}</span>`
   }
 }
 
@@ -132,7 +140,11 @@ function renderProse(text: string): string {
 }
 
 /** Renderiza un fragmento LaTeX (prosa + matemática) a HTML. */
-export function renderLatexToHtml(latex: string, values: Record<string, string> = {}): string {
+export function renderLatexToHtml(
+  latex: string,
+  values: Record<string, string> = {},
+  errors?: RenderError[],
+): string {
   const input = applyParameterValues(latex, values)
   if (!input.trim()) return ''
 
@@ -168,16 +180,16 @@ export function renderLatexToHtml(latex: string, values: Record<string, string> 
   //    matemática inline. KaTeX produce HTML seguro; se reinyecta al final.
   const text = source
     .replace(/\$\$([\s\S]*?)\$\$/g, (_, m) =>
-      stash(`<div class="my-2 block overflow-x-auto">${renderKatex(m.trim(), true)}</div>`),
+      stash(`<div class="my-2 block overflow-x-auto">${renderKatex(m.trim(), true, errors)}</div>`),
     )
     .replace(/\\\[([\s\S]*?)\\\]/g, (_, m) =>
-      stash(`<div class="my-2 block overflow-x-auto">${renderKatex(m.trim(), true)}</div>`),
+      stash(`<div class="my-2 block overflow-x-auto">${renderKatex(m.trim(), true, errors)}</div>`),
     )
     .replace(MATH_ENV_RE, (m) =>
-      stash(`<div class="my-2 block overflow-x-auto">${renderKatex(m.trim(), true)}</div>`),
+      stash(`<div class="my-2 block overflow-x-auto">${renderKatex(m.trim(), true, errors)}</div>`),
     )
-    .replace(/\$([^$\n][\s\S]*?)\$/g, (_, m) => stash(`<span>${renderKatex(m.trim(), false)}</span>`))
-    .replace(/\\\(([\s\S]*?)\\\)/g, (_, m) => stash(`<span>${renderKatex(m.trim(), false)}</span>`))
+    .replace(/\$([^$\n][\s\S]*?)\$/g, (_, m) => stash(`<span>${renderKatex(m.trim(), false, errors)}</span>`))
+    .replace(/\\\(([\s\S]*?)\\\)/g, (_, m) => stash(`<span>${renderKatex(m.trim(), false, errors)}</span>`))
 
   // 2) Renderiza la prosa y 3) reinyecta la matemática. El delimitador es el
   // carácter U+E000 literal (invisible): debe coincidir con el de stash().
@@ -211,6 +223,7 @@ export function renderDocument(
   ast: Page['ast'],
   pageId: string | null,
   values: Record<string, string>,
+  errors?: RenderError[],
 ): string {
   if (!ast || ast.length === 0) {
     return `
@@ -230,7 +243,7 @@ export function renderDocument(
   let html = ''
   let buffer = ''
   const flush = () => {
-    if (buffer.trim()) html += renderLatexToHtml(buffer, values)
+    if (buffer.trim()) html += renderLatexToHtml(buffer, values, errors)
     buffer = ''
   }
   for (const node of ast) {
@@ -239,9 +252,15 @@ export function renderDocument(
       flush()
       html += renderCell(node as CellNode, pageId)
     } else if (node.type === 'math') {
+      flush()
       const m = node as { latex?: string; mode?: string }
-      const src = m.latex ?? ''
-      buffer += m.mode === 'display' ? `\n\n\\[${src}\\]\n\n` : `$${src}$`
+      const src = applyParameterValues(m.latex ?? '', values)
+      if (src.trim()) {
+        html +=
+          m.mode === 'display'
+            ? `<div class="my-2 block overflow-x-auto">${renderKatex(src.trim(), true, errors)}</div>`
+            : `<span>${renderKatex(src.trim(), false, errors)}</span>`
+      }
     } else if (node.type === 'text') {
       buffer += (node as { text?: string }).text ?? ''
     }

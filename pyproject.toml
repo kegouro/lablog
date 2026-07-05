@@ -38,6 +38,7 @@ dev = [
     "httpx>=0.27",  # requerido por fastapi/starlette TestClient
     "ruff>=0.7",
     "mypy>=1.13",
+    "bandit>=1.7",
     "pre-commit>=3.8",
 ]
 
@@ -48,13 +49,17 @@ lablog = "lablog.cli:main"
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.sdist]
+force-include = { "ui/dist" = "ui/dist" }
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/lablog"]
+force-include = { "ui/dist" = "lablog/static" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
-addopts = "--cov=lablog --cov-report=term-missing --cov-report=xml --cov-fail-under=60"
+addopts = "--cov=lablog --cov-report=term-missing --cov-report=xml --cov-fail-under=80"
 
 [tool.ruff]
 line-length = 100
@@ -67,6 +72,8 @@ select = ["E", "F", "I", "N", "W", "UP", "B", "C4", "SIM"]
 python_version = "3.13"
 strict = true
 ignore_missing_imports = true
+files = ["src/lablog"]
+exclude = ["prototypes", "tests", "ui", "dist"]
 
 [dependency-groups]
 dev = [

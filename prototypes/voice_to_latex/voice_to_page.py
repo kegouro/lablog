@@ -19,6 +19,14 @@ from latex_translator import translate
 from record import record_audio, save_wav
 from transcribe import transcribe
 
+_MATH_INTENTS = (
+    IntentType.MATH,
+    IntentType.INTEGRAL,
+    IntentType.EQUATION,
+    IntentType.SNIPPET,
+    IntentType.MATRIX,
+)
+
 
 def get_store() -> EventStore:
     data_dir = Path.home() / ".lablog" / "events"
@@ -63,7 +71,7 @@ def voice_to_event(
         print(f"📝 Fuente: {result.source}")
         print(f"🧮 LaTeX: {result.latex}")
 
-        if intent.type in (IntentType.MATH, IntentType.INTEGRAL, IntentType.EQUATION, IntentType.SNIPPET, IntentType.MATRIX):
+        if intent.type in _MATH_INTENTS:
             body, detected_mode = _extract_latex_body(result.latex)
             mode = detected_mode if result.mode == "display" else result.mode
             return math_inserted(page_id=page_id, ast_path="/document", latex=body, mode=mode)
@@ -90,7 +98,7 @@ def text_to_event(page_id: str, text: str) -> Event:
     print(f"🎯 Intención: {intent.type.value}")
     print(f"🧮 LaTeX: {result.latex}")
 
-    if intent.type in (IntentType.MATH, IntentType.INTEGRAL, IntentType.EQUATION, IntentType.SNIPPET, IntentType.MATRIX):
+    if intent.type in _MATH_INTENTS:
         body, detected_mode = _extract_latex_body(result.latex)
         mode = detected_mode if result.mode == "display" else result.mode
         return math_inserted(page_id=page_id, ast_path="/document", latex=body, mode=mode)
@@ -101,7 +109,9 @@ def text_to_event(page_id: str, text: str) -> Event:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Voz/Texto → Evento → AST")
     parser.add_argument("--page-id", "-p", type=str, help="ID de página existente")
-    parser.add_argument("--title", "-t", type=str, default="Bitácora de voz", help="Título para nueva página")
+    parser.add_argument(
+        "--title", "-t", type=str, default="Bitácora de voz", help="Título para nueva página"
+    )
     parser.add_argument("--text", type=str, help="Usar texto en vez de micrófono")
     parser.add_argument("--duration", "-d", type=float, default=5.0, help="Duración de grabación")
     parser.add_argument("--model", "-m", type=str, default="tiny", help="Modelo Whisper")

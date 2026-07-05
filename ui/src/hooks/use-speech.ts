@@ -47,6 +47,7 @@ interface SpeechHook {
   error: string | null
   start: () => void
   stop: () => void
+  resetTranscript: () => void
 }
 
 // ponytail: tope de sesión; el reconocedor puede colgarse sin emitir onend.
@@ -58,6 +59,8 @@ export function useSpeechRecognition(): SpeechHook {
   const [error, setError] = useState<string | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingFinalRef = useRef('')
+  const generationRef = useRef(0)
 
   const supported =
     typeof window !== 'undefined' &&
@@ -99,6 +102,7 @@ export function useSpeechRecognition(): SpeechHook {
     }
 
     recognition.onresult = (event) => {
+      const generation = generationRef.current
       let final = ''
       let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -109,9 +113,16 @@ export function useSpeechRecognition(): SpeechHook {
           interim += result[0].transcript
         }
       }
-      setTranscript((prev) => prev + final)
+      if (final) {
+        pendingFinalRef.current += final
+        setTranscript((prev) => {
+          if (generation !== generationRef.current) return prev
+          return prev + final
+        })
+      }
       if (interim) {
         setTranscript((prev) => {
+          if (generation !== generationRef.current) return prev
           const trimmed = interim.trim()
           const base = prev.endsWith(trimmed) ? prev : prev + interim
           return base
@@ -130,8 +141,14 @@ export function useSpeechRecognition(): SpeechHook {
     }
   }, [supported])
 
-  const start = useCallback(() => {
+  const resetTranscript = useCallback(() => {
+    generationRef.current += 1
+    pendingFinalRef.current = ''
     setTranscript('')
+  }, [])
+
+  const start = useCallback(() => {
+    resetTranscript()
     setError(null)
     try {
       recognitionRef.current?.start()
@@ -147,7 +164,7 @@ export function useSpeechRecognition(): SpeechHook {
     } catch {
       setError('No se pudo iniciar el dictado')
     }
-  }, [])
+  }, [resetTranscript])
 
   const stop = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -159,5 +176,5 @@ export function useSpeechRecognition(): SpeechHook {
     setListening(false)
   }, [])
 
-  return { listening, supported, transcript, error, start, stop }
+  return { listening, supported, transcript, error, start, stop, resetTranscript }
 }

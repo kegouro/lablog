@@ -18,8 +18,7 @@ export function parseLatex(source: string): NonNullable<Page['ast']> {
   let remaining = source
   let cellCounter = 0
 
-  const cellPattern = /\\begin\{([a-zA-Z0-9_]+)\}\s*\[(.*?)\](.*?)\\end\{\1\}/gs
-  const cellPatternNoOpts = /\\begin\{([a-zA-Z0-9_]+)\}(.*?)\\end\{\1\}/gs
+  const cellPattern = /\\begin\{([a-zA-Z0-9_]+)\}(?:\s*\[(.*?)\])?\s*(.*?)\\end\{\1\}/gs
   const displayBlockPattern = /\$\$([\s\S]*?)\$\$/gs
   const displayBracketPattern = /\\\[(.*?)\\\]/gs
   const inlineMathPattern = /\$(.*?)\$/gs
@@ -34,37 +33,19 @@ export function parseLatex(source: string): NonNullable<Page['ast']> {
     for (const m of remaining.matchAll(cellPattern)) {
       if (m.index == null) continue
       if (!CODE_ENVIRONMENTS.has(m[1])) continue
+      const options = m[2] ?? ''
       matches.push({
         start: m.index,
         end: m.index + m[0].length,
         node: {
           type: 'cell',
-          cell_id: extractOption(m[2], 'label') || extractOption(m[2], 'id') || '',
+          cell_id: extractOption(options, 'label') || extractOption(options, 'id') || '',
           language: m[1],
           source: m[3].trim(),
           output: '',
           figure_path: null,
         },
       })
-    }
-
-    if (matches.length === 0) {
-      for (const m of remaining.matchAll(cellPatternNoOpts)) {
-        if (m.index == null) continue
-        if (!CODE_ENVIRONMENTS.has(m[1])) continue
-        matches.push({
-          start: m.index,
-          end: m.index + m[0].length,
-          node: {
-            type: 'cell',
-            cell_id: '',
-            language: m[1],
-            source: m[2].trim(),
-            output: '',
-            figure_path: null,
-          },
-        })
-      }
     }
 
     for (const m of remaining.matchAll(displayBlockPattern)) {

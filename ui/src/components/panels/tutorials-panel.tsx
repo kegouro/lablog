@@ -78,7 +78,7 @@ const TUTORIALS = [
 ]
 
 export function TutorialsPanel() {
-  const { togglePanel } = useAppStore()
+  const togglePanel = useAppStore((s) => s.togglePanel)
 
   return (
     <Card className="m-2 border-0 shadow-none">
