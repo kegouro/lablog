@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed PyPI distribution from `lablog` to `jose-labarca-lablog` because the
+  `lablog` package name was already registered on PyPI.
+
 ## [0.1.0] - 2026-07-05
 
 ### Added
@@ -21,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Static site export and GitHub Pages deployment.
 - Native desktop app via pywebview and PyInstaller packaging.
 - Production-ready health endpoint that reports Jupyter kernel readiness.
-- GitHub Actions release workflow that publishes `lablog` to PyPI on tags.
+- GitHub Actions release workflow that publishes `jose-labarca-lablog` to PyPI on tags.
 - Regression tests for voice dictation, mixed-option code cells, AST preview, and cell error display.
 
 ### Fixed

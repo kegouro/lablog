@@ -1,5 +1,5 @@
 [project]
-name = "lablog"
+name = "jose-labarca-lablog"
 version = "0.1.0"
 description = "Segundo cerebro científico con LaTeX en vivo, voz y bóveda segura."
 readme = "README.md"

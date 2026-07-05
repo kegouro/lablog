@@ -9,7 +9,7 @@
 <p><em>A live LaTeX laboratory notebook for working scientists.</em></p>
 
 <p>
-  <a href="https://pypi.org/project/lablog/"><img alt="version" src="https://img.shields.io/badge/version-v0.1.0-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="version" src="https://img.shields.io/badge/version-v0.1.0-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=CI" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/pages.yml"><img alt="Pages" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/pages.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=Pages" /></a>
   <a href="#testing--quality"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=tests" /></a>
@@ -205,7 +205,7 @@ tests, or replaced by another front-end. The projector reconstructs the current
 ### From PyPI (recommended)
 
 ```bash
-pip install lablog
+pip install jose-labarca-lablog
 lablog serve
 ```
 
@@ -213,7 +213,7 @@ The wheel bundles the compiled UI, so a simple `pip install` is enough to run th
 application. The optional `desktop` extra adds the native window:
 
 ```bash
-pip install lablog[desktop]
+pip install jose-labarca-lablog[desktop]
 lablog app
 ```
 
