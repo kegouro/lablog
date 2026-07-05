@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { deleteCell, executeCell, insertCell, listCells, moveCell as moveCellApi, updateCell } from '@/lib/api'
+import { escapeHtml } from '@/lib/latex-render'
 import { useAppStore } from '@/stores/app-store'
 
 type LabCell = {
@@ -34,7 +35,8 @@ const LANGUAGE_OPTIONS = [
 ]
 
 function renderInlineLatex(text: string): string {
-  return text.replace(/\$([^$]+)\$/g, (_, latex) => {
+  const escaped = escapeHtml(text)
+  return escaped.replace(/\$([^$]+)\$/g, (_, latex) => {
     try {
       return katex.renderToString(latex.trim(), { throwOnError: false })
     } catch {
@@ -52,7 +54,8 @@ function MarkdownPreview({ source }: { source: string }) {
 }
 
 export function LabCanvas() {
-  const { activePageId, setLabMode } = useAppStore()
+  const activePageId = useAppStore((s) => s.activePageId)
+  const setLabMode = useAppStore((s) => s.setLabMode)
   const [cells, setCells] = useState<LabCell[]>([])
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
@@ -121,10 +124,11 @@ export function LabCanvas() {
             : c,
         ),
       )
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al ejecutar la celda'
       setCells((prev) =>
         prev.map((c) =>
-          c.cell_id === cellId ? { ...c, status: 'error', output: 'Error al ejecutar la celda' } : c,
+          c.cell_id === cellId ? { ...c, status: 'error', output: message } : c,
         ),
       )
     }
@@ -231,7 +235,7 @@ export function LabCanvas() {
                     {cell.collapsed ? <ChevronDown className="size-3.5" /> : <ChevronUp className="size-3.5" />}
                   </Button>
                   {cell.language === 'python' && (
-                    <Button variant="ghost" size="icon" className="size-6" onClick={() => runCell(cell.cell_id)} disabled={cell.status === 'running'}>
+                    <Button variant="ghost" size="icon" className="size-6" onClick={() => runCell(cell.cell_id)} disabled={cell.status === 'running'} title="Ejecutar celda">
                       <Play className="size-3.5" />
                     </Button>
                   )}

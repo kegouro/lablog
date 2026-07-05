@@ -13,7 +13,11 @@ import { useAppStore } from '@/stores/app-store'
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false)
-  const { pages, activePageId, setActivePageId, setPanel, setLabMode } = useAppStore()
+  const pages = useAppStore((s) => s.pages)
+  const activePageId = useAppStore((s) => s.activePageId)
+  const setActivePageId = useAppStore((s) => s.setActivePageId)
+  const setPanel = useAppStore((s) => s.setPanel)
+  const setLabMode = useAppStore((s) => s.setLabMode)
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {

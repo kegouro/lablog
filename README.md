@@ -9,11 +9,11 @@
 <p><em>A live LaTeX laboratory notebook for working scientists.</em></p>
 
 <p>
-  <a href="#about"><img alt="status" src="https://img.shields.io/badge/status-beta-1C1C1E?style=flat-square&labelColor=1C1C1E" /></a>
+  <a href="https://pypi.org/project/lablog/"><img alt="version" src="https://img.shields.io/badge/version-v0.1.0-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=CI" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/pages.yml"><img alt="Pages" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/pages.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=Pages" /></a>
-  <a href="#testing--quality"><img alt="tests" src="https://img.shields.io/badge/tests-50%20passing-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
-  <a href="#testing--quality"><img alt="coverage" src="https://img.shields.io/badge/coverage-71%25-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="#testing--quality"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=tests" /></a>
+  <a href="#testing--quality"><img alt="coverage" src="https://img.shields.io/badge/coverage-%E2%89%A580%25-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="#stack"><img alt="python" src="https://img.shields.io/badge/python-3.11+-1C1C1E?style=flat-square&labelColor=1C1C1E&color=A1A1A6" /></a>
   <a href="#stack"><img alt="react" src="https://img.shields.io/badge/react-19-1C1C1E?style=flat-square&labelColor=1C1C1E&color=A1A1A6" /></a>
   <a href="#license"><img alt="license" src="https://img.shields.io/badge/license-MIT-1C1C1E?style=flat-square&labelColor=1C1C1E&color=F2F2F7" /></a>
@@ -147,7 +147,7 @@ flowchart LR
 
     User((Researcher))
     User --> UI
-    UI <-->|HTTP / WebSocket| Engine
+    UI <-->|HTTP| Engine
     Engine -->|export| Site["Static site"]
     Site -->|GitHub Actions| Pages["GitHub Pages"]
 ```
@@ -201,6 +201,23 @@ tests, or replaced by another front-end. The projector reconstructs the current
 ---
 
 ## Installation
+
+### From PyPI (recommended)
+
+```bash
+pip install lablog
+lablog serve
+```
+
+The wheel bundles the compiled UI, so a simple `pip install` is enough to run the
+application. The optional `desktop` extra adds the native window:
+
+```bash
+pip install lablog[desktop]
+lablog app
+```
+
+### From source
 
 > **Prerequisites.** Python 3.11 or newer, Node 22, [`uv`](https://docs.astral.sh/uv/),
 > and `npm`. Optional: `pandoc` and `xelatex` (or `pdflatex`) for PDF and DOCX export.
@@ -385,19 +402,22 @@ in the engine and exercised by the test suite where applicable:
 ```bash
 # Backend
 pytest -q
-ruff check src tests
-mypy -p lablog
+ruff check .
+mypy .
+bandit -r src/lablog tests -ll -x .venv,prototypes,dist,ui
 
 # Frontend
 cd ui
 npx tsc --noEmit
 npm run build
 npm run lint
+npm test -- --run
 ```
 
-The project ships with **50 backend tests** covering the parser, projector, event store,
-vault, code engine, snippets, symbols, and the public API. The frontend is type-checked
-under strict TypeScript and built with Vite.
+The project ships with **130+ backend tests** covering the parser, projector, event store,
+vault, code engine, snippets, symbols, and the public API, with a coverage threshold of
+**80%**. The frontend is type-checked under strict TypeScript, linted with oxlint, tested
+with Vitest and built with Vite.
 
 ---
 

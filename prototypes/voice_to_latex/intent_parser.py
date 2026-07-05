@@ -31,7 +31,6 @@ MATH_KEYWORDS = {
     "sumatoria": IntentType.MATH,
     "suma": IntentType.MATH,
     "límite": IntentType.MATH,
-    "límite": IntentType.MATH,
     "matriz": IntentType.MATRIX,
     "vector": IntentType.MATH,
     "fracción": IntentType.MATH,

@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 
 import { LatexEditor } from '@/components/editor/latex-editor'
 import { CellsPanel } from '@/components/panels/cells-panel'
@@ -41,7 +42,14 @@ const PANELS: Record<string, React.FC> = {
 }
 
 export function AppShell() {
-  const store = useAppStore()
+  const setPages = useAppStore((s) => s.setPages)
+  const setVaultFiles = useAppStore((s) => s.setVaultFiles)
+  const setSnippets = useAppStore((s) => s.setSnippets)
+  const setSymbols = useAppStore((s) => s.setSymbols)
+  const setFavorites = useAppStore((s) => s.setFavorites)
+  const setActivePageId = useAppStore((s) => s.setActivePageId)
+  const labMode = useAppStore((s) => s.labMode)
+  const panels = useAppStore(useShallow((s) => s.panels))
 
   useEffect(() => {
     async function load() {
@@ -52,33 +60,34 @@ export function AppShell() {
         listSymbols(),
         listFavorites(),
       ])
-      store.setPages(pages)
-      store.setVaultFiles(vaultFiles)
-      store.setSnippets(snippets)
-      store.setSymbols(symbols)
-      store.setFavorites(favorites)
-      if (pages.length > 0 && !store.activePageId) {
-        store.setActivePageId(pages[0].id)
+      setPages(pages)
+      setVaultFiles(vaultFiles)
+      setSnippets(snippets)
+      setSymbols(symbols)
+      setFavorites(favorites)
+      if (pages.length > 0 && !useAppStore.getState().activePageId) {
+        setActivePageId(pages[0].id)
       }
     }
     load()
-  }, [store])
+  }, [setPages, setVaultFiles, setSnippets, setSymbols, setFavorites, setActivePageId])
 
   const refreshPages = async () => {
     const pages = await listPages()
-    store.setPages(pages)
-    if (pages.length > 0 && !pages.find((p) => p.id === store.activePageId)) {
-      store.setActivePageId(pages[0].id)
+    setPages(pages)
+    const currentActivePageId = useAppStore.getState().activePageId
+    if (pages.length > 0 && !pages.find((p) => p.id === currentActivePageId)) {
+      setActivePageId(pages[0].id)
     } else if (pages.length === 0) {
-      store.setActivePageId(null)
+      setActivePageId(null)
     }
   }
 
   const handleCreatePage = async () => {
     try {
       const page = await createPage('Nueva página')
-      store.setPages([page, ...store.pages])
-      store.setActivePageId(page.id)
+      setPages([page, ...useAppStore.getState().pages])
+      setActivePageId(page.id)
     } catch (err) {
       console.error(err)
       alert('No se pudo crear la página. ¿Está corriendo el backend?')
@@ -106,16 +115,16 @@ export function AppShell() {
   }
 
   const activePanel =
-    store.panels.parameters ? 'parameters' :
-    store.panels.tutorials ? 'tutorials' :
-    store.panels.cells ? 'cells' :
-    store.panels.snippets ? 'snippets' :
-    store.panels.symbols ? 'symbols' :
-    store.panels.vault ? 'vault' : null
+    panels.parameters ? 'parameters' :
+    panels.tutorials ? 'tutorials' :
+    panels.cells ? 'cells' :
+    panels.snippets ? 'snippets' :
+    panels.symbols ? 'symbols' :
+    panels.vault ? 'vault' : null
 
   const PanelComponent = activePanel ? PANELS[activePanel] : null
 
-  if (store.labMode) {
+  if (labMode) {
     return (
       <div className="flex h-full flex-col">
         <Toolbar onCreatePage={handleCreatePage} />

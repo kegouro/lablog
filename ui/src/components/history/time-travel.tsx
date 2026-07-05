@@ -17,7 +17,11 @@ interface TimeTravelOverlayProps {
 }
 
 export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
-  const { parameterValues, activeLatex, setActiveLatex, setActiveAst, flushSave } = useAppStore()
+  const parameterValues = useAppStore((s) => s.parameterValues)
+  const activeLatex = useAppStore((s) => s.activeLatex)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const flushSave = useAppStore((s) => s.flushSave)
   const [history, setHistory] = useState<HistoryEvent[]>([])
   const [index, setIndex] = useState(0)
   const [snapshot, setSnapshot] = useState<Page | null>(null)

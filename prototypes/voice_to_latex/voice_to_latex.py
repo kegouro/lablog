@@ -6,10 +6,10 @@ import argparse
 import tempfile
 from pathlib import Path
 
-from record import record_audio, save_wav
-from transcribe import transcribe
 from intent_parser import parse_intent
 from latex_translator import translate
+from record import record_audio, save_wav
+from transcribe import transcribe
 
 
 def voice_to_latex(

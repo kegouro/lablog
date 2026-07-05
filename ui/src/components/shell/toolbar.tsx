@@ -1,9 +1,9 @@
 import { FlaskConical, Mic, MicOff, Plus } from 'lucide-react'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { toast } from 'sonner'
 import { useSpeechRecognition } from '@/hooks/use-speech'
 import { appendText } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
@@ -18,8 +18,12 @@ interface ToolbarProps {
 }
 
 export function Toolbar({ onCreatePage }: ToolbarProps) {
-  const { labMode, setLabMode, activePageId, activeLatex, setActiveLatex } = useAppStore()
-  const { listening, supported, transcript, error, start, stop } = useSpeechRecognition()
+  const labMode = useAppStore((s) => s.labMode)
+  const setLabMode = useAppStore((s) => s.setLabMode)
+  const activePageId = useAppStore((s) => s.activePageId)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const { listening, supported, transcript, error, start, stop, resetTranscript } = useSpeechRecognition()
+  const processedRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (error) toast.error(error)
@@ -27,15 +31,19 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
 
   useEffect(() => {
     if (!listening && transcript.trim() && activePageId) {
+      if (processedRef.current === transcript) return
+      processedRef.current = transcript
       const text = transcript.trim()
       const normalized = text.endsWith('.') || text.endsWith(' ') ? text : `${text}. `
-      const next = activeLatex ? `${activeLatex}\n${normalized}` : normalized
+      const currentLatex = useAppStore.getState().activeLatex
+      const next = currentLatex ? `${currentLatex}\n${normalized}` : normalized
       setActiveLatex(next)
       appendText(activePageId, normalized).catch(() => {
         toast.error('No se pudo guardar el dictado')
       })
+      resetTranscript()
     }
-  }, [listening, transcript, activePageId, activeLatex, setActiveLatex])
+  }, [listening, transcript, activePageId, setActiveLatex, resetTranscript])
 
   const handleDictate = () => {
     if (!supported) {

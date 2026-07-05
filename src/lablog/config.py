@@ -15,14 +15,21 @@ load_dotenv()
 
 
 def ui_dist_dir() -> Path:
-    """Ruta a la UI compilada (``ui/dist``), también dentro de un binario.
+    """Ruta a la UI compilada.
 
-    En un bundle de PyInstaller los datos viven bajo ``sys._MEIPASS``; en
-    desarrollo, en la raíz del repositorio.
+    Resuelve en este orden:
+    1. Bundle de PyInstaller (``sys._MEIPASS``).
+    2. Datos empaquetados en la rueda (``lablog/static``).
+    3. Directorio de desarrollo (``ui/dist`` relativo al repo).
     """
     base = getattr(sys, "_MEIPASS", None)
     if base:
         return Path(base) / "ui" / "dist"
+
+    package_static = Path(__file__).resolve().parent / "static"
+    if package_static.exists():
+        return package_static
+
     return Path(__file__).resolve().parents[2] / "ui" / "dist"
 
 

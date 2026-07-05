@@ -14,7 +14,9 @@ const LANGUAGES = [
 ]
 
 export function CellsPanel() {
-  const { activePageId, togglePanel, setActiveAst } = useAppStore()
+  const activePageId = useAppStore((s) => s.activePageId)
+  const togglePanel = useAppStore((s) => s.togglePanel)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
   const [cells, setCells] = useState<Array<{
     cell_id: string
     language: string
@@ -61,9 +63,10 @@ export function CellsPanel() {
     try {
       await executeCell(activePageId, cellId)
       await refreshCells()
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Error al ejecutar'
       setCells((prev) =>
-        prev.map((c) => (c.cell_id === cellId ? { ...c, status: 'error', output: 'Error al ejecutar' } : c)),
+        prev.map((c) => (c.cell_id === cellId ? { ...c, status: 'error', output: message } : c)),
       )
     }
   }

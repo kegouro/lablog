@@ -45,7 +45,9 @@ def save_wav(audio: np.ndarray, path: Path, sample_rate: int = 16000) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Graba audio del micrófono.")
     parser.add_argument("--duration", "-d", type=float, default=5.0, help="Duración en segundos")
-    parser.add_argument("--output", "-o", type=Path, default=Path("recording.wav"), help="Archivo de salida")
+    parser.add_argument(
+        "--output", "-o", type=Path, default=Path("recording.wav"), help="Archivo de salida"
+    )
     args = parser.parse_args()
 
     audio = record_audio(duration=args.duration)

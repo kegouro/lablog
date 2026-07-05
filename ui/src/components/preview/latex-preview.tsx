@@ -1,8 +1,8 @@
 import 'katex/dist/katex.min.css'
 import { useEffect, useMemo, useState } from 'react'
 
+import { Button } from '@/components/ui/button'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
-import { renderDocument } from '@/lib/latex-render'
 import {
   compilePdf,
   installPdfEngine,
@@ -11,14 +11,18 @@ import {
   type PdfEngineStatus,
   type PdfError,
 } from '@/lib/api'
+import { renderDocument, type RenderError } from '@/lib/latex-render'
 import { useAppStore } from '@/stores/app-store'
-import { Button } from '@/components/ui/button'
-import { Clock, Download, FileText, Loader2 } from 'lucide-react'
+import { Clock, Download, FileText, Loader2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { TimeTravelOverlay } from '@/components/history/time-travel'
 
 export function LatexPreview() {
-  const { activeAst, activeLatex, activePageId, parameterValues, goToLine } = useAppStore()
+  const activeAst = useAppStore((s) => s.activeAst)
+  const activeLatex = useAppStore((s) => s.activeLatex)
+  const activePageId = useAppStore((s) => s.activePageId)
+  const parameterValues = useAppStore((s) => s.parameterValues)
+  const goToLine = useAppStore((s) => s.goToLine)
   const debouncedAst = useDebouncedValue(activeAst, 150)
 
   const [compiling, setCompiling] = useState(false)
@@ -52,9 +56,15 @@ export function LatexPreview() {
     }
   }
 
-  const html = useMemo(
-    () => renderDocument(debouncedAst, activePageId, parameterValues),
-    [debouncedAst, activePageId, parameterValues],
+  const { html, renderErrors } = useMemo(() => {
+    const katexErrors: RenderError[] = []
+    const rendered = renderDocument(debouncedAst, activePageId, parameterValues, katexErrors)
+    return { html: rendered, renderErrors: katexErrors }
+  }, [debouncedAst, activePageId, parameterValues])
+
+  const isFullDoc = useMemo(
+    () => /\\documentclass\b/.test(activeLatex) || /\\begin\s*\{\s*document\s*\}/.test(activeLatex),
+    [activeLatex],
   )
 
   const handleCompile = async () => {
@@ -75,8 +85,6 @@ export function LatexPreview() {
       setCompiling(false)
     }
   }
-
-  const isFullDoc = activeLatex.includes('\\documentclass')
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -157,6 +165,22 @@ export function LatexPreview() {
                   </span>
                 )}
                 : {e.message}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {renderErrors.length > 0 && (
+        <div className="rounded-lg border border-amber-400/40 bg-amber-400/5 p-2 text-xs">
+          <p className="mb-1 flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-300">
+            <TriangleAlert className="size-3" />
+            Errores en fórmulas
+          </p>
+          <ul className="space-y-0.5">
+            {renderErrors.map((e, i) => (
+              <li key={i} className="font-mono" title={e.message}>
+                {e.latex}: {e.message}
               </li>
             ))}
           </ul>

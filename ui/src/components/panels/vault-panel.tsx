@@ -57,7 +57,9 @@ function fileIcon(mime: string) {
 }
 
 export function VaultPanel() {
-  const { vaultFiles, setVaultFiles, togglePanel } = useAppStore()
+  const vaultFiles = useAppStore((s) => s.vaultFiles)
+  const setVaultFiles = useAppStore((s) => s.setVaultFiles)
+  const togglePanel = useAppStore((s) => s.togglePanel)
   const [dragging, setDragging] = useState(false)
   const [preview, setPreview] = useState<PreviewState | null>(null)
   const [loadingPreview, setLoadingPreview] = useState<string | null>(null)

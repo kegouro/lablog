@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import UTC
+from pathlib import Path
+
+import pytest
 from fastapi.testclient import TestClient
 
 from lablog.api import app
+from lablog.ast_nodes import CellNode
+from lablog.code_engine import CodeEngine, EngineStartError
 
 client = TestClient(app)
 
@@ -182,3 +188,380 @@ def test_restore_deleted_page_is_conflict() -> None:
     pid = client.post("/api/v1/pages", json={"title": "TT3"}).json()["page_id"]
     client.delete(f"/api/v1/pages/{pid}")
     assert client.post(f"/api/v1/pages/{pid}/restore/0").status_code == 409
+
+
+def test_health_includes_engine_readiness() -> None:
+    res = client.get("/api/v1/health")
+    assert res.status_code == 200
+    data = res.json()
+    assert data["status"] == "ok"
+    assert "engine_ready" in data
+    assert isinstance(data["engine_ready"], bool)
+    assert {"pandoc", "xelatex", "pdflatex"} <= set(data["tools"])
+
+
+def test_invalid_page_id_returns_400_for_command() -> None:
+    res = client.post("/api/v1/pages/not-a-uuid/text", json={"text": "hola"})
+    assert res.status_code == 400
+    assert "page_id inválido" in res.json()["detail"]
+
+
+_CELL_PAYLOAD = {"cell_id": "c", "language": "python", "source": ""}
+
+
+@pytest.mark.parametrize(
+    "method, url, payload",
+    [
+        ("patch", "/api/v1/pages/{pid}", {"title": "x"}),
+        ("delete", "/api/v1/pages/{pid}", None),
+        ("post", "/api/v1/pages/{pid}/replace", {"latex": "x"}),
+        ("post", "/api/v1/pages/{pid}/math", {"latex": "x"}),
+        ("post", "/api/v1/pages/{pid}/voice", {"text": "x"}),
+        ("post", "/api/v1/pages/{pid}/restore/0", None),
+        ("post", "/api/v1/pages/{pid}/cells", _CELL_PAYLOAD),
+        ("post", "/api/v1/pages/{pid}/cells/c/update", _CELL_PAYLOAD),
+        ("post", "/api/v1/pages/{pid}/cells/c/execute", None),
+        ("delete", "/api/v1/pages/{pid}/cells/c", None),
+        ("post", "/api/v1/pages/{pid}/cells/c/move", {"new_index": 0}),
+    ],
+)
+def test_invalid_page_id_returns_400_for_various_commands(
+    method: str,
+    url: str,
+    payload: dict | None,
+) -> None:
+    url = url.format(pid="not-a-uuid")
+    caller = getattr(client, method)
+    kwargs = {"json": payload} if payload is not None else {}
+    res = caller(url, **kwargs)
+    assert res.status_code == 400
+    assert "page_id inválido" in res.json()["detail"]
+
+
+def test_execute_cell_unsupported_language_returns_422() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Lang"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "md1", "language": "markdown", "source": "# hi"},
+    )
+    res = client.post(f"/api/v1/pages/{pid}/cells/md1/execute")
+    assert res.status_code == 422
+    assert "Lenguaje no soportado" in res.json()["detail"]
+
+
+def test_execute_cell_engine_unavailable_returns_503(monkeypatch) -> None:
+    pid = client.post("/api/v1/pages", json={"title": "EngineDown"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "c1", "language": "python", "source": "1 + 1"},
+    )
+
+    def _broken_engine() -> CodeEngine:
+        raise EngineStartError("kernel caído")
+
+    monkeypatch.setattr("lablog.api.get_engine", _broken_engine)
+    res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
+    assert res.status_code == 503
+    assert "kernel caído" in res.json()["detail"]
+
+
+def test_update_cell_and_list_cells() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Cells"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "c1", "language": "python", "source": "1"},
+    )
+    res = client.post(
+        f"/api/v1/pages/{pid}/cells/c1/update",
+        json={"cell_id": "c1", "language": "python", "source": "2"},
+    )
+    assert res.status_code == 200
+
+    res = client.get(f"/api/v1/pages/{pid}/cells")
+    assert res.status_code == 200
+    cells = res.json()
+    assert len(cells) == 1
+    assert cells[0]["source"] == "2"
+
+
+def test_move_and_delete_cell() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Move"}).json()["page_id"]
+    for i in range(3):
+        client.post(
+            f"/api/v1/pages/{pid}/cells",
+            json={"cell_id": f"c{i}", "language": "python", "source": str(i)},
+        )
+    res = client.post(f"/api/v1/pages/{pid}/cells/c0/move", json={"new_index": 2})
+    assert res.status_code == 200
+
+    res = client.delete(f"/api/v1/pages/{pid}/cells/c1")
+    assert res.status_code == 204
+
+    res = client.get(f"/api/v1/pages/{pid}/cells")
+    ids = [c["cell_id"] for c in res.json()]
+    assert "c1" not in ids
+    assert ids == ["c2", "c0"]
+
+
+def test_get_cell_figure() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Fig"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={
+            "cell_id": "plot",
+            "language": "python",
+            "source": "import matplotlib.pyplot as plt\nplt.plot([1,2],[3,4])",
+        },
+    )
+    res = client.post(f"/api/v1/pages/{pid}/cells/plot/execute")
+    assert res.status_code == 201
+    assert res.json()["figure_paths"]
+
+    res = client.get(f"/api/v1/pages/{pid}/cells/plot/figure")
+    assert res.status_code == 200
+    assert res.headers["content-type"] == "image/png"
+
+
+def test_execute_cell_not_found() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "NoCell"}).json()["page_id"]
+    res = client.post(f"/api/v1/pages/{pid}/cells/missing/execute")
+    assert res.status_code == 404
+
+
+def test_get_cell_figure_not_found() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "NoFig"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "c1", "language": "python", "source": "1"},
+    )
+    res = client.get(f"/api/v1/pages/{pid}/cells/c1/figure")
+    assert res.status_code == 404
+
+
+def test_update_page_title() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Old"}).json()["page_id"]
+    res = client.patch(f"/api/v1/pages/{pid}", json={"title": "New"})
+    assert res.status_code == 200
+    assert res.json()["title"] == "New"
+
+
+def test_export_tex_txt_canva() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Export Me"}).json()["page_id"]
+    client.post(f"/api/v1/pages/{pid}/text", json={"text": "Hola $x^2$"})
+
+    cases = (
+        ("tex", "application/x-tex", "Export Me"),
+        ("txt", "text/plain", "Hola"),
+        ("canva", "text/html", "Export Me"),
+    )
+    for fmt, mime, expected in cases:
+        res = client.get(f"/api/v1/pages/{pid}/export/{fmt}")
+        assert res.status_code == 200, fmt
+        assert res.headers["content-type"].startswith(mime), fmt
+        assert expected in res.text, fmt
+
+
+def test_snippet_not_found() -> None:
+    res = client.get("/api/v1/snippets/no_existe")
+    assert res.status_code == 404
+
+
+def test_render_snippet_not_found() -> None:
+    res = client.post("/api/v1/snippets/no_existe/render", json={"values": {}})
+    assert res.status_code == 404
+
+
+def test_delete_page() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "ToDelete"}).json()["page_id"]
+    res = client.delete(f"/api/v1/pages/{pid}")
+    assert res.status_code == 204
+    assert pid not in {p["page_id"] for p in client.get("/api/v1/pages").json()}
+
+
+def test_get_events() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Events"}).json()["page_id"]
+    res = client.get(f"/api/v1/pages/{pid}/events")
+    assert res.status_code == 200
+    assert isinstance(res.json(), list)
+    assert res.json()[0]["type"] == "page_created"
+
+
+def test_voice_text_non_math() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "VoiceText"}).json()["page_id"]
+    res = client.post(f"/api/v1/pages/{pid}/voice", json={"text": "hola mundo"})
+    assert res.status_code == 201
+    assert res.json()["intent"] == "text"
+    assert "hola mundo" in client.get(f"/api/v1/pages/{pid}/latex").json()["latex"]
+
+
+def test_restore_preserves_cell_outputs() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "RestoreOut"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "c1", "language": "python", "source": "42"},
+    )
+    client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
+    client.post(f"/api/v1/pages/{pid}/replace", json={"latex": "v2"})
+
+    # Restaurar al índice del evento cell_executed para que el output se re-emita.
+    res = client.post(f"/api/v1/pages/{pid}/restore/2")
+    assert res.status_code == 200
+    cell = [c for c in res.json()["ast"] if c.get("type") == "cell"][0]
+    assert cell["output"] is not None and "42" in cell["output"]
+
+
+def test_export_unsupported_format_returns_400() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "BadFmt"}).json()["page_id"]
+    res = client.get(f"/api/v1/pages/{pid}/export/unknown")
+    assert res.status_code == 400
+    assert "Formato no soportado" in res.json()["detail"]
+
+
+
+
+def test_get_cell_figure_path_outside_root(monkeypatch) -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Outside"}).json()["page_id"]
+    fake_cell = CellNode(
+        cell_id="c1",
+        language="python",
+        source="",
+        figure_path="/tmp/outside.png",  # nosec B108 (path de prueba intencional)
+    )
+    monkeypatch.setattr("lablog.api._find_cell", lambda _p, _e, _c: fake_cell)
+    res = client.get(f"/api/v1/pages/{pid}/cells/c1/figure")
+    assert res.status_code == 404
+
+
+def test_get_cell_figure_file_missing(monkeypatch) -> None:
+    from lablog.config import settings
+
+    pid = client.post("/api/v1/pages", json={"title": "MissingFig"}).json()["page_id"]
+    missing_path = str(settings.figures_dir / "missing.png")
+    fake_cell = CellNode(
+        cell_id="c1",
+        language="python",
+        source="",
+        figure_path=missing_path,
+    )
+    monkeypatch.setattr("lablog.api._find_cell", lambda _p, _e, _c: fake_cell)
+    res = client.get(f"/api/v1/pages/{pid}/cells/c1/figure")
+    assert res.status_code == 404
+
+
+def test_pdf_install(monkeypatch) -> None:
+    async def fake_install(force: bool = False) -> dict[str, bool]:
+        return {"installed": True}
+
+    monkeypatch.setattr("lablog.api.pdf_engine.install_engine", fake_install)
+    res = client.post("/api/v1/pdf/install")
+    assert res.status_code == 200
+    assert res.json()["installed"] is True
+
+
+def test_export_pages() -> None:
+    res = client.post("/api/v1/export")
+    assert res.status_code == 200
+    assert Path(res.json()["path"]).exists()
+
+
+def test_export_docx_503_without_pandoc(monkeypatch) -> None:
+    monkeypatch.setattr("lablog.api.which", lambda _cmd: None)
+    pid = client.post("/api/v1/pages", json={"title": "Docx"}).json()["page_id"]
+    res = client.get(f"/api/v1/pages/{pid}/export/docx")
+    assert res.status_code == 503
+    assert "pandoc" in res.json()["detail"]
+
+
+def test_export_txt_fallback_without_pandoc(monkeypatch) -> None:
+    monkeypatch.setattr("lablog.api.which", lambda _cmd: None)
+    pid = client.post("/api/v1/pages", json={"title": "Plain"}).json()["page_id"]
+    client.post(f"/api/v1/pages/{pid}/text", json={"text": "Hola $x^2$"})
+    res = client.get(f"/api/v1/pages/{pid}/export/txt")
+    assert res.status_code == 200
+    assert "Hola" in res.text
+    assert "\\" not in res.text
+
+
+def test_execute_cell_generic_engine_error_returns_503(monkeypatch) -> None:
+    pid = client.post("/api/v1/pages", json={"title": "EngineGeneric"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "c1", "language": "python", "source": "1"},
+    )
+
+    class BrokenEngine:
+        def execute(self, *_args, **_kwargs):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr("lablog.api.get_engine", lambda: BrokenEngine())
+    res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
+    assert res.status_code == 503
+    assert "boom" in res.json()["detail"]
+
+
+def test_execute_cell_figure_path_outside_root_is_stored(
+    monkeypatch, tmp_path: Path
+) -> None:
+    pid = client.post("/api/v1/pages", json={"title": "OutsideFig"}).json()["page_id"]
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "c1", "language": "python", "source": "1"},
+    )
+    outside = tmp_path / "outside.png"
+    outside.write_bytes(b"png")
+
+    class EngineWithOutsideFigure:
+        def execute(self, *_args, **_kwargs):
+            from lablog.code_engine import ExecutionResult
+
+            return ExecutionResult(
+                status="ok", text="ok", figure_paths=[str(outside)]
+            )
+
+    monkeypatch.setattr("lablog.api.get_engine", lambda: EngineWithOutsideFigure())
+    res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
+    assert res.status_code == 201
+    events = client.get(f"/api/v1/pages/{pid}/events").json()
+    executed = [e for e in events if e["type"] == "cell_executed"]
+    assert executed
+    # Se almacena la ruta absoluta cuando no es posible calcular la relativa.
+    assert executed[0]["payload"]["figure_path"] == str(outside)
+
+
+def test_event_summary_for_unknown_event_type() -> None:
+    from datetime import datetime
+
+    from lablog.api import _event_summary
+    from lablog.events import Event
+
+    event = Event(
+        type="vault_file_added",
+        page_id="page-x",
+        payload={"file_id": "x", "name": "y"},
+        timestamp=datetime.now(UTC),
+    )
+    assert _event_summary(event) == ""
+
+
+def test_extract_body_formats() -> None:
+    from lablog.api import _extract_body
+
+    assert _extract_body("$x^2$") == ("x^2", "inline")
+    assert _extract_body("\\[x^2\\]") == ("x^2", "display")
+    assert _extract_body("plain") == ("plain", "inline")
+
+
+def test_request_vault_deletion_not_found() -> None:
+    res = client.post("/api/v1/vault/no-existe/delete-request")
+    assert res.status_code == 404
+
+
+def test_upload_vault_too_large() -> None:
+    from io import BytesIO
+
+    big = b"x" * (100 * 1024 * 1024 + 1)
+    res = client.post(
+        "/api/v1/vault",
+        files={"file": ("big.txt", BytesIO(big), "text/plain")},
+    )
+    assert res.status_code == 413

@@ -13,7 +13,11 @@ import { LATEX_TEMPLATES } from '@/lib/latex-templates'
 import { useAppStore } from '@/stores/app-store'
 
 export function TemplatesMenu() {
-  const { activePageId, activeLatex, setActiveLatex, setActiveAst, flushSave } = useAppStore()
+  const activePageId = useAppStore((s) => s.activePageId)
+  const activeLatex = useAppStore((s) => s.activeLatex)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const flushSave = useAppStore((s) => s.flushSave)
 
   const applyTemplate = async (content: string) => {
     if (!activePageId) {

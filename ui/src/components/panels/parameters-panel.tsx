@@ -10,15 +10,13 @@ import { useAppStore } from '@/stores/app-store'
 const PLACEHOLDER_RE = /\{\{(\w+)\}\}/g
 
 export function ParametersPanel() {
-  const {
-    activeLatex,
-    setActiveLatex,
-    activePageId,
-    togglePanel,
-    parameterHints,
-    parameterValues,
-    setParameterValue,
-  } = useAppStore()
+  const activeLatex = useAppStore((s) => s.activeLatex)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const activePageId = useAppStore((s) => s.activePageId)
+  const togglePanel = useAppStore((s) => s.togglePanel)
+  const parameterHints = useAppStore((s) => s.parameterHints)
+  const parameterValues = useAppStore((s) => s.parameterValues)
+  const setParameterValue = useAppStore((s) => s.setParameterValue)
 
   const matches = useMemo(() => {
     const seen = new Set<string>()

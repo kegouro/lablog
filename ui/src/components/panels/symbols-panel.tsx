@@ -12,15 +12,13 @@ import { useAppStore } from '@/stores/app-store'
 const CATEGORIES = ['all', 'greek', 'operators', 'arrows', 'relations', 'delimiters', 'accents']
 
 export function SymbolsPanel() {
-  const {
-    symbols,
-    favorites,
-    setFavorites,
-    togglePanel,
-    insertAtCursor,
-    setActiveLatex,
-    activeLatex,
-  } = useAppStore()
+  const symbols = useAppStore((s) => s.symbols)
+  const favorites = useAppStore((s) => s.favorites)
+  const setFavorites = useAppStore((s) => s.setFavorites)
+  const togglePanel = useAppStore((s) => s.togglePanel)
+  const insertAtCursor = useAppStore((s) => s.insertAtCursor)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const activeLatex = useAppStore((s) => s.activeLatex)
   const [category, setCategory] = useState('all')
   const [query, setQuery] = useState('')
   const [mode, setMode] = useState<'all' | 'favorites'>('all')

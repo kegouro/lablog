@@ -1,6 +1,7 @@
 # lablog · Plan de Implementación
 
-> De cero a segundo cerebro científico, por fases.
+> De cero a segundo cerebro científico, por fases.  
+> **Versión actual:** `v0.1.0` (release pública inicial).
 
 ---
 
@@ -54,12 +55,14 @@
 | 2.4 | Renderizado con KaTeX (inline/display) | ✅ |
 | 2.5 | Conectar UI con engine Python vía HTTP API | ✅ |
 | 2.6 | Sincronizar AST ↔ texto del editor mediante `replace` | ✅ |
-| 2.7 | Autocompletado de comandos LaTeX | ⬜ |
-| 2.8 | Exportar a PDF y `.tex` | ⬜ |
+| 2.7 | Autocompletado de comandos LaTeX | 🔄 |
+| 2.8 | Exportar a PDF y `.tex` | ✅ |
 | 2.9 | Shell, navegación, command palette, tema y personalización | ✅ |
 | 2.10 | Paneles: bóveda, snippets, símbolos favoritos | ✅ |
 
 **Entregable**: aplicación web (y futura Tauri) donde escribes LaTeX y ves el renderizado en tiempo real.
+
+> **Nota v0.1.0.** El autocompletado de comandos LaTeX sigue como mejora pendiente; el resto de la fase está operativo.
 
 ---
 
@@ -69,15 +72,18 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 3.1 | Instalar `jupyter-client` y levantar kernel de Python | ⬜ |
-| 3.2 | Detectar bloques `\begin{python}...\end{python}` en el AST | ⬜ |
-| 3.3 | Implementar `vault://` → path absoluto | ⬜ |
-| 3.4 | Enviar código a Jupyter y capturar output | ⬜ |
-| 3.5 | Insertar output (texto/imagen) en el renderizado | ⬜ |
-| 3.6 | Cachear outputs y emitir evento `cell_executed` | ⬜ |
-| 3.7 | Manejo de errores de ejecución en la UI | ⬜ |
+| 3.1 | Instalar `jupyter-client` y levantar kernel de Python | ✅ |
+| 3.2 | Detectar bloques `\begin{python}...\end{python}` en el AST | ✅ |
+| 3.3 | Implementar `vault://` → path absoluto | ✅ |
+| 3.4 | Enviar código a Jupyter y capturar output | ✅ |
+| 3.5 | Insertar output (texto/imagen) en el renderizado | ✅ |
+| 3.6 | Cachear outputs y emitir evento `cell_executed` | ✅ |
+| 3.7 | Manejo de errores de ejecución en la UI | ✅ |
+| 3.8 | Hilo-seguridad del motor y mensajes de error legibles | ✅ |
 
 **Entregable**: usuario escribe una celda Python, la ejecuta y ve la figura/tablas en el documento.
+
+> **Nota v0.1.0.** El motor ahora es thread-safe, reinicia el kernel si muere y reporta errores accionables. La ejecución concurrente se serializa a una celda a la vez por seguridad del kernel de Jupyter.
 
 ---
 
@@ -87,17 +93,19 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 4.1 | Modelo de datos de Vault en Event Store | ⬜ |
-| 4.2 | Drag & drop de archivos a la bóveda | ⬜ |
-| 4.3 | Almacenamiento en disco con hash | ⬜ |
-| 4.4 | Previsualización de imágenes, PDFs, CSVs, audio, texto | ⬜ |
-| 4.5 | Detección de schema para CSVs | ⬜ |
-| 4.6 | Sugerencias de ingesta: graficar, tabla LaTeX, estadísticas | ⬜ |
-| 4.7 | Insertar código generado automáticamente en el documento | ⬜ |
-| 4.8 | Slider de destrucción + time-lock de 7 días | ⬜ |
-| 4.9 | Log de auditoría de eliminaciones | ⬜ |
+| 4.1 | Modelo de datos de Vault en Event Store | ✅ |
+| 4.2 | Drag & drop de archivos a la bóveda | ✅ |
+| 4.3 | Almacenamiento en disco con hash | ✅ |
+| 4.4 | Previsualización de imágenes, PDFs, CSVs, audio, texto | ✅ |
+| 4.5 | Detección de schema para CSVs | 🔄 |
+| 4.6 | Sugerencias de ingesta: graficar, tabla LaTeX, estadísticas | 🔄 |
+| 4.7 | Insertar código generado automáticamente en el documento | 🔄 |
+| 4.8 | Slider de destrucción + time-lock de 7 días | ✅ |
+| 4.9 | Log de auditoría de eliminaciones | ✅ |
 
 **Entregable**: arrastrar un CSV genera una gráfica en el documento; eliminar un archivo requiere confirmación y time-lock.
+
+> **Nota v0.1.0.** Vault funcional con almacenamiento, previews y time-lock. La ingesta mágica (schema + sugerencias) está parcialmente implementada y se completará en `v0.2.0`.
 
 ---
 
@@ -107,13 +115,15 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 5.1 | Snapshots automáticos ante cada evento relevante | ⬜ |
-| 5.2 | Vista Timeline en la UI | ⬜ |
-| 5.3 | Diff entre dos snapshots | ⬜ |
-| 5.4 | Blame: ver origen de cada parte del documento | ⬜ |
-| 5.5 | Restaurar página a un snapshot anterior | ⬜ |
+| 5.1 | Snapshots automáticos ante cada evento relevante | ✅ |
+| 5.2 | Vista Timeline en la UI | ✅ |
+| 5.3 | Diff entre dos snapshots | ✅ |
+| 5.4 | Blame: ver origen de cada parte del documento | 🔄 |
+| 5.5 | Restaurar página a un snapshot anterior | ✅ |
 
 **Entregable**: usuario puede ver qué cambió y cuándo, y restaurar versiones anteriores.
+
+> **Nota v0.1.0.** La vista timeline y el diff están disponibles; blame granular queda para una versión posterior.
 
 ---
 
@@ -123,32 +133,35 @@
 
 | # | Tarea | Estado |
 |---|-------|--------|
-| 6.1 | Definir API de plugins | ⬜ |
-| 6.2 | Cargar plugins dinámicamente | ⬜ |
-| 6.3 | Plugin de física: snippets y comandos de voz comunes | ⬜ |
-| 6.4 | Plugin de unidades y dimensiones | ⬜ |
-| 6.5 | Sincronización encriptada opcional | ⬜ |
-| 6.6 | Colaboración P2P por intercambio de eventos | ⬜ |
+| 6.1 | Definir API de plugins | 🔄 |
+| 6.2 | Cargar plugins dinámicamente | 🔄 |
+| 6.3 | Plugin de física: snippets y comandos de voz comunes | 🔄 |
+| 6.4 | Plugin de unidades y dimensiones | 🔄 |
+| 6.5 | Sincronización encriptada opcional | 🔄 |
+| 6.6 | Colaboración P2P por intercambio de eventos | 🔄 |
 
 **Entregable**: ecosistema de plugins funcional y sincronización entre dispositivos.
+
+> **Nota v0.1.0.** Esta fase se mantiene en roadmap a largo plazo; no bloquea la release inicial.
 
 ---
 
 ## Checklist global
 
-- [ ] Engine Python funcional con Event Sourcing.
-- [ ] Prototipo Voz → LaTeX validado.
-- [ ] UI de editor LaTeX en vivo.
-- [ ] Celdas Python ejecutables vía Jupyter.
-- [ ] Vault con ingesta mágica de CSVs.
-- [ ] Eliminación segura con slider + time-lock.
-- [ ] Time-Travel con Timeline y diff.
-- [ ] Sistema de plugins.
-- [ ] Exportación a PDF / `.tex` / `.lablog`.
-- [ ] Documentación para desarrolladores.
+- [x] Engine Python funcional con Event Sourcing.
+- [x] Prototipo Voz → LaTeX validado.
+- [x] UI de editor LaTeX en vivo.
+- [x] Celdas Python ejecutables vía Jupyter.
+- [x] Vault con ingesta y eliminación segura.
+- [x] Time-Travel con Timeline y diff.
+- [x] Exportación a PDF / `.tex` / HTML.
+- [x] Documentación para desarrolladores.
+- [x] CI verde, cobertura ≥80% y release automatizado a PyPI.
+- [ ] Sistema de plugins (post-v0.1.0).
+- [ ] Colaboración P2P (post-v0.1.0).
 
 ---
 
 ## Próximo paso inmediato
 
-**Fase 0.1 a 1.8**: inicializar el proyecto Python y construir el prototipo de Voz → LaTeX. Esto valida la killer feature antes de invertir en UI.
+**v0.1.0**: publicar en PyPI, validar instalación limpia y continuar con ingesta mágica de Vault y autocompletado LaTeX en `v0.2.0`.

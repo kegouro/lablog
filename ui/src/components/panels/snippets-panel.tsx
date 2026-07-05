@@ -81,15 +81,13 @@ function ParameterField({
 }
 
 function SnippetCard({ snippet }: { snippet: Snippet }) {
-  const {
-    activeLatex,
-    setActiveLatex,
-    activePageId,
-    setPanel,
-    setParameterHints,
-    setParameterValue,
-    insertAtCursor,
-  } = useAppStore()
+  const activeLatex = useAppStore((s) => s.activeLatex)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const activePageId = useAppStore((s) => s.activePageId)
+  const setPanel = useAppStore((s) => s.setPanel)
+  const setParameterHints = useAppStore((s) => s.setParameterHints)
+  const setParameterValue = useAppStore((s) => s.setParameterValue)
+  const insertAtCursor = useAppStore((s) => s.insertAtCursor)
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const [preview, setPreview] = useState<string | null>(null)
@@ -210,7 +208,10 @@ function SnippetCard({ snippet }: { snippet: Snippet }) {
 }
 
 export function SnippetsPanel() {
-  const { snippets, togglePanel, searchQuery, setSearchQuery } = useAppStore()
+  const snippets = useAppStore((s) => s.snippets)
+  const togglePanel = useAppStore((s) => s.togglePanel)
+  const searchQuery = useAppStore((s) => s.searchQuery)
+  const setSearchQuery = useAppStore((s) => s.setSearchQuery)
   const [filter, setFilter] = useState<string>('all')
 
   const categories = useMemo(

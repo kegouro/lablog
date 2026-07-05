@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import contextlib
+import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from jupyter_client import KernelManager  # type: ignore[attr-defined]
+
+
+class EngineStartError(RuntimeError):
+    """El motor de ejecución no pudo iniciar o reiniciar el kernel."""
 
 
 @dataclass
@@ -19,19 +25,52 @@ class ExecutionResult:
 
 
 class CodeEngine:
+    SUPPORTED_LANGUAGES: ClassVar[frozenset[str]] = frozenset({"python", "py"})
+
     def __init__(self, kernel_name: str = "python3") -> None:
         self.kernel_name = kernel_name
         self._manager: KernelManager | None = None
         self._client: Any = None
+        self._lock = threading.Lock()
+
+    def _do_start(self) -> None:
+        """Inicia el kernel sin adquirir el lock (debe llamarse con lock)."""
+        try:
+            self._manager = KernelManager(kernel_name=self.kernel_name)
+            self._manager.start_kernel()
+            self._client = self._manager.client()
+            self._client.start_channels()
+            self._client.wait_for_ready(timeout=30)
+            self._client.execute("import matplotlib; matplotlib.use('Agg')")
+            self._drain_iopub()
+        except Exception as exc:
+            self._do_stop()
+            raise EngineStartError(
+                f"No se pudo iniciar el kernel '{self.kernel_name}'. "
+                "Verifica que el entorno de ejecución esté instalado y disponible."
+            ) from exc
+
+    def _do_stop(self) -> None:
+        """Detiene el kernel sin adquirir el lock (debe llamarse con lock)."""
+        if self._client is not None:
+            with contextlib.suppress(Exception):
+                self._client.stop_channels()
+            self._client = None
+        if self._manager is not None:
+            with contextlib.suppress(Exception):
+                self._manager.shutdown_kernel(now=True)
+            self._manager = None
 
     def start(self) -> None:
-        self._manager = KernelManager(kernel_name=self.kernel_name)
-        self._manager.start_kernel()
-        self._client = self._manager.client()
-        self._client.start_channels()
-        self._client.wait_for_ready(timeout=30)
-        self._client.execute("import matplotlib; matplotlib.use('Agg')")
-        self._drain_iopub()
+        with self._lock:
+            self._do_start()
+
+    def stop(self) -> None:
+        with self._lock:
+            self._do_stop()
+
+    def is_ready(self) -> bool:
+        return self._client is not None and self._client.is_alive()
 
     def _drain_iopub(self, timeout: float = 2.0) -> None:
         if not self._client:
@@ -43,51 +82,51 @@ class CodeEngine:
             except Exception:
                 return
 
-    def stop(self) -> None:
-        if self._client:
-            self._client.stop_channels()
-        if self._manager:
-            self._manager.shutdown_kernel(now=True)
-
     def execute(
         self,
         code: str,
         figure_dir: Path | None = None,
         timeout: float = 30.0,
     ) -> ExecutionResult:
-        if not self._client:
-            raise RuntimeError("Engine not started")
+        with self._lock:
+            if not self.is_ready():
+                # Reinicio automático único si el kernel ha muerto.
+                self._do_start()
+            if not self.is_ready():
+                raise EngineStartError("El kernel no está disponible tras intentar reiniciarlo.")
 
-        if figure_dir:
-            Path(figure_dir).mkdir(parents=True, exist_ok=True)
+            if figure_dir:
+                Path(figure_dir).mkdir(parents=True, exist_ok=True)
 
-        msg_id = self._client.execute(code)
-        outputs: list[dict[str, Any]] = []
-        text_parts: list[str] = []
-        error_parts: list[str] = []
+            msg_id = self._client.execute(code)
+            outputs: list[dict[str, Any]] = []
+            text_parts: list[str] = []
+            error_parts: list[str] = []
 
-        completed = self._collect_iopub(msg_id, timeout, outputs, text_parts, error_parts)
+            completed = self._collect_iopub(
+                msg_id, timeout, outputs, text_parts, error_parts
+            )
 
-        if not completed:
-            # El kernel sigue ejecutando (p.ej. bucle infinito): interrúmpelo
-            # para no dejarlo bloqueado tras devolver el timeout.
-            if self._manager is not None:
-                self._manager.interrupt_kernel()
-            error_parts.append(f"Ejecución interrumpida: superó el límite de {timeout:.0f}s.")
+            if not completed:
+                if self._manager is not None:
+                    self._manager.interrupt_kernel()
+                error_parts.append(
+                    f"Ejecución interrumpida: superó el límite de {timeout:.0f}s."
+                )
 
-        status: Literal["ok", "error"] = "error" if error_parts else "ok"
-        result_text = "".join(error_parts if error_parts else text_parts)
+            status: Literal["ok", "error"] = "error" if error_parts else "ok"
+            result_text = "".join(error_parts if error_parts else text_parts)
 
-        figure_paths: list[str] = []
-        if figure_dir and status == "ok":
-            figure_paths = self._save_figures(figure_dir)
+            figure_paths: list[str] = []
+            if figure_dir and status == "ok":
+                figure_paths = self._save_figures(figure_dir)
 
-        return ExecutionResult(
-            status=status,
-            outputs=outputs,
-            figure_paths=figure_paths,
-            text=result_text,
-        )
+            return ExecutionResult(
+                status=status,
+                outputs=outputs,
+                figure_paths=figure_paths,
+                text=result_text,
+            )
 
     def _collect_iopub(
         self,
