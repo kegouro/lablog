@@ -146,7 +146,7 @@ def test_insert_and_execute_cell() -> None:
     assert res.status_code == 201
 
     res = client.post(f"/api/v1/pages/{page_id}/cells/c1/execute")
-    assert res.status_code == 201
+    assert res.status_code == 200
     assert res.json()["status"] == "ok"
     assert "4" in res.json()["output"]
 
@@ -362,8 +362,8 @@ def test_get_cell_figure() -> None:
         },
     )
     res = client.post(f"/api/v1/pages/{pid}/cells/plot/execute")
-    assert res.status_code == 201
-    assert res.json()["figure_paths"]
+    assert res.status_code == 200
+    assert res.json()["figure_path"]
 
     res = client.get(f"/api/v1/pages/{pid}/cells/plot/figure")
     assert res.status_code == 200
@@ -568,7 +568,7 @@ def test_execute_cell_figure_path_outside_root_is_stored(
 
     monkeypatch.setattr("lablog.api.get_engine", lambda: EngineWithOutsideFigure())
     res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
-    assert res.status_code == 201
+    assert res.status_code == 200
     events = client.get(f"/api/v1/pages/{pid}/events").json()
     executed = [e for e in events if e["type"] == "cell_executed"]
     assert executed

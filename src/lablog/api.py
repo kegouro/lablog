@@ -19,17 +19,14 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from lablog import commands, pdf_engine
-from lablog.ast_nodes import CellNode, DocumentNode
+from lablog.ast_nodes import CellNode, DocumentNode, node_to_json
 from lablog.code_engine import CodeEngine, EngineStartError
+from lablog.commands import CellNotFoundError, EngineExecutionError, UnsupportedLanguageError
 from lablog.config import settings, ui_dist_dir
 from lablog.event_store import EventStore
 from lablog.events import (
     Event,
-    cell_deleted,
     cell_executed,
-    cell_inserted,
-    cell_moved,
-    cell_updated,
     document_replaced,
     math_inserted,
     text_inserted,
@@ -449,13 +446,12 @@ def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        cell_inserted(
-            page_id=page_id,
-            cell_id=payload.cell_id,
-            language=payload.language,
-            source=payload.source,
-        )
+    commands.insert_cell(
+        store,
+        page_id=page_id,
+        cell_id=payload.cell_id,
+        language=payload.language,
+        source=payload.source,
     )
     return {"status": "ok"}
 
@@ -465,68 +461,44 @@ def update_cell(page_id: str, cell_id: str, payload: CellPayload) -> dict[str, s
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        cell_updated(
-            page_id=page_id,
-            cell_id=cell_id,
-            language=payload.language,
-            source=payload.source,
-        )
+    commands.update_cell(
+        store,
+        page_id=page_id,
+        cell_id=cell_id,
+        language=payload.language,
+        source=payload.source,
     )
     return {"status": "ok"}
 
 
-@router.post("/pages/{page_id}/cells/{cell_id}/execute", status_code=status.HTTP_201_CREATED)
-def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
+@router.post("/pages/{page_id}/cells/{cell_id}/execute", status_code=status.HTTP_200_OK)
+async def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    events = _events(page_id)
-    cell = _find_cell(page_id, events, cell_id)
-    if cell is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Celda no encontrada")
-
-    if cell.language not in CodeEngine.SUPPORTED_LANGUAGES:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            f"Lenguaje no soportado: {cell.language}",
-        )
-
+    _events(page_id)
     figure_dir = settings.figures_dir / page_id
     try:
-        result = get_engine().execute(cell.source, figure_dir=figure_dir)
+        engine = get_engine()
     except EngineStartError as exc:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"El motor de ejecución no está disponible: {exc}",
-        ) from exc
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 
-    output_text = result.text
-    figure_path: str | None = None
-    if result.figure_paths:
-        # Guarda la ruta RELATIVA a figures_dir: sobrevive a mover el data dir.
-        abs_path = Path(result.figure_paths[0])
-        try:
-            figure_path = str(abs_path.relative_to(settings.figures_dir))
-        except ValueError:
-            figure_path = str(abs_path)
-    store.append(
-        cell_executed(
+    try:
+        updated_cell = await asyncio.to_thread(
+            commands.execute_cell,
+            store,
             page_id=page_id,
             cell_id=cell_id,
-            output=output_text,
-            figure_path=figure_path,
+            engine=engine,
+            figure_dir=figure_dir,
         )
-    )
-    return {
-        "status": result.status,
-        "output": output_text,
-        "figure_paths": result.figure_paths,
-    }
+    except CellNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except UnsupportedLanguageError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    except EngineExecutionError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    return node_to_json(updated_cell)
 
 
 @router.delete("/pages/{page_id}/cells/{cell_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -534,7 +506,7 @@ def delete_cell(page_id: str, cell_id: str) -> None:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(cell_deleted(page_id=page_id, cell_id=cell_id))
+    commands.delete_cell(store, page_id=page_id, cell_id=cell_id)
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/move", status_code=status.HTTP_200_OK)
@@ -542,7 +514,7 @@ def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str,
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(cell_moved(page_id=page_id, cell_id=cell_id, new_index=payload.new_index))
+    commands.move_cell(store, page_id=page_id, cell_id=cell_id, new_index=payload.new_index)
     return {"status": "ok"}
 
 
