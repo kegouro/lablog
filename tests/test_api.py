@@ -50,6 +50,53 @@ def test_replace_page() -> None:
     assert res.json()["latex"] == "new latex"
 
 
+def test_put_page_raw_returns_ast_and_version() -> None:
+    res = client.post("/api/v1/pages", json={"title": "Put"})
+    page_id = res.json()["page_id"]
+
+    res = client.put(f"/api/v1/pages/{page_id}", json={"raw": "Hola $x^2$"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["page_id"] == page_id
+    assert data["title"] == "Put"
+    assert data["raw"] == "Hola $x^2$"
+    assert data["latex"] == data["raw"]
+    assert isinstance(data["ast"], list)
+    assert data["version"] == 2  # page_created + document_replaced
+
+    # El AST refleja el texto y la matemática inline.
+    node_types = {n["type"] for n in data["ast"]}
+    assert "text" in node_types
+    assert "math" in node_types
+
+
+def test_put_page_raw_overwrites_previous_content() -> None:
+    res = client.post("/api/v1/pages", json={"title": "Overwrite"})
+    page_id = res.json()["page_id"]
+
+    client.put(f"/api/v1/pages/{page_id}", json={"raw": "first"})
+    res = client.put(f"/api/v1/pages/{page_id}", json={"raw": "second"})
+    assert res.status_code == 200
+    assert res.json()["raw"] == "second"
+    assert res.json()["version"] == 3
+
+    res = client.get(f"/api/v1/pages/{page_id}")
+    assert res.json()["raw"] == "second"
+
+
+def test_put_page_raw_missing_payload_returns_422() -> None:
+    res = client.post("/api/v1/pages", json={"title": "Payload"})
+    page_id = res.json()["page_id"]
+
+    res = client.put(f"/api/v1/pages/{page_id}", json={})
+    assert res.status_code == 422
+
+
+def test_put_page_raw_not_found_returns_404() -> None:
+    res = client.put("/api/v1/pages/00000000-0000-0000-0000-000000000000", json={"raw": "x"})
+    assert res.status_code == 404
+
+
 def test_insert_math() -> None:
     res = client.post("/api/v1/pages", json={"title": "M"})
     page_id = res.json()["page_id"]
@@ -213,6 +260,7 @@ _CELL_PAYLOAD = {"cell_id": "c", "language": "python", "source": ""}
     "method, url, payload",
     [
         ("patch", "/api/v1/pages/{pid}", {"title": "x"}),
+        ("put", "/api/v1/pages/{pid}", {"raw": "x"}),
         ("delete", "/api/v1/pages/{pid}", None),
         ("post", "/api/v1/pages/{pid}/replace", {"latex": "x"}),
         ("post", "/api/v1/pages/{pid}/math", {"latex": "x"}),

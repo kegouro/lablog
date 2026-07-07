@@ -12,14 +12,13 @@ from shutil import which
 from subprocess import CalledProcessError, run
 from tempfile import NamedTemporaryFile
 from typing import Annotated, Any, Literal
-from uuid import uuid4
 
 from fastapi import APIRouter, FastAPI, File, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from lablog import pdf_engine
+from lablog import commands, pdf_engine
 from lablog.ast_nodes import CellNode, DocumentNode
 from lablog.code_engine import CodeEngine, EngineStartError
 from lablog.config import settings, ui_dist_dir
@@ -33,9 +32,6 @@ from lablog.events import (
     cell_updated,
     document_replaced,
     math_inserted,
-    page_created,
-    page_deleted,
-    page_metadata_updated,
     text_inserted,
     vault_deletion_scheduled,
     vault_file_added,
@@ -142,6 +138,10 @@ class ReplacePayload(BaseModel):
     latex: str
 
 
+class UpdatePageRawRequest(BaseModel):
+    raw: str
+
+
 class MathPayload(BaseModel):
     latex: str
     mode: Literal["inline", "display"] = "inline"
@@ -162,7 +162,9 @@ class PageDetail(BaseModel):
     page_id: str
     title: str
     latex: str
+    raw: str
     ast: list[dict[str, Any]]
+    version: int
 
 
 class HistoryEntry(BaseModel):
@@ -243,9 +245,7 @@ def _ast_to_json(doc: DocumentNode) -> list[dict[str, Any]]:
 
 @router.post("/pages", status_code=status.HTTP_201_CREATED, response_model=PageSummary)
 def create_page(req: CreatePageRequest) -> PageSummary:
-    page_id = str(uuid4())
-    store.append(page_created(page_id=page_id, title=req.title, project_id=req.project_id))
-    return _summary(page_id)
+    return PageSummary(**commands.create_page(store, title=req.title, project_id=req.project_id))
 
 
 @router.get("/pages", response_model=list[PageSummary])
@@ -272,10 +272,23 @@ def update_page(page_id: str, req: UpdatePageRequest) -> PageSummary:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        page_metadata_updated(page_id=page_id, title=req.title, project_id=req.project_id)
+    return PageSummary(
+        **commands.update_page_metadata(
+            store,
+            page_id=page_id,
+            title=req.title,
+            project_id=req.project_id,
+        )
     )
-    return _summary(page_id)
+
+
+@router.put("/pages/{page_id}", response_model=PageDetail)
+def update_page_raw(page_id: str, req: UpdatePageRawRequest) -> PageDetail:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
+    _events(page_id)
+    commands.replace_document(store, page_id=page_id, latex=req.raw)
+    return _detail_from(page_id, _events(page_id))
 
 
 @router.delete("/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -283,19 +296,13 @@ def delete_page(page_id: str) -> None:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(page_deleted(page_id=page_id))
+    commands.delete_page(store, page_id=page_id)
 
 
 @router.get("/pages/{page_id}", response_model=PageDetail)
 def get_page(page_id: str) -> PageDetail:
     events = _events(page_id)
-    proj = project(page_id, events)
-    return PageDetail(
-        page_id=page_id,
-        title=proj.title,
-        latex=serialize_ast(proj.ast),
-        ast=_ast_to_json(proj.ast),
-    )
+    return _detail_from(page_id, events)
 
 
 @router.get("/pages/{page_id}/latex")
@@ -309,7 +316,7 @@ def append_text(page_id: str, payload: TextPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(text_inserted(page_id=page_id, position=payload.position, text=payload.text))
+    commands.insert_text(store, page_id=page_id, position=payload.position, text=payload.text)
     return {"status": "ok"}
 
 
@@ -328,13 +335,11 @@ def insert_math(page_id: str, payload: MathPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        math_inserted(
-            page_id=page_id,
-            ast_path="/document",
-            latex=payload.latex,
-            mode=payload.mode,
-        )
+    commands.insert_math(
+        store,
+        page_id=page_id,
+        latex=payload.latex,
+        mode=payload.mode,
     )
     return {"status": "ok"}
 
@@ -390,7 +395,9 @@ def _detail_from(page_id: str, events: list[Event]) -> PageDetail:
         page_id=page_id,
         title=proj.title,
         latex=serialize_ast(proj.ast),
+        raw=serialize_ast(proj.ast),
         ast=_ast_to_json(proj.ast),
+        version=len(events),
     )
 
 
