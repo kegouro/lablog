@@ -66,6 +66,13 @@ class CellExecutedPayload(BaseModel):
     figure_path: str | None = None
 
 
+class ExecutionFailedPayload(BaseModel):
+    cell_id: str
+    ename: str
+    evalue: str
+    traceback: list[str]
+
+
 class CellDeletedPayload(BaseModel):
     cell_id: str
 
@@ -179,6 +186,25 @@ def cell_executed(
         page_id=page_id,
         payload=CellExecutedPayload(
             cell_id=cell_id, output=output, figure_path=figure_path
+        ).model_dump(),
+    )
+
+
+def execution_failed(
+    page_id: str,
+    cell_id: str,
+    ename: str,
+    evalue: str,
+    traceback: list[str],
+) -> Event:
+    return Event(
+        type="execution_failed",
+        page_id=page_id,
+        payload=ExecutionFailedPayload(
+            cell_id=cell_id,
+            ename=ename,
+            evalue=evalue,
+            traceback=traceback,
         ).model_dump(),
     )
 
