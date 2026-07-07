@@ -27,6 +27,7 @@ class CellNode:
     output: str | None = None
     figure_path: str | None = None
     type: Literal["cell"] = "cell"
+    status: Literal["idle", "running", "ok", "error"] = "idle"
 
 
 @dataclass
