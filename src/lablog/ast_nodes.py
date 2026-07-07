@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Literal
+from dataclasses import asdict, dataclass, field
+from typing import Any, Literal
 
 
 @dataclass
@@ -45,3 +45,8 @@ class DocumentNode:
 
 
 Node = TextNode | MathNode | CellNode | SectionNode | DocumentNode
+
+
+def node_to_json(node: Node) -> dict[str, Any]:
+    """Serializa un nodo AST a dict JSON-safe de forma determinista."""
+    return asdict(node)
