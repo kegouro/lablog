@@ -7,8 +7,10 @@ import re
 from typing import Any
 
 from lablog.diagrams.models import DiagramPreset, ParamSpec
+from lablog.diagrams.pyspice_sim import PYSPICE_PRESETS, build_pyspice_source
 
 _PLACEHOLDER = re.compile(r"\{\{(\w+)\}\}")
+_PYSPICE_PRESETS = PYSPICE_PRESETS
 
 
 def clamp_params(preset: DiagramPreset, values: dict[str, Any] | None) -> dict[str, float]:
@@ -142,10 +144,6 @@ _HIGHLIGHT_LATEX_COLORS: dict[str, str] = {
     "violet": "violet",
 }
 
-# Presets con celda PySpice opcional (sin dependencia hard).
-_PYSPICE_PRESETS = frozenset({"rc_series_charge", "rlc_series_step", "half_wave_rectifier"})
-
-
 def colorize_named_component(latex: str, tikz_name: str, latex_color: str) -> str:
     """Inyecta ``color=...`` junto a ``name=<tikz_name>`` (Circuitikz/TikZ)."""
     if not tikz_name or not latex_color:
@@ -213,61 +211,6 @@ def expand_preset(
     }
 
 
-def _pyspice_source(preset_id: str, params: dict[str, float]) -> str | None:
-    """Fuente Jupyter que intenta PySpice y cae a numpy analítico."""
-    if preset_id == "rc_series_charge":
-        r = params.get("R", 1000.0)
-        c = params.get("C", 1e-6)
-        v0 = params.get("V0", 5.0)
-        return f'''# lablog-sim: preset=rc_series_charge backend=pyspice
-# LABLOG_PARAMS_START
-R = {r}  # ohm
-C = {c}  # F
-V0 = {v0}  # V
-# LABLOG_PARAMS_END
-
-import numpy as np
-import matplotlib.pyplot as plt
-
-def _numpy_rc(R, C, V0):
-    tau = R * C
-    t = np.linspace(0, 5 * tau, 400)
-    v_c = V0 * (1.0 - np.exp(-t / tau))
-    return t, v_c, tau
-
-try:
-    from PySpice.Spice.Netlist import Circuit
-    from PySpice.Unit import u_Ohm, u_F, u_V, u_s  # type: ignore
-
-    circuit = Circuit("RC charge")
-    circuit.V("in", "n_in", circuit.gnd, V0 @ u_V)
-    circuit.R(1, "n_in", "n_out", R @ u_Ohm)
-    circuit.C(1, "n_out", circuit.gnd, C @ u_F)
-    simulator = circuit.simulator(temperature=25, nominal_temperature=25)
-    tau = R * C
-    analysis = simulator.transient(step_time=tau / 80, end_time=5 * tau)
-    t = np.array(analysis.time)
-    v_c = np.array(analysis["n_out"])
-    backend = "pyspice"
-except Exception as exc:  # noqa: BLE001 — fallback pedagógico
-    print(f"PySpice no disponible ({{type(exc).__name__}}: {{exc}})")
-    print("Instala: pip install 'jose-labarca-lablog[pyspice]'  (requiere ngspice)")
-    t, v_c, tau = _numpy_rc(R, C, V0)
-    backend = "numpy_fallback"
-
-plt.figure(figsize=(6, 3))
-plt.plot(t * 1e3, v_c)
-plt.xlabel("t [ms]")
-plt.ylabel("v_C [V]")
-plt.title(f"RC carga · {{backend}} · τ={{tau * 1e3:.3g}} ms")
-plt.grid(True, alpha=0.3)
-plt.tight_layout()
-plt.show()
-print(f"backend={{backend}}  τ={{tau:.6e}} s")
-'''
-    return None
-
-
 def expand_simulation(
     preset: DiagramPreset,
     values: dict[str, Any] | None = None,
@@ -280,7 +223,7 @@ def expand_simulation(
     clamped = clamp_params(preset, values)
     backend = preset.sim_backend
     if prefer_pyspice and preset.preset_id in _PYSPICE_PRESETS:
-        pys = _pyspice_source(preset.preset_id, clamped)
+        pys = build_pyspice_source(preset.preset_id, clamped)
         if pys is not None:
             return {
                 "preset_id": preset.preset_id,

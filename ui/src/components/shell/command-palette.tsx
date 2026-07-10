@@ -28,14 +28,9 @@ export function CommandPalette() {
   const exportPreferences = useAppStore((s) => s.exportPreferences)
 
   useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault()
-        setOpen((prev) => !prev)
-      }
-    }
-    document.addEventListener('keydown', down)
-    return () => document.removeEventListener('keydown', down)
+    const openPalette = () => setOpen(true)
+    window.addEventListener('lablog:open-command-palette', openPalette)
+    return () => window.removeEventListener('lablog:open-command-palette', openPalette)
   }, [])
 
   const close = () => setOpen(false)

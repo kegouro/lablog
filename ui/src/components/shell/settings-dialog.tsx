@@ -1,4 +1,4 @@
-import { Download, Paintbrush, Palette, Type, Upload } from 'lucide-react'
+import { Download, Keyboard, Paintbrush, Palette, Type, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -13,6 +13,13 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
+import {
+  DEFAULT_SHORTCUTS,
+  SHORTCUT_LABELS,
+  formatChordForDisplay,
+  isValidChord,
+  type ShortcutAction,
+} from '@/lib/shortcuts'
 import {
   PREFERENCE_PROFILES,
   useAppStore,
@@ -78,6 +85,9 @@ export function SettingsDialog() {
   const exportPreferences = useAppStore((s) => s.exportPreferences)
   const importPreferences = useAppStore((s) => s.importPreferences)
   const applyPreferenceProfile = useAppStore((s) => s.applyPreferenceProfile)
+  const shortcuts = useAppStore((s) => s.shortcuts)
+  const setShortcut = useAppStore((s) => s.setShortcut)
+  const resetShortcuts = useAppStore((s) => s.resetShortcuts)
   const [open, setOpen] = useState(false)
   const [draftColors, setDraftColors] = useState(customColors)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -357,6 +367,46 @@ export function SettingsDialog() {
                   )}
                 </button>
               ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Keyboard className="size-4 text-muted-foreground" />
+                <label className="text-sm font-medium">Atajos</label>
+              </div>
+              <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px]" onClick={resetShortcuts}>
+                Restaurar
+              </Button>
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              Usa <code className="text-[10px]">mod</code> (= ⌘ en Mac / Ctrl en Windows). Ej:{' '}
+              <code className="text-[10px]">mod+shift+d</code>
+            </p>
+            <div className="flex flex-col gap-1.5">
+              {(Object.keys(DEFAULT_SHORTCUTS) as ShortcutAction[]).map((action) => {
+                const value = shortcuts[action] ?? DEFAULT_SHORTCUTS[action]
+                return (
+                  <div key={action} className="flex items-center gap-2">
+                    <span className="w-28 shrink-0 text-[10px] text-muted-foreground">
+                      {SHORTCUT_LABELS[action]}
+                    </span>
+                    <Input
+                      value={value}
+                      onChange={(e) => {
+                        const v = e.target.value.trim().toLowerCase()
+                        if (v === '' || isValidChord(v)) setShortcut(action, v || DEFAULT_SHORTCUTS[action])
+                      }}
+                      className="h-7 flex-1 font-mono text-[10px]"
+                      aria-label={SHORTCUT_LABELS[action]}
+                    />
+                    <span className="w-16 text-right text-[10px] text-muted-foreground">
+                      {formatChordForDisplay(value)}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
