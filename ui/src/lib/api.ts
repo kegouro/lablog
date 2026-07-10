@@ -232,6 +232,63 @@ export async function sendVoice(pageId: string, text: string): Promise<{ status:
   })
 }
 
+export interface DiagramPresetSummary {
+  preset_id: string
+  version: number
+  kind: string
+  title: string
+  summary: string
+  category: string
+  tags: string[]
+  param_ids: string[]
+  has_simulation: boolean
+}
+
+export interface DiagramExpandResult {
+  preset_id: string
+  version: number
+  kind: string
+  title: string
+  latex: string
+  params: Record<string, number>
+  param_specs: Array<{
+    id: string
+    label: string
+    description: string
+    value: number
+    unit: string
+    min: number | null
+    max: number | null
+    scale: 'linear' | 'log'
+    highlight: { tikz?: string | null; latex?: string | null; line?: number | null; color?: string }
+  }>
+  has_simulation: boolean
+}
+
+export async function listDiagramPresets(): Promise<DiagramPresetSummary[]> {
+  return fetchJson('/diagrams/presets')
+}
+
+export async function expandDiagramPreset(
+  presetId: string,
+  params?: Record<string, number>,
+): Promise<DiagramExpandResult> {
+  return fetchJson(`/diagrams/presets/${presetId}/expand`, {
+    method: 'POST',
+    body: JSON.stringify({ params: params ?? null }),
+  })
+}
+
+export async function diagramSimulateSource(
+  presetId: string,
+  params?: Record<string, number>,
+): Promise<{ source: string; language: string; backend: string; params: Record<string, number> }> {
+  return fetchJson(`/diagrams/presets/${presetId}/simulate-source`, {
+    method: 'POST',
+    body: JSON.stringify({ params: params ?? null }),
+  })
+}
+
 export async function listVaultFiles(): Promise<VaultFile[]> {
   return fetchJson('/vault')
 }

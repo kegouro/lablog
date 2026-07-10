@@ -1,12 +1,25 @@
 import type { LatexSymbol, Page, Snippet, VaultFile } from '@/types'
 import { create } from 'zustand'
 
-export type PanelId = 'vault' | 'snippets' | 'symbols' | 'cells' | 'output' | 'tutorials' | 'parameters'
+export type PanelId =
+  | 'vault'
+  | 'snippets'
+  | 'symbols'
+  | 'cells'
+  | 'output'
+  | 'tutorials'
+  | 'parameters'
+  | 'diagrams'
 
 export interface ParameterHint {
   description: string
   default: string
   color: string
+  unit?: string
+  min?: number
+  max?: number
+  scale?: 'linear' | 'log'
+  highlightLine?: number
 }
 
 interface AppState {
@@ -95,6 +108,7 @@ export const useAppStore = create<AppState>((set) => ({
     output: false,
     tutorials: false,
     parameters: false,
+    diagrams: false,
   },
   labMode: false,
   theme: 'dark',

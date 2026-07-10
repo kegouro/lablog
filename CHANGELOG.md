@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stress fixtures `tests/fixtures/latex/` (characters, tables, matrices, Feynman, physics, full doc).
 - Docs: `docs/LATEX_PREVIEW.md`.
 - Future features design: `docs/future-features/` (Circuitikz→Jupyter sim, diagram presets, param ranges/highlights, catalog + example JSON).
+- **Diagram presets (MVP)**: `src/lablog/diagrams/` catalog (RC, divisor, masa-resorte, Feynman); API `/diagrams/presets`; UI panel Diagramas; param sliders with ranges + jump-to-line; generate Jupyter sim cell; `circuitikz` in PDF preamble.
 
 ## [0.2.1] - 2026-07-10
 
