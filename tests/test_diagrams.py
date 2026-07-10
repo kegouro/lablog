@@ -31,6 +31,8 @@ def test_catalog_has_core_presets() -> None:
     assert "pi_controller" in ids
     assert "half_wave_rectifier" in ids
     assert "thin_lens" in ids
+    assert "rc_lowpass" in ids
+    assert "noninverting_opamp" in ids
 
 
 def test_expand_rc_defaults() -> None:
@@ -99,7 +101,7 @@ def test_health_reports_presets() -> None:
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["diagram_presets"] >= 10
+    assert body["diagram_presets"] >= 12
     assert "version" in body
 
 
@@ -122,6 +124,15 @@ def test_wheatstone_balance_and_highlight_lines() -> None:
     assert pi_out["has_simulation"] is True
 
 
+def test_list_presets_sorted_by_category() -> None:
+    ordered = list_presets()
+    assert len(ordered) >= 12
+    # circuitos antes que particulas en el orden canónico
+    idx = {p.preset_id: i for i, p in enumerate(ordered)}
+    assert idx["rc_series_charge"] < idx["qed_moller"]
+    assert ordered[idx["rc_lowpass"]].category == "circuitos"
+
+
 def test_half_wave_and_thin_lens() -> None:
     hwr = get_preset("half_wave_rectifier")
     assert hwr is not None
@@ -141,6 +152,22 @@ def test_half_wave_and_thin_lens() -> None:
     assert "0.15" in lout["latex"] or "di" in lout["latex"]
     lsim = expand_simulation(lens, {"f": 0.1, "do": 0.3})
     assert "di=" in lsim["source"] or "1.0 / f" in lsim["source"]
+
+
+def test_rc_lowpass_and_opamp() -> None:
+    lp = get_preset("rc_lowpass")
+    assert lp is not None
+    out = expand_preset(lp, {"R": 2200, "C": 100e-9})
+    assert "circuitikz" in out["latex"]
+    sim = expand_simulation(lp, out["params"])
+    assert "fc" in sim["source"] and "logspace" in sim["source"]
+
+    oa = get_preset("noninverting_opamp")
+    assert oa is not None
+    oout = expand_preset(oa, {"Rf": 20_000, "Rg": 1000})
+    assert "op amp" in oout["latex"]
+    osim = expand_simulation(oa, oout["params"])
+    assert "Ganancia" in osim["source"] or "G =" in osim["source"]
 
 
 def test_rlc_and_second_order_expand() -> None:

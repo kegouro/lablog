@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import {
   diagramSimulateSource,
   expandDiagramPreset,
@@ -33,6 +34,7 @@ export function DiagramsPanel() {
   const [presets, setPresets] = useState<DiagramPresetSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
 
   useEffect(() => {
     listDiagramPresets()
@@ -40,6 +42,25 @@ export function DiagramsPanel() {
       .catch(() => toast.error('No se pudieron cargar los diagramas'))
       .finally(() => setLoading(false))
   }, [])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return presets
+    return presets.filter((p) => {
+      const hay = [
+        p.preset_id,
+        p.title,
+        p.summary,
+        p.category,
+        p.kind,
+        ...p.tags,
+        ...p.param_ids,
+      ]
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(q)
+    })
+  }, [presets, query])
 
   const applyHints = useCallback(
     (result: Awaited<ReturnType<typeof expandDiagramPreset>>) => {
@@ -151,19 +172,19 @@ export function DiagramsPanel() {
 
   const grouped = useMemo(() => {
     const map = new Map<string, DiagramPresetSummary[]>()
-    for (const p of presets) {
+    for (const p of filtered) {
       const cat = p.category || 'general'
       const list = map.get(cat) ?? []
       list.push(p)
       map.set(cat, list)
     }
-    const order = ['circuitos', 'control', 'mecanica', 'particulas', 'optica', 'general']
+    const order = ['circuitos', 'control', 'mecanica', 'optica', 'particulas', 'general']
     return [...map.entries()].sort(([a], [b]) => {
       const ia = order.indexOf(a)
       const ib = order.indexOf(b)
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib)
     })
-  }, [presets])
+  }, [filtered])
 
   return (
     <Card className="m-2 border-0 shadow-none">
@@ -184,11 +205,24 @@ export function DiagramsPanel() {
         </Button>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
+        <Input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar: rc, bode, lente, control…"
+          className="h-8 text-xs"
+          aria-label="Filtrar diagramas"
+        />
         {loading && (
           <p className="py-6 text-center text-xs text-muted-foreground">Cargando catálogo…</p>
         )}
         {!loading && presets.length === 0 && (
           <p className="py-6 text-center text-xs text-muted-foreground">Sin presets</p>
+        )}
+        {!loading && presets.length > 0 && filtered.length === 0 && (
+          <p className="py-4 text-center text-xs text-muted-foreground">
+            Nada coincide con “{query.trim()}”
+          </p>
         )}
         {grouped.map(([cat, items]) => (
           <div key={cat} className="flex flex-col gap-2">

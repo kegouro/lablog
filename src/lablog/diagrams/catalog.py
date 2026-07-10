@@ -437,6 +437,74 @@ else:
             print("caso: do < f → imagen virtual, ampliada, derecha (lupa)")
 '''
 
+_LP_TIKZ = r"""\begin{circuitikz}
+  \draw (0,0) node[left]{$v_{in}$}
+    to[sV, v=$v_{in}$, name=Vin] (0,2)
+    to[short] (1.5,2)
+    to[R, R=${{R}}$, l_=$R$, name=R1] (3.5,2)
+    to[short] (3.5,0)
+    to[short] (0,0);
+  \draw (3.5,2) to[C, C=${{C}}$, l_=$C$, name=C1] (3.5,0);
+  \draw (3.5,2) to[short, *-o] (4.5,2) node[right]{$v_{out}$};
+\end{circuitikz}
+"""
+
+_LP_SIM = r'''# lablog-sim: preset=rc_lowpass version=1
+# LABLOG_PARAMS_START
+R = {{R}}  # ohm
+C = {{C}}  # F
+# LABLOG_PARAMS_END
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+fc = 1.0 / (2 * np.pi * R * C)
+f = np.logspace(np.log10(max(fc / 200, 1e-3)), np.log10(fc * 200), 400)
+w = 2 * np.pi * f
+H = 1.0 / (1.0 + 1j * w * R * C)
+mag_db = 20 * np.log10(np.maximum(np.abs(H), 1e-30))
+phase = np.angle(H, deg=True)
+
+fig, ax = plt.subplots(2, 1, figsize=(6, 4), sharex=True)
+ax[0].semilogx(f, mag_db)
+ax[0].axvline(fc, color="gray", ls="--", lw=0.8, label=f"fc={fc:.4g} Hz")
+ax[0].set_ylabel("|H| [dB]")
+ax[0].set_title("RC pasa-bajos")
+ax[0].grid(True, which="both", alpha=0.3)
+ax[0].legend()
+ax[1].semilogx(f, phase)
+ax[1].axvline(fc, color="gray", ls="--", lw=0.8)
+ax[1].set_xlabel("f [Hz]")
+ax[1].set_ylabel("fase [°]")
+ax[1].grid(True, which="both", alpha=0.3)
+fig.tight_layout()
+plt.show()
+print(f"fc = 1/(2πRC) = {fc:.6g} Hz")
+'''
+
+_OA_TIKZ = r"""\begin{circuitikz}
+  \draw (0,0) node[op amp] (oa) {};
+  \draw (oa.+) to[short, -o] ++(-1.6,0) node[left]{$v_{in}$};
+  \draw (oa.-) to[R, R=${{Rg}}$, l_=$R_g$, name=Rg] ++(0,-1.6) node[ground]{};
+  \draw (oa.-) to[R, R=${{Rf}}$, l_=$R_f$, name=Rf] ++(2.4,0) |- (oa.out);
+  \draw (oa.out) to[short, *-o] ++(1.0,0) node[right]{$v_{out}$};
+  \node[above] at (1.2,1.3) {$G=1+\dfrac{R_f}{R_g}$};
+\end{circuitikz}
+"""
+
+_OA_SIM = r'''# lablog-sim: preset=noninverting_opamp version=1
+# LABLOG_PARAMS_START
+Rf = {{Rf}}  # ohm
+Rg = {{Rg}}  # ohm
+# LABLOG_PARAMS_END
+
+G = 1.0 + Rf / Rg
+print(f"Ganancia no inversora ideal G = 1 + Rf/Rg = {G:.6g}")
+print(f"v_out = {G:.6g} · v_in  (banda infinita, op-amp ideal)")
+if Rg > 0:
+    print(f"división feedback β = Rg/(Rf+Rg) = {Rg / (Rf + Rg):.6g}")
+'''
+
 _FEYNMAN_TIKZ = r"""\begin{center}
 \begin{tikzpicture}[
   fermion/.style={thick, postaction={decorate},
@@ -966,6 +1034,80 @@ _CATALOG: list[DiagramPreset] = [
         sim_template=_LENS_SIM,
     ),
     DiagramPreset(
+        preset_id="rc_lowpass",
+        kind="circuitikz",
+        title="RC pasa-bajos",
+        summary="Filtro RC serie. fc=1/(2πRC). Bode de magnitud y fase.",
+        category="circuitos",
+        tags=["filtro", "bode", "rc", "lab"],
+        params=[
+            _p(
+                "R",
+                "Resistencia",
+                "Mayor R → menor fc.",
+                1000.0,
+                unit="ohm",
+                min_v=1,
+                max_v=1e7,
+                scale="log",
+                tikz="R1",
+                color="amber",
+            ),
+            _p(
+                "C",
+                "Capacitancia",
+                "Mayor C → menor fc y más atenuación a altas f.",
+                100e-9,
+                unit="F",
+                min_v=1e-12,
+                max_v=1e-3,
+                scale="log",
+                tikz="C1",
+                color="sky",
+            ),
+        ],
+        tikz_template=_LP_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_LP_SIM,
+    ),
+    DiagramPreset(
+        preset_id="noninverting_opamp",
+        kind="circuitikz",
+        title="Op-amp no inversor",
+        summary="Realimentación no inversora ideal. G = 1 + Rf/Rg.",
+        category="circuitos",
+        tags=["opamp", "amplificador", "lab"],
+        params=[
+            _p(
+                "Rf",
+                "Rf feedback",
+                "Resistencia de realimentación. Sube Rf → más ganancia.",
+                10_000.0,
+                unit="ohm",
+                min_v=10,
+                max_v=1e7,
+                scale="log",
+                tikz="Rf",
+                color="amber",
+            ),
+            _p(
+                "Rg",
+                "Rg a masa",
+                "Resistencia a masa del divisor. Baja Rg → más ganancia.",
+                1000.0,
+                unit="ohm",
+                min_v=10,
+                max_v=1e7,
+                scale="log",
+                tikz="Rg",
+                color="sky",
+            ),
+        ],
+        tikz_template=_OA_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_OA_SIM,
+    ),
+    DiagramPreset(
         preset_id="qed_moller",
         kind="feynman_tikz",
         title="QED e⁻e⁻ (árbol)",
@@ -990,9 +1132,21 @@ _CATALOG: list[DiagramPreset] = [
     ),
 ]
 
+_CATEGORY_ORDER = {
+    "circuitos": 0,
+    "control": 1,
+    "mecanica": 2,
+    "optica": 3,
+    "particulas": 4,
+    "general": 5,
+}
+
 
 def list_presets() -> list[DiagramPreset]:
-    return list(_CATALOG)
+    return sorted(
+        _CATALOG,
+        key=lambda p: (_CATEGORY_ORDER.get(p.category, 50), p.title.lower(), p.preset_id),
+    )
 
 
 def get_preset(preset_id: str) -> DiagramPreset | None:

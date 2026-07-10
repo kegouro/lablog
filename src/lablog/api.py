@@ -43,6 +43,9 @@ from lablog.projections import PageNotFoundError
 from lablog.snippets import Snippet, find_snippet, render_snippet
 from lablog.vault import VaultFile, VaultService
 
+# Starlette renombró UNPROCESSABLE_ENTITY → CONTENT; evitar el attr deprecado.
+_HTTP_422 = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
+
 # Límite de cuerpo LaTeX por PUT/replace (evita reventar el event log).
 _MAX_LATEX_CHARS = 5_000_000
 _SAFE_CELL_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -151,7 +154,7 @@ def diagram_simulate_source(preset_id: str, body: DiagramExpandRequest) -> dict[
     try:
         return diagrams.expand_simulation(preset, body.params)
     except ValueError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+        raise HTTPException(_HTTP_422, str(exc)) from exc
 
 
 class DiagramApplyRequest(BaseModel):
@@ -168,7 +171,7 @@ def apply_diagram_params(body: DiagramApplyRequest) -> dict[str, Any]:
     preset_id = body.preset_id or diagrams.parse_lablog_preset_id(body.latex)
     if not preset_id:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            _HTTP_422,
             "No hay lablog-diagram en el documento ni preset_id",
         )
     preset = diagrams.get_preset(preset_id)
@@ -591,7 +594,7 @@ async def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
     except CellNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     except UnsupportedLanguageError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+        raise HTTPException(_HTTP_422, str(exc)) from exc
     except EngineExecutionError as exc:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -1028,7 +1031,7 @@ async def export_page_pdf(page_id: str) -> Response:
     if result.status == "timeout":
         raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "Compilación excedió el tiempo límite")
     raise HTTPException(
-        status.HTTP_422_UNPROCESSABLE_ENTITY,
+        _HTTP_422,
         detail={"errors": [asdict(e) for e in result.errors], "log": result.log[-4000:]},
     )
 
