@@ -289,6 +289,26 @@ export async function diagramSimulateSource(
   })
 }
 
+export interface DiagramApplyResult extends DiagramExpandResult {
+  document_latex: string
+}
+
+/** Reexpande un preset embebido (o forzado) y devuelve el LaTeX completo de la página. */
+export async function applyDiagramParams(
+  latex: string,
+  params?: Record<string, number>,
+  presetId?: string | null,
+): Promise<DiagramApplyResult> {
+  return fetchJson('/diagrams/apply', {
+    method: 'POST',
+    body: JSON.stringify({
+      latex,
+      params: params ?? null,
+      preset_id: presetId ?? null,
+    }),
+  })
+}
+
 export async function listVaultFiles(): Promise<VaultFile[]> {
   return fetchJson('/vault')
 }

@@ -119,6 +119,125 @@ plt.show()
 print(f"ωn={wn:.4g} rad/s  ζ={zeta:.4g}")
 '''
 
+_RLC_TIKZ = r"""\begin{circuitikz}
+  \draw (0,0) node[left]{$+$}
+    to[V, v=$V_0$, name=V1] (0,2)
+    to[short] (3,2)
+    to[R, R=${{R}}$, l_=$R$, name=R1] (3,1.2)
+    to[L, L=${{L}}$, l_=$L$, name=L1] (3,0.4)
+    to[C, C=${{C}}$, l_=$C$, name=C1] (3,-0.4)
+    to[short] (0,-0.4)
+    to[short] (0,0);
+  \node[right] at (3.4,0.4) {$v_C$};
+\end{circuitikz}
+"""
+
+_RLC_SIM = r'''# lablog-sim: preset=rlc_series_step version=1
+# LABLOG_PARAMS_START
+R = {{R}}  # ohm
+L = {{L}}  # H
+C = {{C}}  # F
+V0 = {{V0}}  # V
+# LABLOG_PARAMS_END
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+wn = 1.0 / np.sqrt(L * C)
+zeta = R / 2.0 * np.sqrt(C / L)
+t_end = max(5e-3, 12 * np.pi / max(wn, 1.0))
+n = 800
+dt = t_end / n
+t = np.linspace(0, t_end, n + 1)
+# state: q (charge on C), i
+q = np.zeros(n + 1)
+i = np.zeros(n + 1)
+for k in range(n):
+    # L di/dt + R i + q/C = V0
+    di = (V0 - R * i[k] - q[k] / C) / L
+    i[k + 1] = i[k] + di * dt
+    q[k + 1] = q[k] + i[k + 1] * dt
+v_c = q / C
+
+fig, ax = plt.subplots(1, 2, figsize=(8, 3))
+ax[0].plot(t * 1e3, v_c)
+ax[0].set_xlabel("t [ms]")
+ax[0].set_ylabel("v_C [V]")
+ax[0].set_title(f"RLC serie  ωn={wn:.3g}  ζ={zeta:.3g}")
+ax[0].grid(True, alpha=0.3)
+ax[1].plot(t * 1e3, i * 1e3)
+ax[1].set_xlabel("t [ms]")
+ax[1].set_ylabel("i [mA]")
+ax[1].grid(True, alpha=0.3)
+fig.tight_layout()
+plt.show()
+print(f"ωn={wn:.4g} rad/s  ζ={zeta:.4g}  regime=", end="")
+if zeta < 1:
+    print("subamortiguado")
+elif abs(zeta - 1) < 1e-3:
+    print("crítico")
+else:
+    print("sobreamortiguado")
+'''
+
+_SO_TIKZ = r"""\begin{tikzpicture}[
+  block/.style={draw, thick, minimum width=2.2cm, minimum height=1cm, align=center},
+  sum/.style={draw, circle, thick, minimum size=6mm},
+  >=stealth
+]
+  \node[sum] (s) at (0,0) {$+$};
+  \node[block] (g) at (2.8,0) {$K\,\omega_n^2$\\$s^2+2\zeta\omega_n s+\omega_n^2$};
+  \draw[->] (-1.4,0) node[left]{$r$} -- (s);
+  \draw[->] (s) -- (g);
+  \draw[->] (g) -- (5.4,0) node[right]{$y$};
+  \draw[->] (5.0,0) -- (5.0,-1.2) -| node[pos=0.25,right]{$1$} (s);
+  \node[below=8pt] at (2.8,-0.1) {$\omega_n={{wn}},\ \zeta={{zeta}},\ K={{K}}$};
+\end{tikzpicture}
+"""
+
+_SO_SIM = r'''# lablog-sim: preset=second_order_step version=1
+# LABLOG_PARAMS_START
+wn = {{wn}}  # rad/s
+zeta = {{zeta}}
+K = {{K}}
+# LABLOG_PARAMS_END
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Planta K*wn^2 / (s^2 + 2 zeta wn s + wn^2); entrada escalón unitario
+# Forma canónica: ÿ + 2ζωn ẏ + ωn² y = K ωn² u
+t_end = max(5.0, 12 * np.pi / max(wn, 0.1))
+n = 700
+dt = t_end / n
+t = np.linspace(0, t_end, n + 1)
+y = np.zeros(n + 1)
+v = np.zeros(n + 1)  # ẏ
+u = 1.0
+for i in range(n):
+    a = K * wn**2 * u - 2 * zeta * wn * v[i] - wn**2 * y[i]
+    v[i + 1] = v[i] + a * dt
+    y[i + 1] = y[i] + v[i + 1] * dt
+
+plt.figure(figsize=(6, 3))
+plt.plot(t, y)
+plt.axhline(K, color="gray", ls="--", lw=0.8, label="K")
+plt.xlabel("t [s]")
+plt.ylabel("y(t)")
+plt.title(f"2º orden · escalón  ωn={wn:.3g}  ζ={zeta:.3g}")
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.show()
+print(f"régimen: ", end="")
+if zeta < 1:
+    print("subamortiguado")
+elif abs(zeta - 1) < 1e-3:
+    print("crítico")
+else:
+    print("sobreamortiguado")
+'''
+
 _FEYNMAN_TIKZ = r"""\begin{center}
 \begin{tikzpicture}[
   fermion/.style={thick, postaction={decorate},
@@ -316,6 +435,112 @@ _CATALOG: list[DiagramPreset] = [
         tikz_template=_MSD_TIKZ,
         sim_backend="numpy_ode",
         sim_template=_MSD_SIM,
+    ),
+    DiagramPreset(
+        preset_id="rlc_series_step",
+        kind="circuitikz",
+        title="RLC serie — escalón",
+        summary="R-L-C en serie con fuente DC. Muestra sub/crít/sobreamortiguado según ζ.",
+        category="circuitos",
+        tags=["rlc", "transitorio", "lab"],
+        params=[
+            _p(
+                "R",
+                "Resistencia",
+                "Amortiguamiento: ζ ∝ R. Sube R → más amortiguado.",
+                10.0,
+                unit="ohm",
+                min_v=0.1,
+                max_v=1e5,
+                scale="log",
+                tikz="R1",
+                color="amber",
+            ),
+            _p(
+                "L",
+                "Inductancia",
+                "Inercia magnética. Mayor L → menor ωn.",
+                1e-3,
+                unit="H",
+                min_v=1e-6,
+                max_v=10,
+                scale="log",
+                tikz="L1",
+                color="violet",
+            ),
+            _p(
+                "C",
+                "Capacitancia",
+                "Mayor C → menor ωn y más carga.",
+                1e-6,
+                unit="F",
+                min_v=1e-12,
+                max_v=1e-3,
+                scale="log",
+                tikz="C1",
+                color="sky",
+            ),
+            _p(
+                "V0",
+                "Tensión fuente",
+                "Escalón de tensión ideal.",
+                5.0,
+                unit="V",
+                min_v=0.1,
+                max_v=100,
+                tikz="V1",
+                color="rose",
+            ),
+        ],
+        tikz_template=_RLC_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_RLC_SIM,
+    ),
+    DiagramPreset(
+        preset_id="second_order_step",
+        kind="block_diagram",
+        title="2º orden — respuesta al escalón",
+        summary="Planta canónica K·ωn²/(s²+2ζωn s+ωn²). Ideal para control.",
+        category="control",
+        tags=["bode", "step", "control"],
+        params=[
+            _p(
+                "wn",
+                "ωₙ",
+                "Frecuencia natural. Mayor ωn → respuesta más rápida.",
+                2.0,
+                unit="rad/s",
+                min_v=0.1,
+                max_v=100,
+                scale="log",
+                color="sky",
+            ),
+            _p(
+                "zeta",
+                "ζ",
+                "Amortiguamiento. <1 oscila; =1 crítico; >1 sobreamortiguado.",
+                0.4,
+                unit="",
+                min_v=0.05,
+                max_v=3,
+                scale="linear",
+                color="amber",
+            ),
+            _p(
+                "K",
+                "Ganancia K",
+                "Valor final del escalón (asíntota y→K).",
+                1.0,
+                unit="",
+                min_v=0.1,
+                max_v=10,
+                scale="linear",
+                color="emerald",
+            ),
+        ],
+        tikz_template=_SO_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_SO_SIM,
     ),
     DiagramPreset(
         preset_id="qed_moller",
