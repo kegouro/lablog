@@ -154,8 +154,10 @@ def colorize_named_component(latex: str, tikz_name: str, latex_color: str) -> st
     )
 
     def repl(m: re.Match[str]) -> str:
-        # Busca hacia atrás en el mismo [...] si ya hay color=
-        start = max(0, m.start() - 80)
+        # Solo mira dentro del mismo bloque de opciones [...] / {...}
+        # (no el color= de un componente anterior en la misma línea).
+        open_br = max(latex.rfind("[", 0, m.start()), latex.rfind("{", 0, m.start()))
+        start = open_br + 1 if open_br >= 0 else max(0, m.start() - 40)
         window = latex[start : m.end()]
         if re.search(r"\bcolor\s*=", window):
             return m.group(0)

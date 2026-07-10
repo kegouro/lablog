@@ -75,33 +75,48 @@ export function AppShell() {
 
   useEffect(() => {
     async function load() {
-      const [pages, vaultFiles, snippets, symbols, favorites] = await Promise.all([
+      // allSettled: un endpoint caído no tumba el arranque completo.
+      const results = await Promise.allSettled([
         listPages(),
         listVaultFiles(),
         listSnippets(),
         listSymbols(),
         listFavorites(),
       ])
-      setPages(pages)
-      setVaultFiles(vaultFiles)
-      setSnippets(snippets)
-      setSymbols(symbols)
-      setFavorites(favorites)
-      if (pages.length > 0 && !useAppStore.getState().activePageId) {
-        setActivePageId(pages[0].id)
+      const [pagesR, vaultR, snippetsR, symbolsR, favoritesR] = results
+      if (pagesR.status === 'fulfilled') {
+        setPages(pagesR.value)
+        if (pagesR.value.length > 0 && !useAppStore.getState().activePageId) {
+          setActivePageId(pagesR.value[0].id)
+        }
+      } else {
+        console.error('load pages', pagesR.reason)
       }
+      if (vaultR.status === 'fulfilled') setVaultFiles(vaultR.value)
+      else console.error('load vault', vaultR.reason)
+      if (snippetsR.status === 'fulfilled') setSnippets(snippetsR.value)
+      else console.error('load snippets', snippetsR.reason)
+      if (symbolsR.status === 'fulfilled') setSymbols(symbolsR.value)
+      else console.error('load symbols', symbolsR.reason)
+      if (favoritesR.status === 'fulfilled') setFavorites(favoritesR.value)
+      else console.error('load favorites', favoritesR.reason)
     }
-    load()
+    void load()
   }, [setPages, setVaultFiles, setSnippets, setSymbols, setFavorites, setActivePageId])
 
   const refreshPages = async () => {
-    const pages = await listPages()
-    setPages(pages)
-    const currentActivePageId = useAppStore.getState().activePageId
-    if (pages.length > 0 && !pages.find((p) => p.id === currentActivePageId)) {
-      setActivePageId(pages[0].id)
-    } else if (pages.length === 0) {
-      setActivePageId(null)
+    try {
+      const pages = await listPages()
+      setPages(pages)
+      const currentActivePageId = useAppStore.getState().activePageId
+      if (pages.length > 0 && !pages.find((p) => p.id === currentActivePageId)) {
+        setActivePageId(pages[0].id)
+      } else if (pages.length === 0) {
+        setActivePageId(null)
+      }
+    } catch (err) {
+      console.error(err)
+      alert('No se pudieron recargar las páginas. ¿Está corriendo el backend?')
     }
   }
 

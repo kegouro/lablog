@@ -113,7 +113,8 @@ export function ExportMenu() {
           <DropdownMenuItem
             key={f.id}
             onClick={() => handleExport(f.id, f.label)}
-            disabled={!activePageId}
+            // Sitio estático exporta todas las páginas; no requiere página activa.
+            disabled={f.id !== 'site' && !activePageId}
             className="gap-2"
           >
             <f.icon className="size-4" />

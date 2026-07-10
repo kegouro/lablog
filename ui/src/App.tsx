@@ -52,7 +52,10 @@ function AppInitializer() {
     } catch {
       // localStorage no disponible
     }
-    if (savedScale) setFontScale(Number(savedScale))
+    if (savedScale) {
+      const n = Number(savedScale)
+      if (Number.isFinite(n) && n >= 70 && n <= 150) setFontScale(n)
+    }
     if (savedAccent) {
       setAccent(savedAccent)
       if (savedAccent === 'zinc') {

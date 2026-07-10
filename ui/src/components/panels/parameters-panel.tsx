@@ -211,12 +211,21 @@ export function ParametersPanel() {
       const value = parameterValues[name] ?? parameterHints[name]?.default ?? `{{${name}}}`
       next = next.replaceAll(`{{${name}}}`, value)
     }
-    setActiveLatex(next)
-    if (activePageId) {
+    if (!activePageId) {
+      setActiveLatex(next)
+      return
+    }
+    try {
+      // Persiste primero; solo refleja en la UI si el servidor lo aceptó.
       const version = useAppStore.getState().activeVersion || undefined
       const result = await replacePageLatex(activePageId, next, version)
+      setActiveLatex(result.latex)
       setActiveAst(result.ast)
       setActiveVersion(result.version)
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudieron congelar los parámetros')
+      throw err
     }
   }
 
@@ -268,16 +277,21 @@ export function ParametersPanel() {
   }
 
   const onPrimaryAction = async () => {
-    if (placeholderMatches.length > 0 && !hasDiagramMarkers) {
+    try {
+      if (placeholderMatches.length > 0 && !hasDiagramMarkers) {
+        await bakePlaceholders()
+        toast.success('Valores congelados')
+        return
+      }
+      if (isDiagramMode) {
+        await reapplyDiagram(false)
+        return
+      }
       await bakePlaceholders()
       toast.success('Valores congelados')
-      return
+    } catch {
+      // toast de error ya emitido en bakePlaceholders / reapplyDiagram
     }
-    if (isDiagramMode) {
-      await reapplyDiagram(false)
-      return
-    }
-    await bakePlaceholders()
   }
 
   return (

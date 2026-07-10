@@ -227,14 +227,18 @@ def get_engine() -> CodeEngine:
     return _code_engine
 
 
+_MAX_TITLE_CHARS = 500
+_MAX_PROJECT_ID_CHARS = 128
+
+
 class CreatePageRequest(BaseModel):
-    title: str = "Sin título"
-    project_id: str | None = None
+    title: str = Field(default="Sin título", max_length=_MAX_TITLE_CHARS)
+    project_id: str | None = Field(default=None, max_length=_MAX_PROJECT_ID_CHARS)
 
 
 class UpdatePageRequest(BaseModel):
-    title: str | None = None
-    project_id: str | None = None
+    title: str | None = Field(default=None, max_length=_MAX_TITLE_CHARS)
+    project_id: str | None = Field(default=None, max_length=_MAX_PROJECT_ID_CHARS)
 
 
 class MoveCellPayload(BaseModel):
@@ -276,10 +280,12 @@ class PageSummary(BaseModel):
 class PageDetail(BaseModel):
     page_id: str
     title: str
+    project_id: str | None = None
     latex: str
     raw: str
     ast: list[dict[str, Any]]
     version: int
+    updated_at: datetime | None = None
 
 
 class HistoryEntry(BaseModel):

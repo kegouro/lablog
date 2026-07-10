@@ -52,6 +52,36 @@ def test_version_conflict_on_put() -> None:
     assert r.json()["detail"]["error_code"] == "VERSION_CONFLICT"
 
 
+def test_create_page_rejects_huge_title_and_project_id() -> None:
+    huge = "x" * 10_000
+    r = client.post("/api/v1/pages", json={"title": huge})
+    assert r.status_code == 422
+    r = client.post("/api/v1/pages", json={"title": "ok", "project_id": "p" * 500})
+    assert r.status_code == 422
+
+
+def test_page_detail_preserves_project_id_and_updated_at() -> None:
+    """getPage no debe borrar project_id: el detail incluye metadatos de list."""
+    res = client.post(
+        "/api/v1/pages",
+        json={"title": "Proyecto", "project_id": "lab-optics"},
+    )
+    assert res.status_code == 201
+    pid = res.json()["page_id"]
+    assert res.json()["project_id"] == "lab-optics"
+
+    detail = client.get(f"/api/v1/pages/{pid}").json()
+    assert detail["project_id"] == "lab-optics"
+    assert detail["title"] == "Proyecto"
+    assert detail.get("updated_at") is not None
+
+    # Tras PUT raw se conserva el project_id
+    ver = detail["version"]
+    put = client.put(f"/api/v1/pages/{pid}", json={"raw": "x=1", "version": ver})
+    assert put.status_code == 200
+    assert put.json()["project_id"] == "lab-optics"
+
+
 def test_document_env_does_not_swallow_python_cells() -> None:
     src = r"""\documentclass{article}
 \begin{document}

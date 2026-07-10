@@ -61,22 +61,24 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
 interface PageDetailWire {
   page_id: string
   title: string
+  project_id?: string | null
   latex: string
   raw: string
   ast: AstNode[]
   version: number
+  updated_at?: string | null
 }
 
 function detailToPage(d: PageDetailWire): Page {
   return {
     id: d.page_id,
     title: d.title,
-    project_id: null,
+    project_id: d.project_id ?? null,
     latex: d.latex,
     raw: d.raw,
     ast: d.ast,
     version: d.version,
-    updated_at: new Date().toISOString(),
+    updated_at: d.updated_at ?? new Date().toISOString(),
   }
 }
 
