@@ -4,14 +4,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 import { useAppStore } from '@/stores/app-store'
 
-vi.mock('@/lib/api', () => ({
-  deleteCell: vi.fn(() => Promise.resolve()),
-  executeCell: vi.fn(),
-  getPage: vi.fn(),
-  insertCell: vi.fn(() => Promise.resolve()),
-  listCells: vi.fn(),
-  moveCell: vi.fn(() => Promise.resolve()),
-}))
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>()
+  return {
+    ...actual,
+    deleteCell: vi.fn(() => Promise.resolve()),
+    executeCell: vi.fn(),
+    getPage: vi.fn(),
+    insertCell: vi.fn(() => Promise.resolve()),
+    listCells: vi.fn(),
+    moveCell: vi.fn(() => Promise.resolve()),
+  }
+})
 
 import { executeCell, getPage, listCells } from '@/lib/api'
 import { CellsPanel } from './cells-panel'
@@ -43,8 +47,10 @@ describe('CellsPanel', () => {
       title: 'Página',
       project_id: null,
       latex: '',
+      raw: '',
       ast: [],
       updated_at: new Date().toISOString(),
+      version: 1,
     })
     mockExecuteCell.mockRejectedValue(new Error('division by zero'))
 

@@ -2,6 +2,7 @@ import 'katex/dist/katex.min.css'
 import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { TimeTravelOverlay } from '@/components/history/time-travel'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import {
   compilePdf,
@@ -11,17 +12,15 @@ import {
   type PdfEngineStatus,
   type PdfError,
 } from '@/lib/api'
-import { renderDocument, type RenderError } from '@/lib/latex-render'
+import { AstRenderer } from '@/lib/ast-render'
 import { useAppStore } from '@/stores/app-store'
-import { Clock, Download, FileText, Loader2, TriangleAlert } from 'lucide-react'
+import { Clock, Download, FileText, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { TimeTravelOverlay } from '@/components/history/time-travel'
 
 export function LatexPreview() {
   const activeAst = useAppStore((s) => s.activeAst)
   const activeLatex = useAppStore((s) => s.activeLatex)
   const activePageId = useAppStore((s) => s.activePageId)
-  const parameterValues = useAppStore((s) => s.parameterValues)
   const goToLine = useAppStore((s) => s.goToLine)
   const debouncedAst = useDebouncedValue(activeAst, 150)
 
@@ -56,12 +55,6 @@ export function LatexPreview() {
     }
   }
 
-  const { html, renderErrors } = useMemo(() => {
-    const katexErrors: RenderError[] = []
-    const rendered = renderDocument(debouncedAst, activePageId, parameterValues, katexErrors)
-    return { html: rendered, renderErrors: katexErrors }
-  }, [debouncedAst, activePageId, parameterValues])
-
   const isFullDoc = useMemo(
     () => /\\documentclass\b/.test(activeLatex) || /\\begin\s*\{\s*document\s*\}/.test(activeLatex),
     [activeLatex],
@@ -92,9 +85,6 @@ export function LatexPreview() {
         <div className="flex items-center gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
             Vista previa
-          </span>
-          <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
-            Aproximada
           </span>
           {isFullDoc && (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-muted-foreground">
@@ -171,27 +161,10 @@ export function LatexPreview() {
         </div>
       )}
 
-      {renderErrors.length > 0 && (
-        <div className="rounded-lg border border-amber-400/40 bg-amber-400/5 p-2 text-xs">
-          <p className="mb-1 flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-300">
-            <TriangleAlert className="size-3" />
-            Errores en fórmulas
-          </p>
-          <ul className="space-y-0.5">
-            {renderErrors.map((e, i) => (
-              <li key={i} className="font-mono" title={e.message}>
-                {e.latex}: {e.message}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <div className="relative min-h-0 flex-1">
-        <div
-          className="h-full overflow-auto rounded-lg border bg-card p-5 text-sm shadow-sm"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <div className="h-full overflow-auto rounded-lg border bg-card p-5 text-sm shadow-sm">
+          <AstRenderer ast={debouncedAst} pageId={activePageId} />
+        </div>
         {pdfUrl && (
           <div className="absolute inset-0 z-30 flex flex-col bg-card">
             <div className="flex items-center justify-between border-b px-2 py-1">

@@ -12,6 +12,8 @@ export interface ParameterHint {
 interface AppState {
   pages: Page[]
   activePageId: string | null
+  /** Versión del documento en el backend (para ErrorBoundary resetKey). */
+  activeVersion: number
   activeLatex: string
   activeAst: Page['ast']
   searchQuery: string
@@ -38,6 +40,7 @@ interface AppState {
   goToLine: ((line: number) => void) | null
   setPages: (pages: Page[]) => void
   setActivePageId: (id: string | null) => void
+  setActiveVersion: (version: number) => void
   setActiveLatex: (latex: string) => void
   setActiveAst: (ast: Page['ast']) => void
   setSearchQuery: (q: string) => void
@@ -74,6 +77,7 @@ function persist(key: string, value: string): void {
 export const useAppStore = create<AppState>((set) => ({
   pages: [],
   activePageId: null,
+  activeVersion: 0,
   activeLatex: '',
   activeAst: undefined,
   searchQuery: '',
@@ -104,7 +108,8 @@ export const useAppStore = create<AppState>((set) => ({
   flushSave: null,
   goToLine: null,
   setPages: (pages) => set({ pages }),
-  setActivePageId: (id) => set({ activePageId: id }),
+  setActivePageId: (id) => set({ activePageId: id, activeVersion: 0 }),
+  setActiveVersion: (activeVersion) => set({ activeVersion }),
   setActiveLatex: (activeLatex) => set({ activeLatex }),
   setActiveAst: (activeAst) => set({ activeAst }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),

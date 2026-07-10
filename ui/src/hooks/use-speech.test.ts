@@ -21,7 +21,7 @@ class MockSpeechRecognition {
   }
 }
 
-describe('useSpeechRecognition', () => {
+describe('useSpeechRecognition FSM', () => {
   let instances: MockSpeechRecognition[] = []
 
   beforeEach(() => {
@@ -36,20 +36,21 @@ describe('useSpeechRecognition', () => {
     })
   })
 
-  it('exposes resetTranscript that clears the transcript', async () => {
+  it('transitions idle → listening → processing → idle', async () => {
     const { result } = renderHook(() => useSpeechRecognition())
+    expect(result.current.phase).toBe('idle')
 
     act(() => {
       result.current.start()
     })
-
-    await waitFor(() => expect(result.current.listening).toBe(true))
-    expect(instances).toHaveLength(1)
+    await waitFor(() => expect(result.current.phase).toBe('listening'))
 
     const recognition = instances[0]
-    const results = [
-      [{ transcript: 'hola mundo', isFinal: true }],
-    ] as unknown as SpeechRecognitionResultList
+    const speechResult = Object.assign([{ transcript: 'hola' }], {
+      isFinal: true,
+      length: 1,
+    }) as unknown as SpeechRecognitionResult
+    const results = Object.assign([speechResult], { length: 1 }) as unknown as SpeechRecognitionResultList
     const event = new Event('result') as Event & { resultIndex: number; results: SpeechRecognitionResultList }
     event.resultIndex = 0
     event.results = results
@@ -57,13 +58,44 @@ describe('useSpeechRecognition', () => {
     act(() => {
       recognition.onresult?.(event)
     })
-
-    expect(result.current.transcript).toBe('hola mundo')
+    expect(result.current.transcript).toBe('hola')
 
     act(() => {
-      result.current.resetTranscript()
+      result.current.stop()
+    })
+    expect(result.current.phase).toBe('processing')
+
+    act(() => {
+      result.current.completeProcessing()
+    })
+    expect(result.current.phase).toBe('idle')
+    expect(result.current.transcript).toBe('')
+  })
+
+  it('completeProcessing clears transcript without double-fire risk', async () => {
+    const { result } = renderHook(() => useSpeechRecognition())
+    act(() => {
+      result.current.start()
+    })
+    await waitFor(() => expect(result.current.listening).toBe(true))
+
+    const recognition = instances[0]
+    const speechResult = Object.assign([{ transcript: 'uno' }], {
+      isFinal: true,
+      length: 1,
+    }) as unknown as SpeechRecognitionResult
+    const results = Object.assign([speechResult], { length: 1 }) as unknown as SpeechRecognitionResultList
+    const event = new Event('result') as Event & { resultIndex: number; results: SpeechRecognitionResultList }
+    event.resultIndex = 0
+    event.results = results
+    act(() => {
+      recognition.onresult?.(event)
     })
 
+    act(() => {
+      result.current.completeProcessing()
+    })
     expect(result.current.transcript).toBe('')
+    expect(result.current.phase).toBe('idle')
   })
 })

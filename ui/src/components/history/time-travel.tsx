@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Slider } from '@/components/ui/slider'
 import { getHistory, getPageAt, restoreVersion, type HistoryEvent } from '@/lib/api'
+import { AstRenderer } from '@/lib/ast-render'
 import { diffLines } from '@/lib/diff'
-import { renderDocument } from '@/lib/latex-render'
 import { useAppStore } from '@/stores/app-store'
 import type { Page } from '@/types'
 
@@ -17,7 +17,6 @@ interface TimeTravelOverlayProps {
 }
 
 export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
-  const parameterValues = useAppStore((s) => s.parameterValues)
   const activeLatex = useAppStore((s) => s.activeLatex)
   const setActiveLatex = useAppStore((s) => s.setActiveLatex)
   const setActiveAst = useAppStore((s) => s.setActiveAst)
@@ -80,7 +79,6 @@ export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
   }
 
   const selected = history[index]
-  const html = snapshot ? renderDocument(snapshot.ast, pageId, parameterValues) : ''
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col rounded-lg border bg-card shadow-lg">
@@ -142,10 +140,9 @@ export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
             </div>
           </div>
         ) : (
-          <div
-            className="min-w-0 flex-1 overflow-auto p-4 text-sm"
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+          <div className="min-w-0 flex-1 overflow-auto p-4 text-sm">
+            <AstRenderer ast={snapshot?.ast} pageId={pageId} />
+          </div>
         )}
       </div>
 
