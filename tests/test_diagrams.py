@@ -29,6 +29,8 @@ def test_catalog_has_core_presets() -> None:
     assert "second_order_step" in ids
     assert "wheatstone" in ids
     assert "pi_controller" in ids
+    assert "half_wave_rectifier" in ids
+    assert "thin_lens" in ids
 
 
 def test_expand_rc_defaults() -> None:
@@ -97,7 +99,7 @@ def test_health_reports_presets() -> None:
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["diagram_presets"] >= 8
+    assert body["diagram_presets"] >= 10
     assert "version" in body
 
 
@@ -118,6 +120,27 @@ def test_wheatstone_balance_and_highlight_lines() -> None:
     pi_out = expand_preset(pi, {"Kp": 2, "Ki": 1, "K": 1, "tau": 0.5})
     assert "tikzpicture" in pi_out["latex"]
     assert pi_out["has_simulation"] is True
+
+
+def test_half_wave_and_thin_lens() -> None:
+    hwr = get_preset("half_wave_rectifier")
+    assert hwr is not None
+    out = expand_preset(hwr, {"Vpeak": 12, "f": 60, "Rload": 2200, "C": 47e-6})
+    assert "circuitikz" in out["latex"]
+    assert "D*" in out["latex"] or "D" in out["latex"]
+    sim = expand_simulation(hwr, out["params"])
+    assert "ripple" in sim["source"] or "vo" in sim["source"]
+
+    lens = get_preset("thin_lens")
+    assert lens is not None
+    # do = 0.3, f = 0.1 → di = 0.15, m = -0.5
+    lout = expand_preset(lens, {"f": 0.1, "do": 0.3})
+    assert "tikzpicture" in lout["latex"]
+    assert abs(lout["params"]["di"] - 0.15) < 1e-9
+    assert abs(lout["params"]["m"] - (-0.5)) < 1e-9
+    assert "0.15" in lout["latex"] or "di" in lout["latex"]
+    lsim = expand_simulation(lens, {"f": 0.1, "do": 0.3})
+    assert "di=" in lsim["source"] or "1.0 / f" in lsim["source"]
 
 
 def test_rlc_and_second_order_expand() -> None:

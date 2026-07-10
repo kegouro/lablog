@@ -331,6 +331,112 @@ plt.show()
 print(f"y_final≈{y[-1]:.4g}  (referencia r=1)")
 '''
 
+_HWR_TIKZ = r"""\begin{circuitikz}
+  \draw (0,0) node[left]{$v_s$}
+    to[sV, v=$v_s$, name=Vs] (0,2.2)
+    to[short] (1.2,2.2)
+    to[D*, l_=$D$, name=D1] (2.8,2.2)
+    to[short] (4.2,2.2)
+    to[R, R=${{Rload}}$, l_=$R$, name=Rload] (4.2,0)
+    to[short] (0,0);
+  \draw (2.8,2.2) to[C, C=${{C}}$, l_=$C$, name=C1] (2.8,0);
+  \node[right] at (4.5,1.1) {$v_o$};
+\end{circuitikz}
+"""
+
+_HWR_SIM = r'''# lablog-sim: preset=half_wave_rectifier version=1
+# LABLOG_PARAMS_START
+Vpeak = {{Vpeak}}  # V
+f = {{f}}  # Hz
+Rload = {{Rload}}  # ohm
+C = {{C}}  # F
+# LABLOG_PARAMS_END
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Diodo ideal + RC en paralelo: carga cuando vs > vo, descarga por Rload
+periods = 4
+n = 1200
+t = np.linspace(0, periods / max(f, 1e-6), n)
+dt = t[1] - t[0]
+vs = Vpeak * np.sin(2 * np.pi * f * t)
+vo = np.zeros(n)
+for i in range(1, n):
+    if vs[i] >= vo[i - 1]:
+        vo[i] = vs[i]
+    else:
+        vo[i] = vo[i - 1] * np.exp(-dt / max(Rload * C, 1e-15))
+
+vripple = float(np.max(vo[n // 2 :]) - np.min(vo[n // 2 :]))
+plt.figure(figsize=(7, 3))
+plt.plot(t * 1e3, vs, alpha=0.45, label="v_s")
+plt.plot(t * 1e3, vo, label="v_o")
+plt.xlabel("t [ms]")
+plt.ylabel("V")
+plt.title(f"Media onda + C  f={f:g} Hz  ΔV≈{vripple:.3g} V")
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.show()
+print(f"ripple p-p ≈ {vripple:.4g} V  τ=RC={Rload * C:.4g} s")
+'''
+
+_LENS_TIKZ = r"""\begin{tikzpicture}[scale=0.85, >=stealth]
+  % Eje óptico
+  \draw[<->, gray] (-4.2,0) -- (4.2,0) node[right] {eje};
+  % Lente delgada en x=0
+  \draw[thick] (0,-1.4) -- (0,1.4);
+  \draw[thick] (0,1.4) -- ++(-0.18,-0.28);
+  \draw[thick] (0,1.4) -- ++(0.18,-0.28);
+  \draw[thick] (0,-1.4) -- ++(-0.18,0.28);
+  \draw[thick] (0,-1.4) -- ++(0.18,0.28);
+  \node[above] at (0,1.5) {lente};
+  % Focos (esquema cualitativo)
+  \fill (-1.2,0) circle (1.2pt) node[below] {$F$};
+  \fill (1.2,0) circle (1.2pt) node[below] {$F'$};
+  % Objeto (altura fija)
+  \draw[very thick, blue!70!black, ->] (-2.4,0) -- (-2.4,1.0)
+    node[midway, left] {$h_o$};
+  \node[below] at (-2.4,-0.15) {$d_o={{do}}$};
+  % Imagen (altura acotada m_draw; signo de m)
+  \draw[very thick, red!70!black, ->] (2.0,0) -- (2.0,{{m_draw}})
+    node[midway, right] {$h_i$};
+  \node[below] at (2.0,-0.15) {$d_i\approx{{di}}$};
+  \node[below=18pt] at (0,-1.5)
+    {$f={{f}},\ \dfrac{1}{f}=\dfrac{1}{d_o}+\dfrac{1}{d_i},\ m={{m}}$};
+\end{tikzpicture}
+"""
+
+_LENS_SIM = r'''# lablog-sim: preset=thin_lens version=1
+# LABLOG_PARAMS_START
+f = {{f}}  # m (distancia focal)
+do = {{do}}  # m (objeto)
+# LABLOG_PARAMS_END
+
+import numpy as np
+
+if abs(do - f) < 1e-12:
+    print("do ≈ f → imagen en el infinito (rayos paralelos a la salida)")
+else:
+    di = 1.0 / (1.0 / f - 1.0 / do)
+    m = -di / do
+    kind = "real" if di > 0 else "virtual"
+    orient = "invertida" if m < 0 else "derecha"
+    print(f"f={f:g} m  do={do:g} m")
+    print(f"di={di:.6g} m  ({kind})")
+    print(f"m={m:.6g}  ({orient}, |m|={abs(m):.4g})")
+    if do > 0 and f > 0:
+        if do > 2 * f:
+            print("caso: do > 2f → imagen real, reducida, invertida")
+        elif abs(do - 2 * f) < 1e-9 * max(f, 1):
+            print("caso: do = 2f → imagen real, mismo tamaño, invertida")
+        elif f < do < 2 * f:
+            print("caso: f < do < 2f → imagen real, ampliada, invertida")
+        elif do < f:
+            print("caso: do < f → imagen virtual, ampliada, derecha (lupa)")
+'''
+
 _FEYNMAN_TIKZ = r"""\begin{center}
 \begin{tikzpicture}[
   fermion/.style={thick, postaction={decorate},
@@ -763,6 +869,101 @@ _CATALOG: list[DiagramPreset] = [
         tikz_template=_PI_TIKZ,
         sim_backend="numpy_ode",
         sim_template=_PI_SIM,
+    ),
+    DiagramPreset(
+        preset_id="half_wave_rectifier",
+        kind="circuitikz",
+        title="Rectificador media onda + C",
+        summary="Diodo ideal, carga RC. Ripple baja al subir C o Rload·C.",
+        category="circuitos",
+        tags=["ac", "diodo", "filtro", "lab"],
+        params=[
+            _p(
+                "Vpeak",
+                "Vpeak",
+                "Amplitud de la sinusoide de entrada.",
+                10.0,
+                unit="V",
+                min_v=0.5,
+                max_v=100,
+                scale="linear",
+                tikz="Vs",
+                color="rose",
+            ),
+            _p(
+                "f",
+                "Frecuencia",
+                "Frecuencia de red / fuente. Más f → menos ripple a igual C.",
+                50.0,
+                unit="Hz",
+                min_v=1,
+                max_v=1e4,
+                scale="log",
+                color="amber",
+            ),
+            _p(
+                "Rload",
+                "R carga",
+                "Resistencia de carga. Mayor R → descarga más lenta.",
+                1000.0,
+                unit="ohm",
+                min_v=10,
+                max_v=1e6,
+                scale="log",
+                tikz="Rload",
+                color="sky",
+            ),
+            _p(
+                "C",
+                "C filtro",
+                "Condensador de filtro. Mayor C → menos ripple.",
+                100e-6,
+                unit="F",
+                min_v=1e-9,
+                max_v=1e-2,
+                scale="log",
+                tikz="C1",
+                color="emerald",
+            ),
+        ],
+        tikz_template=_HWR_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_HWR_SIM,
+    ),
+    DiagramPreset(
+        preset_id="thin_lens",
+        kind="optics",
+        title="Lente delgada",
+        summary="Ecuación de lentes 1/f=1/do+1/di y aumento m=-di/do. Esquema de rayos.",
+        category="optica",
+        tags=["optica", "lente", "imagen"],
+        params=[
+            _p(
+                "f",
+                "f focal",
+                "Distancia focal. f>0 lente convergente.",
+                0.1,
+                unit="m",
+                min_v=0.01,
+                max_v=2,
+                scale="log",
+                color="sky",
+            ),
+            _p(
+                "do",
+                "do objeto",
+                "Distancia objeto a la lente (positiva a la izquierda).",
+                0.3,
+                unit="m",
+                min_v=0.02,
+                max_v=5,
+                scale="log",
+                color="amber",
+            ),
+        ],
+        tikz_template=_LENS_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_LENS_SIM,
     ),
     DiagramPreset(
         preset_id="qed_moller",

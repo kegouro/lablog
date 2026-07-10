@@ -113,12 +113,32 @@ def resolve_highlight_lines(
     return resolved
 
 
+def augment_derived_params(preset: DiagramPreset, values: dict[str, float]) -> dict[str, float]:
+    """Añade magnitudes derivadas usadas en plantillas (no son sliders)."""
+    out = dict(values)
+    if preset.preset_id == "thin_lens":
+        f = out.get("f", 0.1)
+        do = out.get("do", 0.3)
+        # 1/f = 1/do + 1/di  →  di = 1/(1/f - 1/do)
+        if abs(do) < 1e-15 or abs(f) < 1e-15:
+            di = 1e6
+        else:
+            denom = 1.0 / f - 1.0 / do
+            di = 1.0 / denom if abs(denom) > 1e-15 else 1e6
+        m = (-di / do) if abs(do) > 1e-15 else 0.0
+        out["di"] = di
+        out["m"] = m
+        # Altura del rayo en el esquema (evita flechas enormes si |m|≫1)
+        out["m_draw"] = max(-1.5, min(1.5, m)) if abs(m) < 1e5 else 0.0
+    return out
+
+
 def expand_preset(
     preset: DiagramPreset,
     values: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Devuelve latex (tikz) + params efectivos + metadatos de highlight."""
-    clamped = clamp_params(preset, values)
+    clamped = augment_derived_params(preset, clamp_params(preset, values))
     latex = expand_template(preset.tikz_template, preset, clamped)
     header = (
         f"% lablog-diagram: preset={preset.preset_id} version={preset.version}\n"
