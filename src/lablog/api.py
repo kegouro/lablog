@@ -663,12 +663,12 @@ def delete_cell(page_id: str, cell_id: str) -> None:
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/move", status_code=status.HTTP_200_OK)
-def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str, str]:
+def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
     commands.move_cell(store, page_id=page_id, cell_id=cell_id, new_index=payload.new_index)
-    return {"status": "ok"}
+    return {"status": "ok", "version": len(store.get_events(page_id))}
 
 
 @router.get("/pages/{page_id}/cells")

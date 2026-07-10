@@ -303,7 +303,8 @@ export function LabCanvas() {
     if (newIndex < 0 || newIndex >= cells.length) return
     const cellId = cells[index].cell_id
     try {
-      await moveCellApi(activePageId, cellId, newIndex)
+      const res = await moveCellApi(activePageId, cellId, newIndex)
+      if (res?.version && res.version > 0) setActiveVersion(res.version)
       setCells((prev) => {
         const next = [...prev]
         const [moved] = next.splice(index, 1)

@@ -228,11 +228,19 @@ export async function deleteCell(pageId: string, cellId: string): Promise<void> 
   await fetchJson(`/pages/${pageId}/cells/${cellId}`, { method: 'DELETE' })
 }
 
-export async function moveCell(pageId: string, cellId: string, newIndex: number): Promise<void> {
-  await fetchJson(`/pages/${pageId}/cells/${cellId}/move`, {
-    method: 'POST',
-    body: JSON.stringify({ new_index: newIndex }),
-  })
+export async function moveCell(
+  pageId: string,
+  cellId: string,
+  newIndex: number,
+): Promise<{ version: number }> {
+  const res = await fetchJson<{ status: string; version?: number }>(
+    `/pages/${pageId}/cells/${cellId}/move`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ new_index: newIndex }),
+    },
+  )
+  return { version: res?.version ?? 0 }
 }
 
 export async function exportPages(): Promise<{ path: string }> {
