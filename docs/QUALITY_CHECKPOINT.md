@@ -1,8 +1,8 @@
-# Quality checkpoint — lablog (post v0.2.1 + diagram presets)
+# Quality checkpoint — lablog (diagram catalog maturity)
 
 **Fecha:** 2026-07-10
-**Rama de trabajo:** `kegouro/feat/diagram-presets-and-polish` (PR #12)
-**Tag en main:** `v0.2.1`
+**Tag estable:** `v0.2.1`
+**Main:** incluye PRs #12–#14 (presets + re-apply + highlight + catálogo)
 
 ## Barra “premium senior” (estado)
 
@@ -15,31 +15,46 @@
 | Live preview math | ✅ | ~190 símbolos, matrices/align, macros physics |
 | PDF scientific packages | ✅ | ams, booktabs, siunitx, physics, braket, tikz, **circuitikz** |
 | Stress fixtures | ✅ | `tests/fixtures/latex/*` |
-| Diagram presets → Jupyter | 🟡 MVP | 4 presets, API, UI Insert/+Sim, sliders+rango+L# |
-| Dual highlight TikZ canvas | 🔜 | Solo gutter/line por ahora |
+| Diagram presets → Jupyter | ✅ | **12 presets**, expand/apply API, Insert/+Sim, re-apply sliders |
+| Re-apply sin `{{}}` | ✅ | `% lablog-param` + `POST /diagrams/apply` |
+| Dual highlight (editor) | ✅ | `resolve_highlight_lines` + focus gutter + leyenda nodo |
+| Dual highlight (canvas TikZ PDF) | 🔜 | recolor `name=` en recompilación |
+| Catálogo UI | ✅ | categorías + búsqueda |
 | PySpice / netlist mágico | 🔜 | docs only |
-| Multi-tab always-on version | 🟡 | UI envía version; clientes CLI no |
 | E2E browser | 🔜 | sin Playwright en CI |
 | PyPI trusted publish | ⚠️ | config usuario |
+
+## Catálogo de presets (12)
+
+| ID | Categoría | Sim |
+|----|-----------|-----|
+| `rc_series_charge` | circuitos | ODE carga |
+| `voltage_divider` | circuitos | DC |
+| `rlc_series_step` | circuitos | ODE 2º |
+| `wheatstone` | circuitos | DC puente |
+| `half_wave_rectifier` | circuitos | diodo+RC |
+| `rc_lowpass` | circuitos | Bode |
+| `noninverting_opamp` | circuitos | G ideal |
+| `mass_spring_damper` | mecanica | ODE |
+| `second_order_step` | control | ODE |
+| `pi_controller` | control | lazo cerrado |
+| `thin_lens` | optica | 1/f, m |
+| `qed_moller` | particulas | viz |
 
 ## Comandos de verificación
 
 ```bash
-pytest -q                 # ≥196 passed, cov ≥80%
+pytest tests/test_diagrams.py -q --no-cov
+pytest -q
 ruff check src tests
 mypy -p lablog
-cd ui && npm test && npm run build
+cd ui && npm run build && npm run lint
 lablog diagrams
-lablog diagrams --expand rc_series_charge
-lablog diagrams --sim rc_series_charge
+lablog diagrams --expand rc_lowpass
+lablog diagrams --sim noninverting_opamp
 ```
 
 ## Punto claro de parada
 
-Con **PR #12 mergeado** se considera un checkpoint de calidad **sólido para uso local/lab**:
-
-- No hay bugs críticos abiertos en `bugs.md` de la caza previa.
-- El camino “dibujar circuito parametrizado → celda de simulación” existe de punta a punta.
-- Preview y PDF están alineados con un stack de física real.
-
-Siguiente nivel premium (no bloqueante): highlight en canvas TikZ, más presets, e2e Playwright, PyPI verde.
+El camino **preset → parámetros → re-sim Jupyter** está maduro para uso de lab local.
+Siguiente nivel no bloqueante: color en PDF TikZ, PySpice, e2e Playwright, PyPI verde.

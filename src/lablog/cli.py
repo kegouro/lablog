@@ -129,7 +129,9 @@ def cmd_diagrams(args: argparse.Namespace) -> None:
         return
     for p in diagrams.list_presets():
         sim = "sim" if p.sim_template else "viz"
-        print(f"{p.preset_id:24} {p.kind:14} {sim:4}  {p.title}")
+        print(
+            f"{p.preset_id:28} {p.category:10} {p.kind:14} {sim:4}  {p.title}"
+        )
 
 
 def main(argv: list[str] | None = None) -> int:
