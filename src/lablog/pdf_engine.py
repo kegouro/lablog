@@ -95,7 +95,61 @@ def _line_of_snippet(haystack: str, needle: str) -> int | None:
     return haystack.count("\n", 0, idx) + 1
 
 
-def build_document(doc: DocumentNode, title: str) -> tuple[str, list[SourceMarker], list[str]]:
+_INPUT_RE = re.compile(r"\\input\{([^}]+)\}")
+_INCLUDE_RE = re.compile(r"\\include\{([^}]+)\}")
+_MAX_INCLUDE_DEPTH = 5
+
+
+def expand_inputs(
+    latex: str,
+    *,
+    resolve: dict[str, str],
+    depth: int = 0,
+    stack: set[str] | None = None,
+) -> str:
+    """Expande ``\\input{key}`` / ``\\include{key}`` usando el mapa ``resolve``.
+
+    Keys típicas: ``page:<uuid>`` o nombre de vault sin path traversal.
+    Ciclos y profundidad excesiva se dejan como comentario de error.
+    """
+    if depth > _MAX_INCLUDE_DEPTH:
+        return "% lablog: include depth exceeded\n" + latex
+    seen = stack if stack is not None else set()
+
+    def repl(m: re.Match[str]) -> str:
+        key = m.group(1).strip()
+        if key in seen:
+            return f"% lablog: cyclic include {key}\n"
+        body = resolve.get(key)
+        if body is None:
+            # Intento sin prefijo page:
+            body = resolve.get(f"page:{key}") or resolve.get(key.removeprefix("page:"))
+        if body is None:
+            return m.group(0)  # deja el input original
+        nested = expand_inputs(
+            body, resolve=resolve, depth=depth + 1, stack=seen | {key}
+        )
+        return nested
+
+    out = _INPUT_RE.sub(repl, latex)
+    out = _INCLUDE_RE.sub(repl, out)
+    return out
+
+
+def build_document(
+    doc: DocumentNode,
+    title: str,
+    *,
+    includes: dict[str, str] | None = None,
+) -> tuple[str, list[SourceMarker], list[str]]:
+    """Construye .tex. ``includes`` resuelve \\input{page:id} al compilar."""
+    if includes:
+        raw = serialize_ast(doc)
+        expanded = expand_inputs(raw, resolve=includes)
+        from lablog.latex_ast import parse_latex
+
+        doc = parse_latex(expanded)
+
     if _is_full_document(doc):
         # Modo raw: la línea del .tex ES la línea del editor (mapeo 1:1).
         return serialize_ast(doc), [], []
@@ -392,8 +446,13 @@ class CompileResult:
     log: str = ""
 
 
-def document_hash(doc: DocumentNode, title: str) -> str:
-    tex, _m, _f = build_document(doc, title)
+def document_hash(
+    doc: DocumentNode,
+    title: str,
+    *,
+    includes: dict[str, str] | None = None,
+) -> str:
+    tex, _m, _f = build_document(doc, title, includes=includes)
     return hashlib.sha256(tex.encode("utf-8")).hexdigest()[:32]
 
 
@@ -416,8 +475,9 @@ async def compile_page(
     *,
     figures_dir: Path,
     timeout: float = 120.0,
+    includes: dict[str, str] | None = None,
 ) -> CompileResult:
-    doc_hash = document_hash(doc, title)
+    doc_hash = document_hash(doc, title, includes=includes)
     cached = cached_pdf_path(page_id, doc_hash)
     if cached.exists():
         return CompileResult(status="ok", pdf=cached.read_bytes())
@@ -426,7 +486,7 @@ async def compile_page(
     if binary is None:
         return CompileResult(status="no_engine", log="Tectonic no disponible")
 
-    tex, markers, figures = build_document(doc, title)
+    tex, markers, figures = build_document(doc, title, includes=includes)
 
     with tempfile.TemporaryDirectory() as td:
         tdir = Path(td)

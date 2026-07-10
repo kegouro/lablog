@@ -9,7 +9,7 @@
 <p><em>A live LaTeX laboratory notebook for working scientists.</em></p>
 
 <p>
-  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="version" src="https://img.shields.io/badge/version-v0.1.0-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="version" src="https://img.shields.io/badge/version-v0.2.0-1C1C1E?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=CI" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/pages.yml"><img alt="Pages" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/pages.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=Pages" /></a>
   <a href="#testing--quality"><img alt="tests" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&labelColor=1C1C1E&color=48484A&label=tests" /></a>
@@ -462,8 +462,10 @@ same export in CI and publishes it on every push to `main`. To enable it on a fo
     <tr><td>Full LaTeX mode: raw compilation, templates menu, error-to-line jump</td><td align="center">Done</td></tr>
     <tr><td>Version diff inside the time-travel panel</td><td align="center">Done</td></tr>
     <tr><td>Portable PyInstaller bundle</td><td align="center">Beta</td></tr>
-    <tr><td>In-app PDF compilation with line-aware error reporting</td><td align="center">Planned</td></tr>
-    <tr><td>Multi-file documents and BibTeX</td><td align="center">Planned</td></tr>
+    <tr><td>In-app PDF compilation with line-aware error reporting</td><td align="center">Done</td></tr>
+    <tr><td>LaTeX autocomplete + physics templates + <code>lablog new --template</code></td><td align="center">Done</td></tr>
+    <tr><td>Multi-file includes (<code>\input{page:…}</code>) at compile time</td><td align="center">Done (minimal)</td></tr>
+    <tr><td>BibTeX / full citeproc</td><td align="center">Planned (0.2.x)</td></tr>
     <tr><td>Section and equation cross-references</td><td align="center">Planned</td></tr>
     <tr><td>P2P collaboration and device sync</td><td align="center">Exploratory</td></tr>
   </tbody>

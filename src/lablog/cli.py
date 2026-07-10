@@ -6,11 +6,13 @@ import argparse
 import sys
 from uuid import uuid4
 
+from lablog import commands
 from lablog.config import settings
 from lablog.event_store import EventStore
 from lablog.events import page_created, text_inserted
 from lablog.latex_ast import serialize_ast
 from lablog.projector import project
+from lablog.templates import get_template, list_templates
 
 
 def get_store() -> EventStore:
@@ -22,6 +24,26 @@ def cmd_create_page(args: argparse.Namespace) -> None:
     page_id = str(uuid4())
     event = page_created(page_id=page_id, title=args.title)
     store.append(event)
+    print(f"Página creada: {page_id}")
+
+
+def cmd_new(args: argparse.Namespace) -> None:
+    """Crea una página opcionalmente desde plantilla."""
+    store = get_store()
+    title = args.title
+    template_id = args.template
+    if template_id:
+        tmpl = get_template(template_id)
+        if tmpl is None:
+            ids = ", ".join(t.id for t in list_templates())
+            print(f"Plantilla desconocida: {template_id}. Disponibles: {ids}", file=sys.stderr)
+            sys.exit(1)
+        title = title or tmpl.name
+        page_id = commands.create_page(store, title=title)
+        commands.replace_document(store, page_id, tmpl.content)
+        print(f"Página creada: {page_id} (template={template_id})")
+        return
+    page_id = commands.create_page(store, title=title or "Sin título")
     print(f"Página creada: {page_id}")
 
 
@@ -80,6 +102,15 @@ def main(argv: list[str] | None = None) -> int:
     create_parser = subparsers.add_parser("create-page", help="Crea una nueva página")
     create_parser.add_argument("--title", "-t", default="Sin título", help="Título de la página")
     create_parser.set_defaults(func=cmd_create_page)
+
+    new_parser = subparsers.add_parser("new", help="Crea página (opcionalmente con plantilla)")
+    new_parser.add_argument("--title", "-t", default=None, help="Título de la página")
+    new_parser.add_argument(
+        "--template",
+        default=None,
+        help="ID de plantilla (lab-report-physics, em-notes, experiment-diary, …)",
+    )
+    new_parser.set_defaults(func=cmd_new)
 
     list_parser = subparsers.add_parser("list-pages", help="Lista páginas existentes")
     list_parser.set_defaults(func=cmd_list_pages)

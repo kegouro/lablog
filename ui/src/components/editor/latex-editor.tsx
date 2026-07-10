@@ -6,6 +6,11 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { usePageUpdate } from '@/hooks/use-page-update'
 import { getPage } from '@/lib/api'
+import {
+  completionPrefix,
+  fetchSuggestions,
+  type CompletionItem,
+} from '@/lib/latex-completions'
 import { useAppStore } from '@/stores/app-store'
 import type { Page } from '@/types'
 
@@ -100,6 +105,10 @@ export function LatexEditor() {
   const [findQuery, setFindQuery] = useState('')
   const [replaceText, setReplaceText] = useState('')
   const findInputRef = useRef<HTMLInputElement>(null)
+  const [completions, setCompletions] = useState<CompletionItem[]>([])
+  const [completionIndex, setCompletionIndex] = useState(0)
+  const [completionOpen, setCompletionOpen] = useState(false)
+  const completionTokenRef = useRef(0)
 
   const resetHistory = useCallback((value: string) => {
     valueRef.current = value
@@ -214,7 +223,43 @@ export function LatexEditor() {
     applyValue(next)
   }, [applyValue])
 
-  const handleChange = (value: string) => commit(value)
+  const applyCompletion = useCallback(
+    (item: CompletionItem) => {
+      const ta = textareaRef.current
+      if (!ta) return
+      const caret = ta.selectionStart
+      const value = ta.value
+      const before = value.slice(0, caret)
+      const m = before.match(/\\[A-Za-z]*$/)
+      if (!m) return
+      const start = caret - m[0].length
+      const next = value.slice(0, start) + item.insert + value.slice(caret)
+      const newCaret = start + item.insert.length
+      commit(next, newCaret)
+      setCompletionOpen(false)
+      setCompletions([])
+    },
+    [commit],
+  )
+
+  const handleChange = (value: string) => {
+    commit(value)
+    const ta = textareaRef.current
+    if (!ta) return
+    const caret = ta.selectionStart
+    const prefix = completionPrefix(value, caret)
+    if (prefix === null) {
+      setCompletionOpen(false)
+      return
+    }
+    const token = ++completionTokenRef.current
+    void fetchSuggestions(prefix).then((items) => {
+      if (token !== completionTokenRef.current) return
+      setCompletions(items)
+      setCompletionIndex(0)
+      setCompletionOpen(items.length > 0)
+    })
+  }
 
   const findNext = useCallback(
     (forward = true) => {
@@ -304,6 +349,29 @@ export function LatexEditor() {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     const ta = e.currentTarget
     const mod = e.metaKey || e.ctrlKey
+
+    if (completionOpen && completions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setCompletionIndex((i) => (i + 1) % completions.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setCompletionIndex((i) => (i - 1 + completions.length) % completions.length)
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        applyCompletion(completions[completionIndex] ?? completions[0])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setCompletionOpen(false)
+        return
+      }
+    }
 
     if (mod && e.key.toLowerCase() === 'z') {
       e.preventDefault()
@@ -519,6 +587,30 @@ export function LatexEditor() {
           autoCorrect="off"
           autoCapitalize="off"
         />
+
+        {completionOpen && completions.length > 0 && (
+          <div className="absolute bottom-2 left-12 z-40 max-h-48 w-72 overflow-auto rounded-md border bg-popover p-1 text-xs shadow-lg">
+            {completions.map((c, i) => (
+              <button
+                key={`${c.label}-${i}`}
+                type="button"
+                className={`flex w-full flex-col items-start rounded px-2 py-1 text-left ${
+                  i === completionIndex ? 'bg-accent' : 'hover:bg-muted'
+                }`}
+                onMouseDown={(ev) => {
+                  ev.preventDefault()
+                  applyCompletion(c)
+                }}
+              >
+                <span className="font-mono font-medium">{c.label}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {c.kind}
+                  {c.detail ? ` · ${c.detail}` : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -7,10 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-10
+
+### Added
+
+- CQRS-lite backend: `commands` (writes) and `projections` (reads); HTTP adapter thinner.
+- Domain events for cell failures (`execution_failed`) with cell `status` on the AST.
+- Atomic JSONL append (`fsync`) and tolerance for truncated last lines.
+- Dedicated single-worker compute pool for Jupyter execution off the event loop.
+- PDF line-aware errors: FSM log parser, `editor_line` mapping, gutter highlight on jump.
+- LaTeX autocomplete overlay (commands, environments, symbols via `/api/v1/suggest`).
+- Physics/lab templates SSOT (`src/lablog/templates.py`) + `lablog new --template=...`.
+- Multi-page includes at compile time: `\input{page:<uuid>}` with cycle/depth guards.
+- Error boundaries keyed by page version; speech dictation FSM; structured `ApiError`.
+- Smoke script `scripts/smoke_install.sh` and `docs/QUICKSTART.md`.
+
 ### Changed
 
-- Renamed PyPI distribution from `lablog` to `jose-labarca-lablog` because the
-  `lablog` package name was already registered on PyPI.
+- Frontend no longer parses LaTeX; preview uses backend AST + `AstRenderer`.
+- Kernel failures return `error_code: KERNEL_DEAD` for actionable UI.
+- Renamed PyPI distribution from `lablog` to `jose-labarca-lablog` (0.1.x unreleased note).
+
+### Fixed
+
+- Broken restore/export helpers after command extraction (missing projector imports).
+- XSS sinks in parameter overlay and lab markdown preview (React nodes / no raw user HTML).
 
 ## [0.1.0] - 2026-07-05
 
@@ -42,5 +63,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved live preview: renders AST directly where possible and shows per-block KaTeX errors.
 - Raised backend test coverage threshold to 80%.
 
-[Unreleased]: https://github.com/kegouro/lablog/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/kegouro/lablog/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/kegouro/lablog/releases/tag/v0.2.0
 [0.1.0]: https://github.com/kegouro/lablog/releases/tag/v0.1.0

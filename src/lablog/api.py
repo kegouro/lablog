@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from lablog import commands, pdf_engine, projections
+from lablog import commands, completions, pdf_engine, projections, templates
 from lablog.ast_nodes import node_to_json
 from lablog.code_engine import CodeEngine, EngineStartError
 from lablog.commands import (
@@ -84,6 +84,29 @@ async def pdf_install(force: bool = False) -> dict[str, object]:
 def export_pages() -> dict[str, str]:
     out_dir = export_site()
     return {"status": "ok", "path": str(out_dir)}
+
+
+@router.get("/templates")
+def list_latex_templates() -> list[dict[str, str]]:
+    return templates.templates_as_dicts()
+
+
+@router.get("/templates/{template_id}")
+def get_latex_template(template_id: str) -> dict[str, str]:
+    tmpl = templates.get_template(template_id)
+    if tmpl is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Plantilla no encontrada: {template_id}")
+    return {
+        "id": tmpl.id,
+        "name": tmpl.name,
+        "description": tmpl.description,
+        "content": tmpl.content,
+    }
+
+
+@router.get("/suggest")
+def suggest_latex(q: str = "", limit: int = 40) -> list[dict[str, str]]:
+    return completions.suggest_as_dicts(q, limit=min(max(limit, 1), 100))
 
 
 store = EventStore(settings.event_dir)
@@ -818,6 +841,21 @@ code {{ background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: 
 </html>"""
 
 
+def _page_includes() -> dict[str, str]:
+    """Mapa page_id / page:<id> → raw para resolver \\input en compile."""
+    out: dict[str, str] = {}
+    for summary in projections.list_page_summaries(store):
+        pid = str(summary["page_id"])
+        try:
+            detail = projections.page_detail(store, pid)
+        except PageNotFoundError:
+            continue
+        raw = str(detail["raw"])
+        out[pid] = raw
+        out[f"page:{pid}"] = raw
+    return out
+
+
 @router.get("/pages/{page_id}/export/pdf")
 async def export_page_pdf(page_id: str) -> Response:
     try:
@@ -826,8 +864,15 @@ async def export_page_pdf(page_id: str) -> Response:
         _handle_projection_not_found(page_id)
     title = proj.title or "lablog_export"
     figures_dir = settings.figures_dir / page_id
+    includes = _page_includes()
     async with _pdf_lock(page_id):
-        result = await pdf_engine.compile_page(page_id, proj.ast, title, figures_dir=figures_dir)
+        result = await pdf_engine.compile_page(
+            page_id,
+            proj.ast,
+            title,
+            figures_dir=figures_dir,
+            includes=includes,
+        )
     if result.status == "ok" and result.pdf is not None:
         filename = f"{title.replace(' ', '_')}.pdf"
         return Response(
