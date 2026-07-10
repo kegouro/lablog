@@ -1,7 +1,7 @@
 import 'katex/dist/katex.min.css'
 
 import katex from 'katex'
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef } from 'react'
 
 import type { AstNode, CellNode } from '@/types'
 
@@ -10,7 +10,7 @@ interface MathProps {
   displayMode: boolean
 }
 
-function MathNode({ latex, displayMode }: MathProps) {
+const MathNode = memo(function MathNode({ latex, displayMode }: MathProps) {
   const ref = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
@@ -19,6 +19,7 @@ function MathNode({ latex, displayMode }: MathProps) {
       katex.render(latex, ref.current, {
         throwOnError: false,
         displayMode,
+        strict: 'ignore',
       })
     } catch {
       ref.current.textContent = latex
@@ -30,18 +31,25 @@ function MathNode({ latex, displayMode }: MathProps) {
   ) : (
     <span ref={ref} />
   )
-}
+})
 
 interface CellProps {
   cell: CellNode
   pageId: string | null
 }
 
-function CellNodeView({ cell, pageId }: CellProps) {
+const CellNodeView = memo(function CellNodeView({ cell, pageId }: CellProps) {
+  const figureSrc =
+    cell.figure_path && pageId
+      ? `/api/v1/pages/${pageId}/cells/${encodeURIComponent(cell.cell_id)}/figure`
+      : null
+
   return (
     <div className="my-3 rounded-lg border bg-muted/30 p-3">
       <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-wider text-muted-foreground">
         <span>Celda {cell.language}</span>
+        {cell.status === 'error' && <span className="text-destructive">error</span>}
+        {cell.status === 'ok' && <span className="text-emerald-600">ok</span>}
       </div>
       <pre className="mb-2 max-h-24 overflow-auto rounded bg-muted p-2 text-xs font-mono whitespace-pre-wrap">
         {cell.source}
@@ -52,28 +60,65 @@ function CellNodeView({ cell, pageId }: CellProps) {
           <pre className="whitespace-pre-wrap font-mono">{cell.output}</pre>
         </div>
       )}
-      {cell.figure_path && pageId && (
+      {figureSrc && (
         <img
-          src={`/api/v1/pages/${pageId}/cells/${cell.cell_id}/figure`}
+          src={figureSrc}
           alt="figura"
           className="mt-2 max-h-48 rounded border object-contain"
+          loading="lazy"
         />
       )}
     </div>
   )
-}
+})
 
 interface TextProps {
   text: string
 }
 
-function TextNodeView({ text }: TextProps) {
+/** Prosa con math inline $...$ / $$...$$ / \[...\] sin HTML crudo. */
+const TextNodeView = memo(function TextNodeView({ text }: TextProps) {
+  const parts = useMemo(() => splitProseMath(text), [text])
   if (!text.trim()) return null
   return (
-    <p className="my-1.5 leading-relaxed whitespace-pre-wrap">
-      {text}
-    </p>
+    <div className="my-1.5 leading-relaxed whitespace-pre-wrap">
+      {parts.map((p, i) =>
+        p.kind === 'text' ? (
+          <span key={i}>{p.value}</span>
+        ) : (
+          <MathNode key={i} latex={p.value} displayMode={p.display} />
+        ),
+      )}
+    </div>
   )
+})
+
+type ProsePart =
+  | { kind: 'text'; value: string }
+  | { kind: 'math'; value: string; display: boolean }
+
+function splitProseMath(text: string): ProsePart[] {
+  const parts: ProsePart[] = []
+  const re = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\$([^$\n]+?)\$/g
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      parts.push({ kind: 'text', value: text.slice(last, m.index) })
+    }
+    if (m[1] != null) {
+      parts.push({ kind: 'math', value: m[1].trim(), display: true })
+    } else if (m[2] != null) {
+      parts.push({ kind: 'math', value: m[2].trim(), display: true })
+    } else if (m[3] != null) {
+      parts.push({ kind: 'math', value: m[3].trim(), display: false })
+    }
+    last = m.index + m[0].length
+  }
+  if (last < text.length) {
+    parts.push({ kind: 'text', value: text.slice(last) })
+  }
+  return parts.length ? parts : [{ kind: 'text', value: text }]
 }
 
 interface AstNodeProps {
@@ -81,7 +126,7 @@ interface AstNodeProps {
   pageId: string | null
 }
 
-function AstNodeView({ node, pageId }: AstNodeProps) {
+const AstNodeView = memo(function AstNodeView({ node, pageId }: AstNodeProps) {
   switch (node.type) {
     case 'text':
       return <TextNodeView text={node.text} />
@@ -89,39 +134,42 @@ function AstNodeView({ node, pageId }: AstNodeProps) {
       return <MathNode latex={node.latex} displayMode={node.mode === 'display'} />
     case 'cell':
       return <CellNodeView cell={node} pageId={pageId} />
+    case 'section':
+      return (
+        <section className="my-3">
+          <h3 className="mb-1 text-base font-semibold">{node.title}</h3>
+          {node.children?.map((child, i) => (
+            <AstNodeView key={i} node={child} pageId={pageId} />
+          ))}
+        </section>
+      )
     default:
       return null
   }
-}
+})
 
 interface AstRendererProps {
-  ast?: AstNode[]
+  ast: AstNode[] | undefined
   pageId?: string | null
 }
 
-export function AstRenderer({ ast, pageId = null }: AstRendererProps) {
-  if (!ast || ast.length === 0) {
+/** Render del AST del backend — una sola fuente de verdad para live preview. */
+export const AstRenderer = memo(function AstRenderer({
+  ast,
+  pageId = null,
+}: AstRendererProps) {
+  if (!ast?.length) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <div className="rounded-full bg-muted p-4 text-2xl">👀</div>
-        <div className="max-w-xs space-y-1">
-          <h3 className="font-semibold">Vista previa en vivo</h3>
-          <p className="text-sm text-muted-foreground">
-            Escribe LaTeX en el editor. Soporta{' '}
-            <code className="rounded bg-muted px-1 text-xs">$...$</code>,{' '}
-            <code className="rounded bg-muted px-1 text-xs">$$...$$</code> y{' '}
-            <code className="rounded bg-muted px-1 text-xs">\\[...\\]</code>.
-          </p>
-        </div>
-      </div>
+      <p className="px-2 py-6 text-center text-sm text-muted-foreground">
+        Escribe LaTeX para ver la vista previa en vivo.
+      </p>
     )
   }
-
   return (
-    <div className="space-y-1">
-      {ast.map((node, index) => (
-        <AstNodeView key={`${node.type}-${index}`} node={node} pageId={pageId} />
+    <div className="px-1 py-2">
+      {ast.map((node, i) => (
+        <AstNodeView key={`${node.type}-${i}`} node={node} pageId={pageId} />
       ))}
     </div>
   )
-}
+})

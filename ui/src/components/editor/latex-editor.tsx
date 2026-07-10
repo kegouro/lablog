@@ -76,6 +76,7 @@ export function LatexEditor() {
   const parameterHints = useAppStore((s) => s.parameterHints)
   const setInsertAtCursor = useAppStore((s) => s.setInsertAtCursor)
   const setFlushSave = useAppStore((s) => s.setFlushSave)
+  const setDiscardPendingSave = useAppStore((s) => s.setDiscardPendingSave)
   const setGoToLine = useAppStore((s) => s.setGoToLine)
 
   const setActiveVersion = useAppStore((s) => s.setActiveVersion)
@@ -88,7 +89,16 @@ export function LatexEditor() {
     [setActiveAst, setActiveVersion],
   )
 
-  const { status, updateRaw, flush } = usePageUpdate(activePageId, onUpdate)
+  const getVersion = useCallback(
+    () => useAppStore.getState().activeVersion || undefined,
+    [],
+  )
+
+  const { status, updateRaw, flush, discardPending } = usePageUpdate(
+    activePageId,
+    onUpdate,
+    getVersion,
+  )
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const gutterRef = useRef<HTMLDivElement>(null)
@@ -121,21 +131,31 @@ export function LatexEditor() {
     if (!activePageId) {
       setActiveLatex('')
       setActiveAst(undefined)
+      setActiveVersion(0)
       resetHistory('')
       return
     }
-    getPage(activePageId)
+    let cancelled = false
+    const requestedId = activePageId
+    getPage(requestedId)
       .then((page) => {
+        if (cancelled || useAppStore.getState().activePageId !== requestedId) return
         setActiveLatex(page.latex)
         setActiveAst(page.ast)
+        setActiveVersion(page.version)
         resetHistory(page.latex)
       })
       .catch(() => {
+        if (cancelled || useAppStore.getState().activePageId !== requestedId) return
         setActiveLatex('')
         setActiveAst(undefined)
+        setActiveVersion(0)
         resetHistory('')
       })
-  }, [activePageId, setActiveLatex, setActiveAst, resetHistory])
+    return () => {
+      cancelled = true
+    }
+  }, [activePageId, setActiveLatex, setActiveAst, setActiveVersion, resetHistory])
 
   const wrappedFlush = useCallback(async () => {
     await flush()
@@ -143,8 +163,12 @@ export function LatexEditor() {
 
   useEffect(() => {
     setFlushSave(wrappedFlush)
-    return () => setFlushSave(null)
-  }, [wrappedFlush, setFlushSave])
+    setDiscardPendingSave(discardPending)
+    return () => {
+      setFlushSave(null)
+      setDiscardPendingSave(null)
+    }
+  }, [wrappedFlush, discardPending, setFlushSave, setDiscardPendingSave])
 
   const setHighlightLine = useAppStore((s) => s.setHighlightLine)
   const highlightLine = useAppStore((s) => s.highlightLine)

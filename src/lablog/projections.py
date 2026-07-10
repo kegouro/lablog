@@ -64,6 +64,8 @@ def page_detail(store: EventStore, page_id: str) -> dict[str, Any]:
 def list_cells(store: EventStore, page_id: str) -> list[dict[str, Any]]:
     events = _events(store, page_id)
     proj = project(page_id, events)
+    if proj.deleted:
+        raise PageNotFoundError(page_id)
     return [
         node_to_json(child)
         for child in proj.ast.children
@@ -74,6 +76,8 @@ def list_cells(store: EventStore, page_id: str) -> list[dict[str, Any]]:
 def find_cell(store: EventStore, page_id: str, cell_id: str) -> CellNode | None:
     events = _events(store, page_id)
     proj = project(page_id, events)
+    if proj.deleted:
+        raise PageNotFoundError(page_id)
     for child in proj.ast.children:
         if isinstance(child, CellNode) and child.cell_id == cell_id:
             return child
@@ -82,6 +86,9 @@ def find_cell(store: EventStore, page_id: str, cell_id: str) -> CellNode | None:
 
 def page_history(store: EventStore, page_id: str) -> list[dict[str, Any]]:
     events = _events(store, page_id)
+    proj = project(page_id, events)
+    if proj.deleted:
+        raise PageNotFoundError(page_id)
     return [
         {
             "index": i,
@@ -91,6 +98,13 @@ def page_history(store: EventStore, page_id: str) -> list[dict[str, Any]]:
         }
         for i, e in enumerate(events)
     ]
+
+
+def assert_active(store: EventStore, page_id: str) -> None:
+    """Falla si la página no existe o está soft-deleted."""
+    events = _events(store, page_id)
+    if project(page_id, events).deleted:
+        raise PageNotFoundError(page_id)
 
 
 def page_projection(store: EventStore, page_id: str) -> PageProjection:

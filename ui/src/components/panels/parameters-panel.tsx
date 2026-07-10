@@ -38,7 +38,13 @@ export function ParametersPanel() {
     setParameterValue(name, value)
   }
 
+  const discardPendingSave = useAppStore((s) => s.discardPendingSave)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+
   const bakeParameters = async () => {
+    // Descarta autosave con placeholders sin hornear (evita carrera 300ms).
+    discardPendingSave?.()
     let next = activeLatex
     for (const { name } of matches) {
       const value = parameterValues[name] ?? parameterHints[name]?.default ?? `{{${name}}}`
@@ -46,7 +52,10 @@ export function ParametersPanel() {
     }
     setActiveLatex(next)
     if (activePageId) {
-      await replacePageLatex(activePageId, next)
+      const version = useAppStore.getState().activeVersion || undefined
+      const result = await replacePageLatex(activePageId, next, version)
+      setActiveAst(result.ast)
+      setActiveVersion(result.version)
     }
   }
 

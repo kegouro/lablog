@@ -3,7 +3,7 @@ export interface CellNode {
   cell_id: string
   language: string
   source: string
-  output: string
+  output: string | null
   figure_path: string | null
   status?: 'idle' | 'running' | 'ok' | 'error'
 }
@@ -19,7 +19,13 @@ export interface TextNode {
   text: string
 }
 
-export type AstNode = TextNode | MathNode | CellNode
+export interface SectionNode {
+  type: 'section'
+  title: string
+  children?: AstNode[]
+}
+
+export type AstNode = TextNode | MathNode | CellNode | SectionNode
 
 export interface Page {
   id: string

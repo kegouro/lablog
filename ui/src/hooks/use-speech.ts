@@ -105,16 +105,23 @@ export function useSpeechRecognition(): SpeechHook {
     }
 
     recognition.onerror = (event) => {
+      if (event.error === 'aborted') {
+        setError(null)
+        return
+      }
       if (event.error === 'not-allowed') {
         setError('Permiso de micrófono denegado')
       } else if (event.error === 'no-speech') {
         setError('No se detectó voz')
-      } else if (event.error === 'aborted') {
-        setError(null)
       } else {
         setError(`Error: ${event.error}`)
       }
-      setPhase('idle')
+      // Si hay texto acumulado, pásalo a processing en vez de perderlo.
+      if (transcriptRef.current.trim()) {
+        setPhase('processing')
+      } else {
+        setPhase('idle')
+      }
     }
 
     recognition.onresult = (event) => {

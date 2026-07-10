@@ -87,11 +87,16 @@ export function VaultPanel() {
 
   const handleDelete = async (id: string) => {
     try {
-      await requestVaultDeletion(id)
+      const res = await requestVaultDeletion(id)
       setVaultFiles(
         vaultFiles.map((f) => (f.id === id ? { ...f, status: 'pending_deletion' as const } : f)),
       )
       if (preview?.fileId === id) setPreview(null)
+      toast.message('Borrado programado (7 días)', {
+        description: res.deletion_phrase
+          ? `Para borrar ya: conserva el token de confirmación de esta sesión.`
+          : 'Puedes restaurarlo antes de la fecha.',
+      })
     } catch (err) {
       console.error(err)
       toast.error('No se pudo programar el borrado')

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import threading
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -20,21 +21,32 @@ class EventStore:
     def __init__(self, root_dir: Path) -> None:
         self.root_dir = Path(root_dir)
         self.root_dir.mkdir(parents=True, exist_ok=True)
+        self._locks: dict[str, threading.Lock] = {}
+        self._locks_guard = threading.Lock()
 
     def _page_file(self, page_id: str) -> Path:
         if not _SAFE_PAGE_ID.match(page_id):
             raise ValueError(f"page_id inválido: {page_id!r}")
         return self.root_dir / f"{page_id}.jsonl"
 
+    def _lock_for(self, page_id: str) -> threading.Lock:
+        with self._locks_guard:
+            lock = self._locks.get(page_id)
+            if lock is None:
+                lock = threading.Lock()
+                self._locks[page_id] = lock
+            return lock
+
     def append(self, event: Event) -> None:
         """Añade un evento al final del log de la página.
 
         Escribe la línea completa y hace fsync para reducir el riesgo de
         eventos truncados si el proceso muere a mitad del write.
+        Lock por página: serializa appends concurrentes (autosave + execute).
         """
         page_file = self._page_file(event.page_id)
         line = event.model_dump_json() + "\n"
-        with page_file.open("a", encoding="utf-8") as f:
+        with self._lock_for(event.page_id), page_file.open("a", encoding="utf-8") as f:
             f.write(line)
             f.flush()
             os.fsync(f.fileno())
@@ -53,16 +65,18 @@ class EventStore:
         if not page_file.exists():
             return
 
-        with page_file.open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    yield Event.model_validate_json(line)
-                except ValueError:
-                    # Salta un evento corrupto en vez de tumbar toda la página.
-                    continue
+        # Lectura bajo el mismo lock que append: evita ver línea a medias.
+        with self._lock_for(page_id), page_file.open("r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                yield Event.model_validate_json(line)
+            except ValueError:
+                continue
 
     def snapshot_at(self, page_id: str, timestamp: str) -> list[Event]:
         """Devuelve eventos hasta un timestamp dado (ISO 8601)."""
@@ -71,8 +85,6 @@ class EventStore:
 
     def list_pages(self) -> list[str]:
         """Lista page_id de documentos (excluye streams auxiliares como vault)."""
-        # vault.jsonl reutiliza el EventStore para auditoría de archivos; no es
-        # una página del laboratorio y no debe aparecer en listados/export.
         return [
             f.stem
             for f in self.root_dir.glob("*.jsonl")

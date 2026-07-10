@@ -124,11 +124,18 @@ export async function getPage(pageId: string): Promise<Page> {
   return detailToPage(await fetchJson<PageDetailWire>(`/pages/${pageId}`))
 }
 
-export async function updatePageRaw(pageId: string, raw: string): Promise<Page> {
+export async function updatePageRaw(
+  pageId: string,
+  raw: string,
+  version?: number | null,
+): Promise<Page> {
   return detailToPage(
     await fetchJson<PageDetailWire>(`/pages/${pageId}`, {
       method: 'PUT',
-      body: JSON.stringify({ raw }),
+      body: JSON.stringify({
+        raw,
+        ...(version != null ? { version } : {}),
+      }),
     }),
   )
 }
@@ -148,8 +155,9 @@ export async function appendText(pageId: string, text: string, position = -1): P
 export async function replacePageLatex(
   pageId: string,
   latex: string,
+  version?: number | null,
 ): Promise<{ status: string; latex: string; ast: Page['ast']; version: number }> {
-  const page = await updatePageRaw(pageId, latex)
+  const page = await updatePageRaw(pageId, latex, version)
   return { status: 'ok', latex: page.latex, ast: page.ast, version: page.version }
 }
 
@@ -164,8 +172,9 @@ export interface Cell {
   cell_id: string
   language: string
   source: string
-  output: string
+  output: string | null
   figure_path: string | null
+  status?: 'idle' | 'running' | 'ok' | 'error'
 }
 
 export async function listCells(pageId: string): Promise<Cell[]> {
@@ -238,7 +247,7 @@ export async function uploadVaultFile(file: File): Promise<VaultFile> {
   return res.json() as Promise<VaultFile>
 }
 
-export async function getVaultFile(fileId: string): Promise<VaultFile & { deletion_phrase: string }> {
+export async function getVaultFile(fileId: string): Promise<VaultFile> {
   return fetchJson(`/vault/${fileId}`)
 }
 
@@ -256,7 +265,9 @@ export function vaultFileDownloadUrl(fileId: string): string {
   return `/api/v1/vault/${fileId}/download`
 }
 
-export async function requestVaultDeletion(fileId: string): Promise<{ scheduled_for_deletion_at: string }> {
+export async function requestVaultDeletion(
+  fileId: string,
+): Promise<{ scheduled_for_deletion_at: string; deletion_phrase: string }> {
   return fetchJson(`/vault/${fileId}/delete-request`, { method: 'POST' })
 }
 

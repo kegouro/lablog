@@ -11,16 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Figure isolation: each cell run writes unique `{token}_fig_N.png` files (no shared `fig_0` overwrite or stale glob).
-- Autosave races: flush awaits in-flight PUT; debounce cancelled + draft flushed on unmount/page change; lab mode switch flushes editor first.
-- Ghost `"vault"` page no longer appears in page lists (vault audit stream excluded).
-- Lab `markdown` / `latex` cells survive editor autosave round-trip (`CODE_ENVIRONMENTS`).
-- Cells panel no longer offers Julia (engine is Python-only).
-- Export/PDF compile flush the editor buffer before reading the event log.
-- Static HTML export: `\href`/`\url` only allow `http(s)`/`mailto` and escape attributes (XSS).
-- Voice dictation uses `/voice` intent pipeline instead of raw latex append.
-- Lab canvas awaits `insertCell` so failed inserts do not leave phantom cells.
-- Post-v0.2.0 critical client/data fixes (204 empty body, cell runtime merge, figures path, Canva escape, cells latex sync).
+- Soft-delete: all write routes reject deleted pages (`409`); `list_cells` 404s.
+- Autosave: in-flight flush, unmount draft save, discardPending for parameter freeze, re-queue on failure, optional `version` → `409 VERSION_CONFLICT`.
+- Page-switch races: ignore stale `getPage` / `listCells` responses.
+- LaTeX parse: code envs only (no `document` swallow); balanced cell matching; escape `\end{` in sources on serialize.
+- Vault: random deletion tokens, force-delete only when pending, unique upload temps, meta lock.
+- Event store per-page lock; restore keeps error cell status; safe download filenames; 5MB latex cap; safe cell_id.
+- Live preview: memoized AST renderer, inline math in prose text nodes, lazy figures.
+- Figure isolation per run; ghost vault page excluded; markdown/latex cell round-trip; Julia UI removed; export/PDF flush; href XSS; voice `/voice`; lab await insert.
+- Post-v0.2.0 client fixes (204 body, cell runtime merge, figures path, Canva escape, cells latex sync).
 
 ## [0.2.0] - 2026-07-10
 

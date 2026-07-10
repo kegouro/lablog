@@ -22,7 +22,7 @@ export function CellsPanel() {
     cell_id: string
     language: string
     source: string
-    output: string
+    output: string | null
     figure_path: string | null
     status?: 'idle' | 'running' | 'ok' | 'error'
   }>>([])

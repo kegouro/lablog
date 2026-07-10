@@ -9,9 +9,7 @@ from uuid import uuid4
 from lablog import commands
 from lablog.config import settings
 from lablog.event_store import EventStore
-from lablog.events import page_created, text_inserted
-from lablog.latex_ast import serialize_ast
-from lablog.projector import project
+from lablog.events import page_created
 from lablog.templates import get_template, list_templates
 
 
@@ -48,32 +46,42 @@ def cmd_new(args: argparse.Namespace) -> None:
 
 
 def cmd_list_pages(_args: argparse.Namespace) -> None:
+    from lablog.projections import list_page_summaries
+
     store = get_store()
-    pages = store.list_pages()
-    if not pages:
+    summaries = list_page_summaries(store)
+    if not summaries:
         print("No hay páginas.")
         return
-    for page_id in pages:
-        print(page_id)
+    for s in summaries:
+        print(f"{s['page_id']}\t{s['title']}")
 
 
 def cmd_append_text(args: argparse.Namespace) -> None:
+    from lablog.projections import PageNotFoundError, assert_active
+
     store = get_store()
-    event = text_inserted(page_id=args.page_id, position=args.position, text=args.text)
-    store.append(event)
+    try:
+        assert_active(store, args.page_id)
+    except (PageNotFoundError, ValueError) as exc:
+        print(f"Página no disponible: {args.page_id} ({exc})", file=sys.stderr)
+        sys.exit(1)
+    commands.insert_text(
+        store, page_id=args.page_id, position=args.position, text=args.text
+    )
     print("Texto añadido.")
 
 
 def cmd_render(args: argparse.Namespace) -> None:
+    from lablog.projections import PageNotFoundError, page_detail
+
     store = get_store()
-    events = store.get_events(args.page_id)
-    if not events:
+    try:
+        detail = page_detail(store, args.page_id)
+    except PageNotFoundError:
         print(f"No se encontraron eventos para la página {args.page_id}", file=sys.stderr)
         sys.exit(1)
-
-    projection = project(args.page_id, events)
-    latex = serialize_ast(projection.ast)
-    print(latex)
+    print(detail["latex"])
 
 
 def cmd_events(args: argparse.Namespace) -> None:

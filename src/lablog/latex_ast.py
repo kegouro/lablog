@@ -6,11 +6,8 @@ import re
 
 from lablog.ast_nodes import CellNode, DocumentNode, MathNode, Node, TextNode
 
-# Lenguajes que lablog ejecuta como celdas de código. Cualquier otro
-# \begin{...} (align, equation, itemize, figure, table, …) es LaTeX normal
-# y se preserva verbatim para que lo renderice el preview, no una celda.
-# Incluye lenguajes de texto del lab (markdown/latex) para round-trip por
-# document_replaced: sin esto se pierden como CellNode al re-parsear.
+# Lenguajes de celda lablog. Cualquier otro \begin{...} se preserva como texto.
+# Incluye markdown/latex para round-trip de celdas de texto del lab.
 CODE_ENVIRONMENTS = frozenset(
     {
         "python",
@@ -27,6 +24,14 @@ CODE_ENVIRONMENTS = frozenset(
     }
 )
 
+# Solo estos nombres entran en el patrón: evita que \begin{document} consuma
+# el span y se trague celdas anidadas (finditer no solapa matches).
+_CODE_LANG_ALT = "|".join(
+    sorted((re.escape(lang) for lang in CODE_ENVIRONMENTS), key=len, reverse=True)
+)
+# Marca en source al serializar \end{...} literal para no cortar el parse.
+_END_ESCAPE = "\\end\u200b{"
+
 
 def parse_latex(source: str) -> DocumentNode:
     """Parsea un string LaTeX a un AST mínimo."""
@@ -34,39 +39,26 @@ def parse_latex(source: str) -> DocumentNode:
     remaining = source
     cell_counter = 0
 
-    # Patrón unificado para celdas ejecutables con o sin opciones.
-    cell_pattern = re.compile(
-        r"\\begin\{([a-zA-Z0-9_]+)\}(?:\s*\[(.*?)\])?(.*?)\\end\{\1\}",
-        re.DOTALL,
-    )
-
-    # Matemática display $$ ... $$
     display_block_pattern = re.compile(r"\$\$(.*?)\$\$", re.DOTALL)
-    # Matemática display \[ ... \]
     display_math_pattern = re.compile(r"\\\[(.*?)\\\]", re.DOTALL)
-    # Matemática inline $ ... $
     inline_math_pattern = re.compile(r"\$(.*?)\$", re.DOTALL)
 
     while remaining:
-        # Buscar el siguiente token especial
         matches: list[tuple[int, int, str, Node]] = []
 
-        for m in cell_pattern.finditer(remaining):
-            lang = m.group(1)
-            if lang not in CODE_ENVIRONMENTS:
-                continue
-            opts = m.group(2) or ""
-            source_code = m.group(3).strip()
+        cell_hit = _find_next_cell(remaining)
+        if cell_hit is not None:
+            start, end, lang, opts, body = cell_hit
             cell_id = _extract_option(opts, "label") or _extract_option(opts, "id") or ""
             matches.append(
                 (
-                    m.start(),
-                    m.end(),
+                    start,
+                    end,
                     "cell",
                     CellNode(
                         cell_id=cell_id,
                         language=lang,
-                        source=source_code,
+                        source=_unescape_cell_source(body.strip()),
                     ),
                 )
             )
@@ -77,10 +69,7 @@ def parse_latex(source: str) -> DocumentNode:
                     m.start(),
                     m.end(),
                     "math",
-                    MathNode(
-                        latex=m.group(1).strip(),
-                        mode="display",
-                    ),
+                    MathNode(latex=m.group(1).strip(), mode="display"),
                 )
             )
 
@@ -90,10 +79,7 @@ def parse_latex(source: str) -> DocumentNode:
                     m.start(),
                     m.end(),
                     "math",
-                    MathNode(
-                        latex=m.group(1).strip(),
-                        mode="display",
-                    ),
+                    MathNode(latex=m.group(1).strip(), mode="display"),
                 )
             )
 
@@ -103,10 +89,7 @@ def parse_latex(source: str) -> DocumentNode:
                     m.start(),
                     m.end(),
                     "math",
-                    MathNode(
-                        latex=m.group(1).strip(),
-                        mode="inline",
-                    ),
+                    MathNode(latex=m.group(1).strip(), mode="inline"),
                 )
             )
 
@@ -114,11 +97,9 @@ def parse_latex(source: str) -> DocumentNode:
             doc.children.append(TextNode(text=remaining))
             break
 
-        # Tomar el match más cercano al inicio
         matches.sort(key=lambda x: x[0])
         start, end, _kind, node = matches[0]
 
-        # Asigna un id único a celdas sin label (evita colisiones "cell_1").
         if isinstance(node, CellNode) and not node.cell_id:
             cell_counter += 1
             node.cell_id = f"cell_{cell_counter}"
@@ -134,10 +115,7 @@ def parse_latex(source: str) -> DocumentNode:
 
 def serialize_ast(doc: DocumentNode) -> str:
     """Serializa un AST a string LaTeX."""
-    parts: list[str] = []
-    for child in doc.children:
-        parts.append(_serialize_node(child))
-    return "".join(parts)
+    return "".join(_serialize_node(child) for child in doc.children)
 
 
 def _serialize_node(node: Node) -> str:
@@ -157,9 +135,59 @@ def _serialize_node(node: Node) -> str:
                 return latex
             return f"${latex}$"
         case CellNode(cell_id=cell_id, language=language, source=source):
-            return f"\\begin{{{language}}}[label={cell_id}]\n{source}\n\\end{{{language}}}"
+            safe_id = _safe_cell_id_for_label(cell_id)
+            safe_src = _escape_cell_source(source)
+            return f"\\begin{{{language}}}[label={safe_id}]\n{safe_src}\n\\end{{{language}}}"
         case _:
             return ""
+
+
+def _find_next_cell(text: str) -> tuple[int, int, str, str, str] | None:
+    """Localiza la primera celda de código con matching balanceado begin/end."""
+    begin_re = re.compile(
+        rf"\\begin\{{({_CODE_LANG_ALT})\}}(?:\s*\[(.*?)\])?",
+        re.DOTALL,
+    )
+    m = begin_re.search(text)
+    if m is None:
+        return None
+    lang = m.group(1)
+    opts = m.group(2) or ""
+    body_start = m.end()
+    begin_lang = re.compile(rf"\\begin\{{{re.escape(lang)}\}}")
+    end_lang = re.compile(rf"\\end\{{{re.escape(lang)}\}}")
+    depth = 1
+    pos = body_start
+    while depth > 0:
+        b = begin_lang.search(text, pos)
+        e = end_lang.search(text, pos)
+        if e is None:
+            return None
+        if b is not None and b.start() < e.start():
+            depth += 1
+            pos = b.end()
+            continue
+        depth -= 1
+        if depth == 0:
+            body = text[body_start : e.start()]
+            return m.start(), e.end(), lang, opts, body
+        pos = e.end()
+    return None
+
+
+def _escape_cell_source(source: str) -> str:
+    """Evita que un \\end{...} literal en el código cierre el entorno al re-parsear."""
+    return source.replace("\\end{", _END_ESCAPE)
+
+
+def _unescape_cell_source(source: str) -> str:
+    return source.replace(_END_ESCAPE, "\\end{")
+
+
+def _safe_cell_id_for_label(cell_id: str) -> str:
+    """Labels sin comas ni ] para no romper el option parser."""
+    cleaned = re.sub(r"[^A-Za-z0-9_-]", "_", cell_id or "")
+    return cleaned[:64] or "cell"
 
 
 def _extract_option(options: str, key: str) -> str | None:
