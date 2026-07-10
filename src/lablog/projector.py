@@ -73,10 +73,14 @@ class PageProjection:
                 self._update_cell_output(event.payload, status="ok")
 
             case "execution_failed":
+                tb = event.payload.get("traceback") or []
+                ename = event.payload.get("ename", "")
+                evalue = event.payload.get("evalue", "")
+                output = "\n".join(tb) if tb else f"{ename}: {evalue}".strip(": ")
                 self._update_cell_output(
                     {
                         "cell_id": event.payload["cell_id"],
-                        "output": "\n".join(event.payload["traceback"]),
+                        "output": output,
                         "figure_path": None,
                     },
                     status="error",

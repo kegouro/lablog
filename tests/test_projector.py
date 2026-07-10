@@ -93,6 +93,25 @@ def test_execution_failed_sets_cell_error_status():
     assert "ZeroDivisionError" in cell.output
 
 
+def test_execution_failed_uses_ename_evalue_when_traceback_empty():
+    page_id = str(uuid4())
+    events = [
+        page_created(page_id=page_id, title="Test"),
+        cell_inserted(page_id=page_id, cell_id="c1", language="python", source="x"),
+        execution_failed(
+            page_id=page_id,
+            cell_id="c1",
+            ename="EngineStartError",
+            evalue="kernel caído",
+            traceback=[],
+        ),
+    ]
+    cell = project(page_id, events).ast.children[0]
+    assert cell.status == "error"
+    assert "EngineStartError" in (cell.output or "")
+    assert "kernel caído" in (cell.output or "")
+
+
 def test_cell_executed_sets_cell_ok_status():
     page_id = str(uuid4())
     events = [

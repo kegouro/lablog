@@ -111,7 +111,7 @@ def _ast_to_html(doc: DocumentNode, figure_base: str = "figures") -> str:
                 rel = f"{figure_base}/{page_name}/{figure_name}"
                 parts.append(f'<img src="{rel}" alt="figura" loading="lazy">')
             out.append("\n".join(parts))
-        elif isinstance(node, (TextNode, MathNode)):
+        elif isinstance(node, TextNode | MathNode):
             buffer.append(node)
     flush()
     return "\n".join(out)

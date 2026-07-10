@@ -117,7 +117,7 @@ def build_document(doc: DocumentNode, title: str) -> tuple[str, list[SourceMarke
                 parts.append(
                     f"\\includegraphics[width=\\linewidth]{{{figure_basename(node.figure_path)}}}\n"
                 )
-        elif isinstance(node, (TextNode, MathNode)):
+        elif isinstance(node, TextNode | MathNode):
             buffer.append(node)
 
     flush()

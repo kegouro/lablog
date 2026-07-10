@@ -310,7 +310,9 @@ def test_execute_cell_engine_unavailable_returns_503(monkeypatch) -> None:
     monkeypatch.setattr("lablog.api.get_engine", _broken_engine)
     res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
     assert res.status_code == 503
-    assert "kernel caído" in res.json()["detail"]
+    detail = res.json()["detail"]
+    assert detail["error_code"] == "KERNEL_DEAD"
+    assert "kernel caído" in detail["message"]
 
 
 def test_update_cell_and_list_cells() -> None:
@@ -475,7 +477,7 @@ def test_get_cell_figure_path_outside_root(monkeypatch) -> None:
         source="",
         figure_path="/tmp/outside.png",  # nosec B108 (path de prueba intencional)
     )
-    monkeypatch.setattr("lablog.api._find_cell", lambda _p, _e, _c: fake_cell)
+    monkeypatch.setattr("lablog.projections.find_cell", lambda _s, _p, _c: fake_cell)
     res = client.get(f"/api/v1/pages/{pid}/cells/c1/figure")
     assert res.status_code == 404
 
@@ -491,7 +493,7 @@ def test_get_cell_figure_file_missing(monkeypatch) -> None:
         source="",
         figure_path=missing_path,
     )
-    monkeypatch.setattr("lablog.api._find_cell", lambda _p, _e, _c: fake_cell)
+    monkeypatch.setattr("lablog.projections.find_cell", lambda _s, _p, _c: fake_cell)
     res = client.get(f"/api/v1/pages/{pid}/cells/c1/figure")
     assert res.status_code == 404
 
@@ -544,7 +546,9 @@ def test_execute_cell_generic_engine_error_returns_503(monkeypatch) -> None:
     monkeypatch.setattr("lablog.api.get_engine", lambda: BrokenEngine())
     res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
     assert res.status_code == 503
-    assert "boom" in res.json()["detail"]
+    detail = res.json()["detail"]
+    assert detail["error_code"] == "KERNEL_DEAD"
+    assert "boom" in detail["message"]
 
 
 def test_execute_cell_figure_path_outside_root_is_stored(
@@ -579,8 +583,8 @@ def test_execute_cell_figure_path_outside_root_is_stored(
 def test_event_summary_for_unknown_event_type() -> None:
     from datetime import datetime
 
-    from lablog.api import _event_summary
     from lablog.events import Event
+    from lablog.projections import _event_summary
 
     event = Event(
         type="vault_file_added",
@@ -591,12 +595,12 @@ def test_event_summary_for_unknown_event_type() -> None:
     assert _event_summary(event) == ""
 
 
-def test_extract_body_formats() -> None:
-    from lablog.api import _extract_body
+def test_extract_math_body_formats() -> None:
+    from lablog.commands import _extract_math_body
 
-    assert _extract_body("$x^2$") == ("x^2", "inline")
-    assert _extract_body("\\[x^2\\]") == ("x^2", "display")
-    assert _extract_body("plain") == ("plain", "inline")
+    assert _extract_math_body("$x^2$") == ("x^2", "inline")
+    assert _extract_math_body("\\[x^2\\]") == ("x^2", "display")
+    assert _extract_math_body("plain") == ("plain", "inline")
 
 
 def test_request_vault_deletion_not_found() -> None:
