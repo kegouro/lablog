@@ -27,6 +27,8 @@ def test_catalog_has_core_presets() -> None:
     assert "qed_moller" in ids
     assert "rlc_series_step" in ids
     assert "second_order_step" in ids
+    assert "wheatstone" in ids
+    assert "pi_controller" in ids
 
 
 def test_expand_rc_defaults() -> None:
@@ -95,8 +97,27 @@ def test_health_reports_presets() -> None:
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["diagram_presets"] >= 6
+    assert body["diagram_presets"] >= 8
     assert "version" in body
+
+
+def test_wheatstone_balance_and_highlight_lines() -> None:
+    preset = get_preset("wheatstone")
+    assert preset is not None
+    out = expand_preset(preset, {"R1": 1000, "R2": 1000, "R3": 1000, "R4": 1000, "Vex": 5})
+    assert "circuitikz" in out["latex"]
+    # lablog-param lines deben tener highlight.line resuelto
+    by_id = {p["id"]: p for p in out["param_specs"]}
+    assert by_id["R1"]["highlight"]["line"] is not None
+    assert by_id["R1"]["highlight"]["line"] >= 1
+    sim = expand_simulation(preset, out["params"])
+    assert "equilibrio" in sim["source"] or "Vg" in sim["source"]
+
+    pi = get_preset("pi_controller")
+    assert pi is not None
+    pi_out = expand_preset(pi, {"Kp": 2, "Ki": 1, "K": 1, "tau": 0.5})
+    assert "tikzpicture" in pi_out["latex"]
+    assert pi_out["has_simulation"] is True
 
 
 def test_rlc_and_second_order_expand() -> None:

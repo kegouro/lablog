@@ -8,6 +8,7 @@ from lablog.diagrams.expand import (
     parse_lablog_params,
     parse_lablog_preset_id,
     replace_or_append_diagram,
+    resolve_highlight_lines,
 )
 from lablog.diagrams.models import DiagramPreset, ParamSpec
 
@@ -22,4 +23,5 @@ __all__ = [
     "parse_lablog_params",
     "parse_lablog_preset_id",
     "replace_or_append_diagram",
+    "resolve_highlight_lines",
 ]

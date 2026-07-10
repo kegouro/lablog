@@ -238,6 +238,99 @@ else:
     print("sobreamortiguado")
 '''
 
+_WHEAT_TIKZ = r"""\begin{circuitikz}
+  \draw (0,0) to[V, v=$V_{ex}$, name=Vex] (0,4)
+    to[short] (1,4)
+    to[R, R=${{R1}}$, l_=$R_1$, name=R1] (1,2)
+    to[R, R=${{R4}}$, l_=$R_4$, name=R4] (1,0)
+    to[short] (0,0);
+  \draw (1,4) to[short] (3,4)
+    to[R, R=${{R2}}$, l_=$R_2$, name=R2] (3,2)
+    to[R, R=${{R3}}$, l_=$R_3$, name=R3] (3,0)
+    to[short] (1,0);
+  \draw (1,2) to[short, *-o] (2,2) node[above]{$V_g$};
+  \draw (3,2) to[short, *-o] (2,2);
+\end{circuitikz}
+"""
+
+_WHEAT_SIM = r'''# lablog-sim: preset=wheatstone version=1
+# LABLOG_PARAMS_START
+R1 = {{R1}}  # ohm
+R2 = {{R2}}  # ohm
+R3 = {{R3}}  # ohm
+R4 = {{R4}}  # ohm
+Vex = {{Vex}}  # V
+# LABLOG_PARAMS_END
+
+# Divisores: Va en unión R1-R4, Vb en R2-R3; Vg = Va - Vb
+Va = Vex * R4 / (R1 + R4)
+Vb = Vex * R3 / (R2 + R3)
+Vg = Va - Vb
+balanced = abs(R1 * R3 - R2 * R4) < 1e-9 * max(R1 * R3, 1.0)
+print(f"Va={Va:.6g} V  Vb={Vb:.6g} V  Vg={Vg:.6g} V")
+print("equilibrio" if balanced or abs(Vg) < 1e-9 * max(abs(Vex), 1.0) else "desequilibrio")
+print(f"condición puente: R1/R4 =? R2/R3 → {R1/R4:.6g} vs {R2/R3:.6g}")
+'''
+
+_PI_TIKZ = r"""\begin{tikzpicture}[
+  block/.style={draw, thick, minimum width=1.8cm, minimum height=1cm, align=center},
+  sum/.style={draw, circle, thick, minimum size=6mm},
+  >=stealth
+]
+  \node[sum] (s) at (0,0) {$+$};
+  \node[block] (pi) at (2.6,0) {$K_p+\dfrac{K_i}{s}$};
+  \node[block] (p) at (5.4,0) {$\dfrac{K}{\tau s+1}$};
+  \draw[->] (-1.3,0) node[left]{$r$} -- (s);
+  \draw[->] (s) -- (pi);
+  \draw[->] (pi) -- (p);
+  \draw[->] (p) -- (7.4,0) node[right]{$y$};
+  \draw[->] (7.0,0) -- (7.0,-1.2) -| node[pos=0.25,right]{$-$} (s);
+  \node[below=10pt] at (4.0,-0.15)
+    {$K_p={{Kp}},\ K_i={{Ki}},\ K={{K}},\ \tau={{tau}}$};
+\end{tikzpicture}
+"""
+
+_PI_SIM = r'''# lablog-sim: preset=pi_controller version=1
+# LABLOG_PARAMS_START
+Kp = {{Kp}}
+Ki = {{Ki}}
+K = {{K}}
+tau = {{tau}}  # s
+# LABLOG_PARAMS_END
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Lazo cerrado: PI + planta 1er orden K/(tau s+1); escalón unitario en r
+t_end = max(8.0, 10 * max(tau, 0.1))
+n = 800
+dt = t_end / n
+t = np.linspace(0, t_end, n + 1)
+y = np.zeros(n + 1)
+x = 0.0  # estado planta (salida)
+integ = 0.0
+r = 1.0
+for i in range(n):
+    e = r - y[i]
+    integ = integ + e * dt
+    u = Kp * e + Ki * integ
+    # planta: tau x' + x = K u  →  x' = (K u - x)/tau
+    x = x + dt * (K * u - x) / max(tau, 1e-9)
+    y[i + 1] = x
+
+plt.figure(figsize=(6, 3))
+plt.plot(t, y, label="y(t)")
+plt.axhline(1.0, color="gray", ls="--", lw=0.8, label="r=1")
+plt.xlabel("t [s]")
+plt.ylabel("y")
+plt.title(f"PI + 1er orden  Kp={Kp:g} Ki={Ki:g} τ={tau:g}")
+plt.grid(True, alpha=0.3)
+plt.legend()
+plt.tight_layout()
+plt.show()
+print(f"y_final≈{y[-1]:.4g}  (referencia r=1)")
+'''
+
 _FEYNMAN_TIKZ = r"""\begin{center}
 \begin{tikzpicture}[
   fermion/.style={thick, postaction={decorate},
@@ -541,6 +634,135 @@ _CATALOG: list[DiagramPreset] = [
         tikz_template=_SO_TIKZ,
         sim_backend="numpy_ode",
         sim_template=_SO_SIM,
+    ),
+    DiagramPreset(
+        preset_id="wheatstone",
+        kind="circuitikz",
+        title="Puente de Wheatstone (DC)",
+        summary="Cuatro resistencias y excitación. Vg=0 en equilibrio (R1/R4=R2/R3).",
+        category="circuitos",
+        tags=["dc", "puente", "lab"],
+        params=[
+            _p(
+                "R1",
+                "R1",
+                "Rama superior izquierda.",
+                1000,
+                unit="ohm",
+                min_v=1,
+                max_v=1e7,
+                scale="log",
+                tikz="R1",
+                color="amber",
+            ),
+            _p(
+                "R2",
+                "R2",
+                "Rama superior derecha.",
+                1000,
+                unit="ohm",
+                min_v=1,
+                max_v=1e7,
+                scale="log",
+                tikz="R2",
+                color="sky",
+            ),
+            _p(
+                "R3",
+                "R3",
+                "Rama inferior derecha.",
+                1000,
+                unit="ohm",
+                min_v=1,
+                max_v=1e7,
+                scale="log",
+                tikz="R3",
+                color="emerald",
+            ),
+            _p(
+                "R4",
+                "R4",
+                "Rama inferior izquierda (a menudo el sensor).",
+                1000,
+                unit="ohm",
+                min_v=1,
+                max_v=1e7,
+                scale="log",
+                tikz="R4",
+                color="violet",
+            ),
+            _p(
+                "Vex",
+                "Vex",
+                "Tensión de excitación del puente.",
+                5.0,
+                unit="V",
+                min_v=0.1,
+                max_v=50,
+                tikz="Vex",
+                color="rose",
+            ),
+        ],
+        tikz_template=_WHEAT_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_WHEAT_SIM,
+    ),
+    DiagramPreset(
+        preset_id="pi_controller",
+        kind="block_diagram",
+        title="PI + planta 1er orden",
+        summary="Control PI en lazo cerrado con planta K/(τs+1). Respuesta a escalón.",
+        category="control",
+        tags=["pi", "feedback", "control"],
+        params=[
+            _p(
+                "Kp",
+                "Kp",
+                "Ganancia proporcional. Sube Kp → más rápida, más overshoot.",
+                1.5,
+                unit="",
+                min_v=0.05,
+                max_v=20,
+                scale="log",
+                color="amber",
+            ),
+            _p(
+                "Ki",
+                "Ki",
+                "Ganancia integral. Elimina error en régimen; demasiada Ki oscila.",
+                0.8,
+                unit="1/s",
+                min_v=0.0,
+                max_v=20,
+                scale="linear",
+                color="sky",
+            ),
+            _p(
+                "K",
+                "K planta",
+                "Ganancia estática de la planta.",
+                1.0,
+                unit="",
+                min_v=0.1,
+                max_v=10,
+                scale="linear",
+                color="emerald",
+            ),
+            _p(
+                "tau",
+                "τ planta",
+                "Constante de tiempo de la planta 1er orden.",
+                1.0,
+                unit="s",
+                min_v=0.05,
+                max_v=20,
+                scale="log",
+                color="violet",
+            ),
+        ],
+        tikz_template=_PI_TIKZ,
+        sim_backend="numpy_ode",
+        sim_template=_PI_SIM,
     ),
     DiagramPreset(
         preset_id="qed_moller",
