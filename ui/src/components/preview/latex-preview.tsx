@@ -138,25 +138,29 @@ export function LatexPreview() {
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-2 text-xs">
           <p className="mb-1 font-semibold text-destructive">Errores de compilación</p>
           <ul className="space-y-0.5">
-            {errors.map((e, i) => (
-              <li key={i} className="font-mono">
-                {e.kind === 'raw' && e.source_line != null ? (
-                  <button
-                    type="button"
-                    className="underline decoration-dotted hover:text-destructive"
-                    onClick={() => goToLine?.(e.source_line as number)}
-                  >
-                    línea {e.source_line}
-                  </button>
-                ) : (
-                  <span>
-                    {e.kind === 'cell' ? `Celda ${e.ref}` : 'Documento'}
-                    {e.source_line != null ? ` · línea ${e.source_line}` : ''}
-                  </span>
-                )}
-                : {e.message}
-              </li>
-            ))}
+            {errors.map((e, i) => {
+              const jump = e.editor_line ?? (e.kind === 'raw' ? e.source_line : null)
+              return (
+                <li key={i} className="font-mono">
+                  {jump != null ? (
+                    <button
+                      type="button"
+                      className="underline decoration-dotted hover:text-destructive"
+                      onClick={() => goToLine?.(jump)}
+                    >
+                      línea {jump}
+                    </button>
+                  ) : (
+                    <span>
+                      {e.kind === 'cell' ? `Celda ${e.ref}` : 'Documento'}
+                      {e.source_line != null ? ` · tex:${e.source_line}` : ''}
+                    </span>
+                  )}
+                  {e.severity === 'warning' ? ' [warn]' : ''}
+                  : {e.message}
+                </li>
+              )
+            })}
           </ul>
         </div>
       )}

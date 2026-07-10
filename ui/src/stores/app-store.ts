@@ -38,6 +38,8 @@ interface AppState {
   flushSave: (() => Promise<void>) | null
   /** Registrado por el editor: mueve el cursor a la línea indicada (1-based). */
   goToLine: ((line: number) => void) | null
+  /** Línea resaltada en el gutter (error PDF, etc.). */
+  highlightLine: number | null
   setPages: (pages: Page[]) => void
   setActivePageId: (id: string | null) => void
   setActiveVersion: (version: number) => void
@@ -64,6 +66,7 @@ interface AppState {
   setInsertAtCursor: (fn: ((text: string) => void) | null) => void
   setFlushSave: (fn: (() => Promise<void>) | null) => void
   setGoToLine: (fn: ((line: number) => void) | null) => void
+  setHighlightLine: (line: number | null) => void
 }
 
 function persist(key: string, value: string): void {
@@ -107,6 +110,7 @@ export const useAppStore = create<AppState>((set) => ({
   insertAtCursor: null,
   flushSave: null,
   goToLine: null,
+  highlightLine: null,
   setPages: (pages) => set({ pages }),
   setActivePageId: (id) => set({ activePageId: id, activeVersion: 0 }),
   setActiveVersion: (activeVersion) => set({ activeVersion }),
@@ -149,4 +153,5 @@ export const useAppStore = create<AppState>((set) => ({
   setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
   setFlushSave: (flushSave) => set({ flushSave }),
   setGoToLine: (goToLine) => set({ goToLine }),
+  setHighlightLine: (highlightLine) => set({ highlightLine }),
 }))

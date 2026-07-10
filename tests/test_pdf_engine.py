@@ -55,16 +55,37 @@ def test_build_document_emits_source_markers() -> None:
 
 
 def test_parse_errors_maps_to_nearest_marker() -> None:
-    markers = [SourceMarker(5, "text", "prose"), SourceMarker(20, "cell", "c1")]
+    markers = [
+        SourceMarker(5, "text", "prose", editor_line=2),
+        SourceMarker(20, "cell", "c1", editor_line=8),
+    ]
     log = "main.tex:23: Undefined control sequence \\foo"
     errors = parse_errors(log, markers)
     assert errors and errors[0].ref == "c1" and errors[0].kind == "cell"
     assert errors[0].source_line == 23
+    assert errors[0].editor_line == 8
 
 
 def test_parse_errors_handles_no_preceding_marker() -> None:
-    errors = parse_errors("main.tex:2: oops", [SourceMarker(10, "cell", "c1")])
+    errors = parse_errors("main.tex:2: oops", [SourceMarker(10, "cell", "c1", editor_line=4)])
     assert errors and errors[0].ref is None
+
+
+def test_parse_errors_fsm_bang_and_l_dot() -> None:
+    log = "! Undefined control sequence.\nl.12 \\foobarbaz\n"
+    errors = parse_errors(log, [])
+    assert errors
+    assert errors[0].source_line == 12
+    assert errors[0].editor_line == 12  # raw 1:1
+    assert "Undefined" in errors[0].message
+    assert errors[0].severity == "error"
+
+
+def test_parse_errors_multiline_message() -> None:
+    log = "! Package error.\nSee the log for details.\nl.5 \\bad\n"
+    errors = parse_errors(log, [])
+    assert errors[0].source_line == 5
+    assert "Package error" in errors[0].message
 
 
 def test_figure_basename() -> None:
@@ -138,4 +159,11 @@ def test_documentclass_inside_cell_not_raw() -> None:
 def test_parse_errors_without_markers_is_raw() -> None:
     errors = pdf_engine.parse_errors("main.tex:7: Undefined control sequence", [])
     assert errors[0].source_line == 7
+    assert errors[0].editor_line == 7
     assert errors[0].ref is None and errors[0].kind == "raw"
+
+
+def test_build_document_markers_have_editor_line() -> None:
+    _tex, markers, _f = build_document(_doc(), "T")
+    assert markers
+    assert any(m.editor_line is not None for m in markers)

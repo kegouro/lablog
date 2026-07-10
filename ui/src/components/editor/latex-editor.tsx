@@ -137,16 +137,28 @@ export function LatexEditor() {
     return () => setFlushSave(null)
   }, [wrappedFlush, setFlushSave])
 
-  const goToLine = useCallback((line: number) => {
-    const ta = textareaRef.current
-    if (!ta) return
-    const lines = ta.value.split('\n')
-    const clamped = Math.max(1, Math.min(line, lines.length))
-    const start = lines.slice(0, clamped - 1).reduce((n, l) => n + l.length + 1, 0)
-    ta.focus()
-    ta.setSelectionRange(start, start + (lines[clamped - 1]?.length ?? 0))
-    ta.scrollTop = Math.max(0, (clamped - 3) * 24) // leading-6 = 24px por línea
-  }, [])
+  const setHighlightLine = useAppStore((s) => s.setHighlightLine)
+  const highlightLine = useAppStore((s) => s.highlightLine)
+
+  const goToLine = useCallback(
+    (line: number) => {
+      const ta = textareaRef.current
+      if (!ta) return
+      const lines = ta.value.split('\n')
+      const clamped = Math.max(1, Math.min(line, lines.length))
+      const start = lines.slice(0, clamped - 1).reduce((n, l) => n + l.length + 1, 0)
+      ta.focus()
+      ta.setSelectionRange(start, start + (lines[clamped - 1]?.length ?? 0))
+      ta.scrollTop = Math.max(0, (clamped - 3) * 24) // leading-6 = 24px por línea
+      setHighlightLine(clamped)
+      window.setTimeout(() => {
+        if (useAppStore.getState().highlightLine === clamped) {
+          setHighlightLine(null)
+        }
+      }, 2500)
+    },
+    [setHighlightLine],
+  )
 
   useEffect(() => {
     setGoToLine(goToLine)
@@ -472,7 +484,16 @@ export function LatexEditor() {
           className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-10 select-none overflow-hidden border-r bg-muted/30 py-3 pr-2 text-right font-mono text-xs leading-6 text-muted-foreground/60"
         >
           {lines.map((n) => (
-            <div key={n}>{n}</div>
+            <div
+              key={n}
+              className={
+                highlightLine === n
+                  ? 'bg-destructive/25 font-semibold text-destructive'
+                  : undefined
+              }
+            >
+              {n}
+            </div>
           ))}
         </div>
 

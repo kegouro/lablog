@@ -304,8 +304,10 @@ export async function exportPage(pageId: string, format: string): Promise<Blob> 
 export interface PdfError {
   message: string
   source_line: number | null
+  editor_line?: number | null
   ref: string | null
   kind: string | null
+  severity?: string | null
 }
 
 export class PdfCompileError extends Error {
