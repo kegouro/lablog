@@ -22,6 +22,7 @@ export function LatexPreview() {
   const activeLatex = useAppStore((s) => s.activeLatex)
   const activePageId = useAppStore((s) => s.activePageId)
   const goToLine = useAppStore((s) => s.goToLine)
+  const flushSave = useAppStore((s) => s.flushSave)
   const debouncedAst = useDebouncedValue(activeAst, 150)
 
   const [compiling, setCompiling] = useState(false)
@@ -69,6 +70,7 @@ export function LatexPreview() {
     } catch { /* sigue */ }
     setCompiling(true)
     try {
+      if (flushSave) await flushSave()
       const blob = await compilePdf(activePageId)
       setPdfUrl(URL.createObjectURL(blob))
     } catch (e) {

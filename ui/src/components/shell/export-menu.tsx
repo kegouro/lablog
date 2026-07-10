@@ -25,10 +25,12 @@ export function ExportMenu() {
   const activeLatex = useAppStore((s) => s.activeLatex)
   const parameterValues = useAppStore((s) => s.parameterValues)
   const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const flushSave = useAppStore((s) => s.flushSave)
 
   const handleExport = async (format: string, _label: string) => {
     if (format === 'site') {
       try {
+        if (flushSave) await flushSave()
         const result = await exportPages()
         toast.success(`Sitio exportado a ${result.path}`)
       } catch (err) {
@@ -42,6 +44,7 @@ export function ExportMenu() {
 
     if (format === 'pdf') {
       try {
+        if (flushSave) await flushSave()
         const blob = await compilePdf(activePageId)
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
@@ -59,6 +62,7 @@ export function ExportMenu() {
     }
 
     try {
+      if (flushSave) await flushSave()
       // Congelar placeholders automáticamente antes de exportar
       const hasPlaceholders = /\{\{\w+\}\}/.test(activeLatex)
       let source = activeLatex

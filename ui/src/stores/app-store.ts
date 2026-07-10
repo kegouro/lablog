@@ -36,6 +36,8 @@ interface AppState {
   insertAtCursor: ((text: string) => void) | null
   /** Registrado por el editor: fuerza el guardado inmediato si hay cambios pendientes. */
   flushSave: (() => Promise<void>) | null
+  /** Cancela autosave pendiente sin escribir (p.ej. tras congelar parámetros). */
+  discardPendingSave: (() => void) | null
   /** Registrado por el editor: mueve el cursor a la línea indicada (1-based). */
   goToLine: ((line: number) => void) | null
   /** Línea resaltada en el gutter (error PDF, etc.). */
@@ -65,6 +67,7 @@ interface AppState {
   clearParameters: () => void
   setInsertAtCursor: (fn: ((text: string) => void) | null) => void
   setFlushSave: (fn: (() => Promise<void>) | null) => void
+  setDiscardPendingSave: (fn: (() => void) | null) => void
   setGoToLine: (fn: ((line: number) => void) | null) => void
   setHighlightLine: (line: number | null) => void
 }
@@ -109,6 +112,7 @@ export const useAppStore = create<AppState>((set) => ({
   parameterValues: {},
   insertAtCursor: null,
   flushSave: null,
+  discardPendingSave: null,
   goToLine: null,
   highlightLine: null,
   setPages: (pages) => set({ pages }),
@@ -152,6 +156,7 @@ export const useAppStore = create<AppState>((set) => ({
   clearParameters: () => set({ parameterHints: {}, parameterValues: {} }),
   setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
   setFlushSave: (flushSave) => set({ flushSave }),
+  setDiscardPendingSave: (discardPendingSave) => set({ discardPendingSave }),
   setGoToLine: (goToLine) => set({ goToLine }),
   setHighlightLine: (highlightLine) => set({ highlightLine }),
 }))

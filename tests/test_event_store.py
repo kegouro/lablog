@@ -64,3 +64,21 @@ def test_append_ends_with_newline(store: EventStore) -> None:
     store.append(page_created(page_id=page_id, title="NL"))
     raw = store._page_file(page_id).read_bytes()
     assert raw.endswith(b"\n")
+
+
+def test_list_pages_excludes_vault_stream(store: EventStore) -> None:
+    """vault.jsonl no es una página de laboratorio."""
+    from lablog.events import Event
+
+    page_id = str(uuid4())
+    store.append(page_created(page_id=page_id, title="Real"))
+    store.append(
+        Event(
+            type="vault_file_added",
+            page_id="vault",
+            payload={"file_id": "f1", "name": "a.pdf"},
+        )
+    )
+    pages = store.list_pages()
+    assert page_id in pages
+    assert "vault" not in pages

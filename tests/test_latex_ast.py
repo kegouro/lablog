@@ -74,6 +74,20 @@ def test_code_environment_is_a_cell() -> None:
         assert any(isinstance(c, CellNode) for c in doc.children), lang
 
 
+def test_markdown_and_latex_lab_cells_roundtrip() -> None:
+    """Celdas de texto del lab sobreviven serialize → parse (document_replaced)."""
+    for lang in ("markdown", "latex"):
+        src = f"\\begin{{{lang}}}[label=lab1]\nhola $x$\n\\end{{{lang}}}"
+        doc = parse_latex(src)
+        cells = [c for c in doc.children if isinstance(c, CellNode)]
+        assert len(cells) == 1, lang
+        assert cells[0].cell_id == "lab1"
+        assert cells[0].language == lang
+        again = parse_latex(serialize_ast(doc))
+        cells2 = [c for c in again.children if isinstance(c, CellNode)]
+        assert len(cells2) == 1 and cells2[0].cell_id == "lab1"
+
+
 def test_parse_mixed_cells_with_and_without_options() -> None:
     """Regresión: celdas sin [options] deben parsearse junto a celdas con options."""
     source = (

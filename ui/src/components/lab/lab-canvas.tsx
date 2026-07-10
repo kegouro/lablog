@@ -29,7 +29,7 @@ type LabCell = {
   cell_id: string
   language: string
   source: string
-  output: string
+  output: string | null
   figure_path: string | null
   status?: 'idle' | 'running' | 'ok' | 'error'
   collapsed?: boolean
@@ -103,21 +103,29 @@ export function LabCanvas() {
       setCells([])
       return
     }
+    let cancelled = false
+    const requestedId = activePageId
     setLoading(true)
-    listCells(activePageId)
-      .then((serverCells) =>
+    listCells(requestedId)
+      .then((serverCells) => {
+        if (cancelled || useAppStore.getState().activePageId !== requestedId) return
         setCells(
           serverCells.map((c) => ({
             ...c,
-            status: 'idle',
+            status: (c.status as LabCell['status']) ?? 'idle',
             collapsed: false,
           })),
-        ),
-      )
-      .finally(() => setLoading(false))
+        )
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [activePageId])
 
-  const addCell = (language: string) => {
+  const addCell = async (language: string) => {
     if (!activePageId) return
     const cell: LabCell = {
       cell_id: crypto.randomUUID(),
@@ -128,9 +136,17 @@ export function LabCanvas() {
       status: 'idle',
       collapsed: false,
     }
-    insertCell(activePageId, { cell_id: cell.cell_id, language: cell.language, source: cell.source })
-    setCells((prev) => [...prev, cell])
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    try {
+      await insertCell(activePageId, {
+        cell_id: cell.cell_id,
+        language: cell.language,
+        source: cell.source,
+      })
+      setCells((prev) => [...prev, cell])
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   const updateSource = (cellId: string, source: string) => {

@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 import shutil
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -39,6 +41,7 @@ class VaultService:
         self.files_dir.mkdir(parents=True, exist_ok=True)
         self.previews_dir.mkdir(parents=True, exist_ok=True)
         self._meta: dict[str, VaultFile] = {}
+        self._lock = threading.Lock()
         self._load_meta()
 
     def _load_meta(self) -> None:
@@ -81,14 +84,20 @@ class VaultService:
         content = source.read_bytes()
         file_hash = hashlib.sha256(content).hexdigest()[:16]
         file_id = str(uuid4())
-        dest = self.files_dir / f"{file_id}_{source.name}"
+        # Solo basename del origen (uploads usan uuid_name).
+        display_name = Path(source.name).name
+        # Quitar prefijo uuid_ del temp si existe.
+        if "_" in display_name and len(display_name.split("_", 1)[0]) == 32:
+            display_name = display_name.split("_", 1)[1] or display_name
+        dest = self.files_dir / f"{file_id}_{display_name}"
         shutil.copy2(source, dest)
 
-        mime = _guess_mime(source.name)
-        phrase = f"borrar {source.name} permanentemente"
+        mime = _guess_mime(display_name)
+        # Token aleatorio: no derivable del nombre de archivo.
+        phrase = secrets.token_urlsafe(16)
         vf = VaultFile(
             id=file_id,
-            name=source.name,
+            name=display_name,
             hash=file_hash,
             mime_type=mime,
             size=len(content),
@@ -96,8 +105,9 @@ class VaultService:
             uploaded_at=datetime.now(UTC),
             deletion_phrase=phrase,
         )
-        self._meta[file_id] = vf
-        self._save_meta()
+        with self._lock:
+            self._meta[file_id] = vf
+            self._save_meta()
         return vf
 
     def list_files(self, include_pending: bool = True) -> list[VaultFile]:
@@ -109,46 +119,66 @@ class VaultService:
     def get_file(self, file_id: str) -> VaultFile | None:
         return self._meta.get(file_id)
 
-    def request_deletion(self, file_id: str) -> datetime | None:
-        vf = self._meta.get(file_id)
-        if not vf:
-            return None
-        vf.status = "pending_deletion"
-        vf.scheduled_for_deletion_at = datetime.now(UTC) + timedelta(days=self.TIMELOCK_DAYS)
-        self._save_meta()
-        return vf.scheduled_for_deletion_at
+    def request_deletion(self, file_id: str) -> tuple[datetime, str] | None:
+        """Marca borrado diferido y rota el token de confirmación.
+
+        Devuelve ``(scheduled_at, confirmation_phrase)`` — la frase solo se
+        entrega en esta respuesta, no en GET list/detail.
+        """
+        with self._lock:
+            vf = self._meta.get(file_id)
+            if not vf:
+                return None
+            vf.status = "pending_deletion"
+            vf.scheduled_for_deletion_at = datetime.now(UTC) + timedelta(
+                days=self.TIMELOCK_DAYS
+            )
+            # Nueva frase al solicitar borrado (token de un solo uso en UX).
+            vf.deletion_phrase = secrets.token_urlsafe(16)
+            self._save_meta()
+            return vf.scheduled_for_deletion_at, vf.deletion_phrase
 
     def cancel_deletion(self, file_id: str) -> bool:
-        vf = self._meta.get(file_id)
-        if not vf:
-            return False
-        vf.status = "active"
-        vf.scheduled_for_deletion_at = None
-        self._save_meta()
-        return True
+        with self._lock:
+            vf = self._meta.get(file_id)
+            if not vf:
+                return False
+            vf.status = "active"
+            vf.scheduled_for_deletion_at = None
+            vf.deletion_phrase = secrets.token_urlsafe(16)
+            self._save_meta()
+            return True
 
     def force_delete(self, file_id: str, phrase: str) -> bool:
-        vf = self._meta.get(file_id)
-        if not vf:
-            return False
-        if phrase.strip().lower() != vf.deletion_phrase.strip().lower():
-            return False
-        self._remove(vf)
-        return True
+        """Borrado inmediato solo si ya está pending_deletion y la frase coincide."""
+        with self._lock:
+            vf = self._meta.get(file_id)
+            if not vf:
+                return False
+            if vf.status != "pending_deletion":
+                return False
+            if not secrets.compare_digest(
+                phrase.strip(),
+                vf.deletion_phrase.strip(),
+            ):
+                return False
+            self._remove(vf)
+            return True
 
     def purge_expired(self) -> list[str]:
         now = datetime.now(UTC)
-        expired = [
-            vf.id
-            for vf in self._meta.values()
-            if vf.status == "pending_deletion"
-            and vf.scheduled_for_deletion_at
-            and vf.scheduled_for_deletion_at <= now
-        ]
-        for file_id in expired:
-            vf = self._meta[file_id]
-            self._remove(vf)
-        return expired
+        with self._lock:
+            expired = [
+                vf.id
+                for vf in self._meta.values()
+                if vf.status == "pending_deletion"
+                and vf.scheduled_for_deletion_at
+                and vf.scheduled_for_deletion_at <= now
+            ]
+            for file_id in expired:
+                vf = self._meta[file_id]
+                self._remove(vf)
+            return expired
 
     def _remove(self, vf: VaultFile) -> None:
         if vf.stored_path.exists():

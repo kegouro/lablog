@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Scientific LaTeX maturity: ~190 symbols (greek, physics, sets, arrows, …).
+- Live preview classifies math envs (align/matrix/cases) vs PDF-only (tabular/tikz/feynman).
+- KaTeX macros for physics/braket (`\ket`, `\bra`, `\dv`, `\R`, …).
+- PDF preamble packages: booktabs, siunitx, physics, braket, tikz (+ Feynman-style drawings).
+- Stress fixtures `tests/fixtures/latex/` (characters, tables, matrices, Feynman, physics, full doc).
+- Docs: `docs/LATEX_PREVIEW.md`.
+- Future features design: `docs/future-features/` (Circuitikz→Jupyter sim, diagram presets, param ranges/highlights, catalog + example JSON).
+
+## [0.2.1] - 2026-07-10
+
+### Fixed
+
+- Soft-delete: all write routes reject deleted pages (`409`); `list_cells` 404s.
+- Autosave: in-flight flush, unmount draft save, discardPending for parameter freeze, re-queue on failure, optional `version` → `409 VERSION_CONFLICT`.
+- Page-switch races: ignore stale `getPage` / `listCells` responses.
+- LaTeX parse: code envs only (no `document` swallow); balanced cell matching; escape `\end{` in sources on serialize.
+- Vault: random deletion tokens, force-delete only when pending, unique upload temps, meta lock.
+- Event store per-page lock; restore keeps error cell status; safe download filenames; 5MB latex cap; safe cell_id.
+- Live preview: memoized AST renderer, inline math in prose text nodes, lazy figures.
+- Figure isolation per run; ghost vault page excluded; markdown/latex cell round-trip; Julia UI removed; export/PDF flush; href XSS; voice `/voice`; lab await insert.
+- Post-v0.2.0 client fixes (204 body, cell runtime merge, figures path, Canva escape, cells latex sync).
+
 ## [0.2.0] - 2026-07-10
 
 ### Added
@@ -63,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved live preview: renders AST directly where possible and shows per-block KaTeX errors.
 - Raised backend test coverage threshold to 80%.
 
-[Unreleased]: https://github.com/kegouro/lablog/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kegouro/lablog/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/kegouro/lablog/releases/tag/v0.2.1
 [0.2.0]: https://github.com/kegouro/lablog/releases/tag/v0.2.0
 [0.1.0]: https://github.com/kegouro/lablog/releases/tag/v0.1.0

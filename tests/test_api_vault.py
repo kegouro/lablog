@@ -38,7 +38,8 @@ def test_get_file_detail() -> None:
     data = response.json()
     assert data["name"] == "detalle.txt"
     assert data["status"] == "active"
-    assert "deletion_phrase" in data
+    # La frase de borrado no se filtra en GET (no es secreto si se lista).
+    assert data.get("deletion_phrase") in (None, "")
 
 
 def test_preview_text() -> None:
@@ -55,35 +56,38 @@ def test_deletion_request_and_cancel() -> None:
 
     response = client.post(f"/api/v1/vault/{file_id}/delete-request")
     assert response.status_code == 200
-    assert response.json()["status"] == "pending_deletion"
-    assert response.json()["scheduled_for_deletion_at"] is not None
+    body = response.json()
+    assert body["status"] == "pending_deletion"
+    assert body["scheduled_for_deletion_at"] is not None
+    assert body["deletion_phrase"]  # token solo en esta respuesta
 
     response = client.get(f"/api/v1/vault/{file_id}")
     assert response.json()["status"] == "pending_deletion"
+    assert response.json().get("deletion_phrase") in (None, "")
 
     response = client.post(f"/api/v1/vault/{file_id}/cancel-delete")
     assert response.status_code == 200
     assert response.json()["status"] == "active"
 
 
-def test_force_delete_wrong_phrase() -> None:
+def test_force_delete_requires_pending_and_phrase() -> None:
     file_id = _upload("seguro.txt", b"confidencial")
+
+    # Sin pending_deletion no se puede force-delete aunque se invente frase.
+    response = client.post(
+        f"/api/v1/vault/{file_id}/force-delete",
+        json={"phrase": "cualquier-cosa"},
+    )
+    assert response.status_code == 403
+
+    req = client.post(f"/api/v1/vault/{file_id}/delete-request")
+    phrase = req.json()["deletion_phrase"]
 
     response = client.post(
         f"/api/v1/vault/{file_id}/force-delete",
         json={"phrase": "frase incorrecta"},
     )
     assert response.status_code == 403
-
-    response = client.get(f"/api/v1/vault/{file_id}")
-    assert response.status_code == 200
-
-
-def test_force_delete_correct_phrase() -> None:
-    file_id = _upload("borrar.txt", b"para borrar")
-
-    detail = client.get(f"/api/v1/vault/{file_id}").json()
-    phrase = detail["deletion_phrase"]
 
     response = client.post(
         f"/api/v1/vault/{file_id}/force-delete",
@@ -102,6 +106,7 @@ def test_purge_endpoint(tmp_path: Path) -> None:
 
     vf = vault.get_file(file_id)
     assert vf is not None
+    assert vf.scheduled_for_deletion_at is not None
     vf.scheduled_for_deletion_at = vf.scheduled_for_deletion_at.replace(year=2000)
     vault._save_meta()
 

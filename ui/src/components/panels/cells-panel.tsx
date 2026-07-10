@@ -8,10 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { ApiError, deleteCell, executeCell, getPage, insertCell, listCells, moveCell } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
-const LANGUAGES = [
-  { id: 'python', label: 'Python' },
-  { id: 'julia', label: 'Julia' },
-]
+// Solo lenguajes que CodeEngine ejecuta hoy (python/py).
+const LANGUAGES = [{ id: 'python', label: 'Python' }]
 
 export function CellsPanel() {
   const activePageId = useAppStore((s) => s.activePageId)
@@ -24,7 +22,7 @@ export function CellsPanel() {
     cell_id: string
     language: string
     source: string
-    output: string
+    output: string | null
     figure_path: string | null
     status?: 'idle' | 'running' | 'ok' | 'error'
   }>>([])

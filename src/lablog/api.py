@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import re
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -17,7 +18,7 @@ from typing import Annotated, Any, Literal, NoReturn
 from fastapi import APIRouter, FastAPI, File, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from lablog import commands, completions, pdf_engine, projections, templates
 from lablog.ast_nodes import node_to_json
@@ -41,6 +42,10 @@ from lablog.latex_symbols import FavoritesStore, list_symbols
 from lablog.projections import PageNotFoundError
 from lablog.snippets import Snippet, find_snippet, render_snippet
 from lablog.vault import VaultFile, VaultService
+
+# Límite de cuerpo LaTeX por PUT/replace (evita reventar el event log).
+_MAX_LATEX_CHARS = 5_000_000
+_SAFE_CELL_ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
 app = FastAPI(title="lablog engine")
 app.add_middleware(
@@ -157,15 +162,18 @@ class TextPayload(BaseModel):
 
 
 class ReplacePayload(BaseModel):
-    latex: str
+    latex: str = Field(max_length=_MAX_LATEX_CHARS)
+    version: int | None = None
 
 
 class UpdatePageRawRequest(BaseModel):
-    raw: str
+    raw: str = Field(max_length=_MAX_LATEX_CHARS)
+    """Versión esperada (len(events)). Si no coincide → 409."""
+    version: int | None = None
 
 
 class MathPayload(BaseModel):
-    latex: str
+    latex: str = Field(max_length=_MAX_LATEX_CHARS)
     mode: Literal["inline", "display"] = "inline"
 
 
@@ -197,9 +205,14 @@ class HistoryEntry(BaseModel):
 
 
 class CellPayload(BaseModel):
-    cell_id: str
+    cell_id: str = Field(min_length=1, max_length=64, pattern=r"^[A-Za-z0-9_-]+$")
     language: str = "python"
-    source: str
+    source: str = Field(max_length=_MAX_LATEX_CHARS)
+
+
+class UpdateCellPayload(BaseModel):
+    language: str = "python"
+    source: str = Field(max_length=_MAX_LATEX_CHARS)
 
 
 class ExecutePayload(BaseModel):
@@ -228,7 +241,8 @@ class VaultDetail(BaseModel):
     uploaded_at: datetime
     status: Literal["active", "pending_deletion"]
     scheduled_for_deletion_at: datetime | None
-    deletion_phrase: str
+    # Solo se rellena en la respuesta de request-deletion (token de un solo uso).
+    deletion_phrase: str | None = None
 
 
 class ForceDeletePayload(BaseModel):
@@ -248,6 +262,41 @@ def _events(page_id: str) -> list[Event]:
     if not events:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Página no encontrada")
     return events
+
+
+def _require_active_page(page_id: str) -> list[Event]:
+    """Exige página existente y no soft-deleted antes de escribir."""
+    events = _events(page_id)
+    try:
+        projections.assert_active(store, page_id)
+    except PageNotFoundError:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "Página eliminada o no disponible",
+        ) from None
+    return events
+
+
+def _check_version(page_id: str, expected: int | None) -> None:
+    if expected is None:
+        return
+    current = len(store.get_events(page_id))
+    if expected != current:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "VERSION_CONFLICT",
+                "message": "La página cambió en otro cliente; recarga e inténtalo de nuevo",
+                "expected": expected,
+                "current": current,
+            },
+        )
+
+
+def _safe_download_filename(title: str, ext: str) -> str:
+    base = re.sub(r"[^A-Za-z0-9._-]+", "_", (title or "lablog").strip())[:80]
+    base = base.strip("._") or "lablog"
+    return f"{base}.{ext.lstrip('.')}"
 
 
 def _handle_projection_not_found(page_id: str) -> NoReturn:
@@ -273,7 +322,7 @@ def list_pages() -> list[PageSummary]:
 def update_page(page_id: str, req: UpdatePageRequest) -> PageSummary:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.update_page_metadata(
         store,
         page_id=page_id,
@@ -290,7 +339,8 @@ def update_page(page_id: str, req: UpdatePageRequest) -> PageSummary:
 def update_page_raw(page_id: str, req: UpdatePageRawRequest) -> PageDetail:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
+    _check_version(page_id, req.version)
     commands.replace_document(store, page_id=page_id, latex=req.raw)
     try:
         return PageDetail(**projections.page_detail(store, page_id))
@@ -302,7 +352,7 @@ def update_page_raw(page_id: str, req: UpdatePageRawRequest) -> PageDetail:
 def delete_page(page_id: str) -> None:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.delete_page(store, page_id=page_id)
 
 
@@ -327,7 +377,7 @@ def get_latex(page_id: str) -> dict[str, str]:
 def append_text(page_id: str, payload: TextPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.insert_text(store, page_id=page_id, position=payload.position, text=payload.text)
     return {"status": "ok"}
 
@@ -336,20 +386,26 @@ def append_text(page_id: str, payload: TextPayload) -> dict[str, str]:
 def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
+    _check_version(page_id, payload.version)
     commands.replace_document(store, page_id=page_id, latex=payload.latex)
     try:
         detail = projections.page_detail(store, page_id)
     except PageNotFoundError:
         _handle_projection_not_found(page_id)
-    return {"status": "ok", "latex": detail["latex"], "ast": detail["ast"]}
+    return {
+        "status": "ok",
+        "latex": detail["latex"],
+        "ast": detail["ast"],
+        "version": detail["version"],
+    }
 
 
 @router.post("/pages/{page_id}/math", status_code=status.HTTP_201_CREATED)
 def insert_math(page_id: str, payload: MathPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.insert_math(
         store,
         page_id=page_id,
@@ -363,7 +419,7 @@ def insert_math(page_id: str, payload: MathPayload) -> dict[str, str]:
 def voice_text(page_id: str, payload: VoicePayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     intent = commands.voice_insert(store, page_id=page_id, text=payload.text)
     return {"status": "ok", "intent": intent}
 
@@ -394,7 +450,7 @@ def page_at(page_id: str, event_index: int) -> PageDetail:
 def restore_version(page_id: str, event_index: int) -> PageDetail:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     try:
         commands.restore_version(store, page_id=page_id, event_index=event_index)
     except PageDeletedError:
@@ -409,7 +465,7 @@ def restore_version(page_id: str, event_index: int) -> PageDetail:
 def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.insert_cell(
         store,
         page_id=page_id,
@@ -421,10 +477,10 @@ def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/update", status_code=status.HTTP_200_OK)
-def update_cell(page_id: str, cell_id: str, payload: CellPayload) -> dict[str, str]:
+def update_cell(page_id: str, cell_id: str, payload: UpdateCellPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.update_cell(
         store,
         page_id=page_id,
@@ -439,7 +495,7 @@ def update_cell(page_id: str, cell_id: str, payload: CellPayload) -> dict[str, s
 async def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     figure_dir = settings.figures_dir / page_id
     try:
         engine = get_engine()
@@ -481,7 +537,7 @@ async def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
 def delete_cell(page_id: str, cell_id: str) -> None:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.delete_cell(store, page_id=page_id, cell_id=cell_id)
 
 
@@ -489,7 +545,7 @@ def delete_cell(page_id: str, cell_id: str) -> None:
 def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    _events(page_id)
+    _require_active_page(page_id)
     commands.move_cell(store, page_id=page_id, cell_id=cell_id, new_index=payload.new_index)
     return {"status": "ok"}
 
@@ -610,7 +666,8 @@ async def upload_vault_file(file: Annotated[UploadFile, File(...)]) -> VaultSumm
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Archivo demasiado grande")
     temp_path = settings.vault_dir / "tmp_upload"
     temp_path.mkdir(parents=True, exist_ok=True)
-    dest = temp_path / safe_name
+    # Nombre único: evita colisión entre uploads concurrentes del mismo filename.
+    dest = temp_path / f"{uuid.uuid4().hex}_{safe_name}"
     dest.write_bytes(content)
     try:
         vf = vault.add_file(dest)
@@ -639,6 +696,7 @@ def get_vault_file(file_id: str) -> VaultDetail:
     vf = vault.get_file(file_id)
     if vf is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Archivo no encontrado")
+    # Nunca devolver la frase de borrado en GET (no es secreto si se lista).
     return VaultDetail(
         id=vf.id,
         name=vf.name,
@@ -647,7 +705,7 @@ def get_vault_file(file_id: str) -> VaultDetail:
         uploaded_at=vf.uploaded_at,
         status=vf.status,
         scheduled_for_deletion_at=vf.scheduled_for_deletion_at,
-        deletion_phrase=vf.deletion_phrase,
+        deletion_phrase=None,
     )
 
 
@@ -676,11 +734,17 @@ def download_vault_file(file_id: str) -> Response:
 
 @router.post("/vault/{file_id}/delete-request", response_model=dict[str, Any])
 def request_vault_deletion(file_id: str) -> dict[str, Any]:
-    scheduled = vault.request_deletion(file_id)
-    if scheduled is None:
+    result = vault.request_deletion(file_id)
+    if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Archivo no encontrado")
+    scheduled, phrase = result
     store.append(vault_deletion_scheduled(file_id=file_id, scheduled_at=scheduled))
-    return {"status": "pending_deletion", "scheduled_for_deletion_at": scheduled}
+    # La frase solo se devuelve aquí (confirmación de un solo uso en la UI).
+    return {
+        "status": "pending_deletion",
+        "scheduled_for_deletion_at": scheduled,
+        "deletion_phrase": phrase,
+    }
 
 
 @router.post("/vault/{file_id}/cancel-delete")
@@ -766,11 +830,11 @@ def _pandoc_export(latex: str, title: str, suffix: str, media_type: str) -> Resp
 
     data = out_path.read_bytes()
     out_path.unlink(missing_ok=True)
-    filename = f"{title.replace(' ', '_')}.{suffix}"
+    filename = _safe_download_filename(title, suffix)
     return Response(
         content=data,
         media_type=media_type,
-        headers={"Content-Disposition": f"attachment; filename={filename}"},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 
@@ -879,11 +943,11 @@ async def export_page_pdf(page_id: str) -> Response:
             includes=includes,
         )
     if result.status == "ok" and result.pdf is not None:
-        filename = f"{title.replace(' ', '_')}.pdf"
+        filename = _safe_download_filename(title, "pdf")
         return Response(
             content=result.pdf,
             media_type="application/pdf",
-            headers={"Content-Disposition": f"inline; filename={filename}"},
+            headers={"Content-Disposition": f'inline; filename="{filename}"'},
         )
     if result.status == "no_engine":
         raise HTTPException(
@@ -909,17 +973,19 @@ def export_page(page_id: str, format: str) -> Response:
 
     if format == "tex":
         content = _latex_document(latex, title)
+        filename = _safe_download_filename(title, "tex")
         return Response(
             content=content.encode("utf-8"),
             media_type="application/x-tex",
-            headers={"Content-Disposition": f"attachment; filename={title.replace(' ', '_')}.tex"},
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     if format == "txt":
         content = _latex_to_plain(latex, title)
+        filename = _safe_download_filename(title, "txt")
         return Response(
             content=content.encode("utf-8"),
             media_type="text/plain",
-            headers={"Content-Disposition": f"attachment; filename={title.replace(' ', '_')}.txt"},
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
     if format == "docx":
         return _pandoc_export(
@@ -930,11 +996,11 @@ def export_page(page_id: str, format: str) -> Response:
         )
     if format == "canva":
         content = _canva_html(latex, title)
-        filename = f"{title.replace(' ', '_')}_canva.html"
+        filename = _safe_download_filename(f"{title}_canva", "html")
         return Response(
             content=content.encode("utf-8"),
             media_type="text/html",
-            headers={"Content-Disposition": f"attachment; filename={filename}"},
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 
     raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Formato no soportado: {format}")

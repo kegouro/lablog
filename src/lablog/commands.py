@@ -201,10 +201,23 @@ def restore_version(store: EventStore, page_id: str, event_index: int) -> None:
     idx = max(0, min(event_index, len(events) - 1))
     past = project(page_id, events[: idx + 1])
     store.append(document_replaced(page_id=page_id, latex=serialize_ast(past.ast)))
-    # serialize_ast no persiste output/figura: re-emitir ejecución de cada celda
-    # para que los resultados sobrevivan el round-trip (append-only).
+    # serialize_ast no persiste output/figura/status: re-emitir por celda.
     for child in past.ast.children:
-        if isinstance(child, CellNode) and (child.output or child.figure_path):
+        if not isinstance(child, CellNode):
+            continue
+        if not (child.output or child.figure_path or child.status == "error"):
+            continue
+        if child.status == "error":
+            store.append(
+                execution_failed(
+                    page_id=page_id,
+                    cell_id=child.cell_id,
+                    ename="RestoredError",
+                    evalue=child.output or "error",
+                    traceback=(child.output or "").splitlines(),
+                )
+            )
+        else:
             store.append(
                 cell_executed(
                     page_id=page_id,

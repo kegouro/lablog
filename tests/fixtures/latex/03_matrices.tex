@@ -1,0 +1,66 @@
+% Lablog fixture: matrices y sistemas (KaTeX amsmath)
+
+\section*{Matrices elementales}
+\[
+A = \begin{pmatrix}
+a & b \\
+c & d
+\end{pmatrix},
+\quad
+B = \begin{bmatrix}
+1 & 0 & 0 \\
+0 & 1 & 0 \\
+0 & 0 & 1
+\end{bmatrix},
+\quad
+C = \begin{vmatrix}
+\lambda & 1 \\
+0 & \lambda
+\end{vmatrix}
+\]
+
+\section*{Sistemas y casos}
+\[
+\begin{cases}
+m\ddot{x} = -kx - b\dot{x} + F(t) \\
+x(0) = x_0,\ \dot{x}(0) = v_0
+\end{cases}
+\]
+
+\begin{align}
+\nabla \cdot \mathbf{E} &= \frac{\rho}{\varepsilon_0} \\
+\nabla \cdot \mathbf{B} &= 0 \\
+\nabla \times \mathbf{E} &= -\frac{\partial\mathbf{B}}{\partial t} \\
+\nabla \times \mathbf{B} &= \mu_0\mathbf{J} + \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t}
+\end{align}
+
+\section*{Determinante y autovalores}
+\[
+\det(A - \lambda I)
+= \begin{vmatrix}
+a-\lambda & b \\
+c & d-\lambda
+\end{vmatrix}
+= (a-\lambda)(d-\lambda) - bc = 0
+\]
+
+\section*{Producto tensorial / Kronecker}
+\[
+\sigma_x \otimes \sigma_z
+= \begin{pmatrix}
+0 & 1 \\
+1 & 0
+\end{pmatrix}
+\otimes
+\begin{pmatrix}
+1 & 0 \\
+0 & -1
+\end{pmatrix}
+=
+\begin{pmatrix}
+0 & 0 & 1 & 0 \\
+0 & 0 & 0 & -1 \\
+1 & 0 & 0 & 0 \\
+0 & -1 & 0 & 0
+\end{pmatrix}
+\]

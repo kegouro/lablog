@@ -20,14 +20,25 @@ from lablog.ast_nodes import CellNode, DocumentNode, MathNode, Node, TextNode
 from lablog.config import settings
 from lablog.latex_ast import serialize_ast
 
+# Preámbulo científico: tablas, siunitx, física, TikZ/Feynman.
+# Tectonic descarga paquetes CTAN bajo demanda.
 _PREAMBLE = (
     "\\documentclass{article}\n"
-    "\\usepackage{geometry}\n"
+    "\\usepackage[margin=2.5cm]{geometry}\n"
     "\\usepackage{fontspec}\n"
-    "\\usepackage{amsmath,amssymb}\n"
+    "\\usepackage{amsmath,amssymb,amsfonts,mathtools}\n"
+    "\\usepackage{bm}\n"
     "\\usepackage{graphicx}\n"
-    "\\usepackage{fvextra}\n"  # Verbatim con breaklines/breakanywhere (extiende fancyvrb)
-    "\\usepackage{hyperref}\n"  # debe ir último
+    "\\usepackage{booktabs,array,multirow,tabularx}\n"
+    "\\usepackage{siunitx}\n"
+    "\\usepackage{physics}\n"  # \dv \pdv \ket \bra \abs ...
+    "\\usepackage{braket}\n"
+    "\\usepackage{tikz}\n"
+    "\\usetikzlibrary{positioning,arrows.meta,decorations.pathmorphing,"
+    "decorations.markings,calc,shapes.geometric}\n"
+    # tikz-feynman (Lua) no siempre en XeTeX; dibujos Feynman manuales con tikz bastan.
+    "\\usepackage{fvextra}\n"
+    "\\usepackage[hidelinks]{hyperref}\n"
     "\\begin{document}\n"
 )
 

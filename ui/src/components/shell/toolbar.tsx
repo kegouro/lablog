@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useSpeechRecognition } from '@/hooks/use-speech'
-import { replacePageLatex } from '@/lib/api'
+import { getPage, sendVoice } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
 import { ExportMenu } from './export-menu'
@@ -50,17 +50,16 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
       return
     }
     processingRef.current = true
-    const normalized = text.endsWith('.') || text.endsWith(' ') ? text : `${text}. `
 
     ;(async () => {
       try {
         if (flushSave) await flushSave()
-        const currentLatex = useAppStore.getState().activeLatex
-        const next = currentLatex ? `${currentLatex}\n${normalized}` : normalized
-        setActiveLatex(next)
-        const result = await replacePageLatex(activePageId, next)
-        setActiveAst(result.ast)
-        setActiveVersion(result.version)
+        // Pipeline de voz del backend (intents → math/texto).
+        await sendVoice(activePageId, text)
+        const page = await getPage(activePageId)
+        setActiveLatex(page.raw || page.latex)
+        setActiveAst(page.ast)
+        setActiveVersion(page.version)
       } catch {
         toast.error('No se pudo guardar el dictado')
       } finally {
@@ -125,7 +124,17 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
         <Button
           variant={labMode ? 'secondary' : 'ghost'}
           size="sm"
-          onClick={() => setLabMode(!labMode)}
+          onClick={async () => {
+            // Persiste el buffer del editor antes de desmontarlo (modo lab).
+            if (!labMode && flushSave) {
+              try {
+                await flushSave()
+              } catch {
+                /* el backend puede fallar; el switch sigue */
+              }
+            }
+            setLabMode(!labMode)
+          }}
           className="gap-2 rounded-lg"
         >
           <FlaskConical className="size-4" />
