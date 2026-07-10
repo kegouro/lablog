@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - PDF preamble packages: booktabs, siunitx, physics, braket, tikz (+ Feynman-style drawings).
 - Stress fixtures `tests/fixtures/latex/` (characters, tables, matrices, Feynman, physics, full doc).
 - Docs: `docs/LATEX_PREVIEW.md`.
+- Future features design: `docs/future-features/` (Circuitikz→Jupyter sim, diagram presets, param ranges/highlights, catalog + example JSON).
 
 ## [0.2.1] - 2026-07-10
 

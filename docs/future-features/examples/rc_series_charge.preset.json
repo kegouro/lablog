@@ -1,0 +1,58 @@
+{
+  "preset_id": "rc_series_charge",
+  "version": 1,
+  "kind": "circuitikz",
+  "title": "RC serie — carga",
+  "summary": "Carga de un condensador a través de una resistencia. Ideal para medir τ = RC.",
+  "params": {
+    "R": {
+      "value": 1000,
+      "unit": "ohm",
+      "min": 1,
+      "max": 1000000,
+      "scale": "log",
+      "step": null,
+      "label": "Resistencia",
+      "description": "Limita la corriente de carga. A mayor R, mayor constante de tiempo τ = RC y carga más lenta.",
+      "highlight": {
+        "tikz": "R1",
+        "latex": "R={{R}}",
+        "line": 4,
+        "color": "amber"
+      }
+    },
+    "C": {
+      "value": 1e-6,
+      "unit": "F",
+      "min": 1e-12,
+      "max": 1e-3,
+      "scale": "log",
+      "label": "Capacitancia",
+      "description": "Almacena carga. A mayor C, mayor τ y más energía ½CV² en régimen permanente.",
+      "highlight": {
+        "tikz": "C1",
+        "latex": "C={{C}}",
+        "line": 5,
+        "color": "sky"
+      }
+    },
+    "V0": {
+      "value": 5,
+      "unit": "V",
+      "min": 0.1,
+      "max": 100,
+      "scale": "linear",
+      "label": "Tensión de la fuente",
+      "description": "Tensión continua ideal. Escala la asíntota de v_C(t→∞) = V0.",
+      "highlight": {
+        "tikz": "V1",
+        "latex": "V0={{V0}}",
+        "line": 3,
+        "color": "rose"
+      }
+    }
+  },
+  "tikz_template": "\\begin{circuitikz}\\n  \\draw (0,0) node[left]{$+$} to[V, v=$V_0$, name=V1] (0,2)\\n    to[short] (2,2)\\n    to[R, R={{R}}, l_=$R$, name=R1] (2,0)\\n    to[C, C={{C}}, l_=$C$, name=C1] (0,0);\\n  \\node[right] at (2.3,1) {$v_C$};\\n\\end{circuitikz}\\n",
+  "sim_backend": "numpy_ode",
+  "sim_template": "# lablog-sim: preset=rc_series_charge version=1\\n# LABLOG_PARAMS_START\\nR = {{R}}  # ohm  range [1, 1e6]\\nC = {{C}}  # F    range [1e-12, 1e-3]\\nV0 = {{V0}}  # V   range [0.1, 100]\\n# LABLOG_PARAMS_END\\n\\nimport numpy as np\\nimport matplotlib.pyplot as plt\\n\\ntau = R * C\\nt = np.linspace(0, 5 * tau, 400)\\nv_c = V0 * (1 - np.exp(-t / tau))\\ni = (V0 / R) * np.exp(-t / tau)\\n\\nfig, ax = plt.subplots(1, 2, figsize=(8, 3))\\nax[0].plot(t * 1e3, v_c)\\nax[0].set_xlabel('t [ms]')\\nax[0].set_ylabel('v_C [V]')\\nax[0].set_title(f'Carga RC · τ={tau*1e3:.2f} ms')\\nax[0].grid(True, alpha=0.3)\\nax[1].plot(t * 1e3, i * 1e3)\\nax[1].set_xlabel('t [ms]')\\nax[1].set_ylabel('i [mA]')\\nax[1].set_title('Corriente')\\nax[1].grid(True, alpha=0.3)\\nfig.tight_layout()\\nplt.show()\\nprint(f'τ = RC = {tau:.4e} s')\\n"
+}
