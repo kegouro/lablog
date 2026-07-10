@@ -13,6 +13,16 @@ interface UsePageUpdateResult {
 
 const DEBOUNCE_MS = 300
 
+function conflictCurrent(err: unknown): number | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null
+  const d = err.detail
+  if (d && typeof d === 'object' && d !== null && 'current' in d) {
+    const cur = (d as { current?: unknown }).current
+    if (typeof cur === 'number' && Number.isFinite(cur)) return cur
+  }
+  return null
+}
+
 export function usePageUpdate(
   pageId: string | null,
   onUpdate?: (page: Page) => void,
@@ -38,8 +48,15 @@ export function usePageUpdate(
       if (raw != null && previousPageId) {
         const version = getVersion?.()
         void updatePageRaw(previousPageId, raw, version).catch((err) => {
-          // Página eliminada / 409: no reintentar en unmount.
-          if (err instanceof ApiError && (err.status === 404 || err.status === 409)) return
+          // Página eliminada: no reintentar en unmount.
+          if (err instanceof ApiError && err.status === 404) return
+          // 409: un reintento con la versión del servidor.
+          const cur = conflictCurrent(err)
+          if (cur != null) {
+            void updatePageRaw(previousPageId, raw, cur).catch(() => {
+              /* best-effort unmount */
+            })
+          }
         })
       }
     }
@@ -48,29 +65,51 @@ export function usePageUpdate(
   const save = useCallback(
     async (raw: string): Promise<Page | undefined> => {
       if (!pageId) return
+
+      // Serializa: espera al PUT anterior para no mandar dos veces la misma versión.
+      const prev = inflightRef.current
+      if (prev) {
+        try {
+          await prev
+        } catch {
+          /* el error ya se reportó */
+        }
+      }
+
       const gen = genRef.current
       setStatus('saving')
+      // Versión fresca tras await del inflight (onUpdate pudo actualizar el store).
       const version = getVersion?.()
+
       const work = (async (): Promise<Page | undefined> => {
         try {
-          const page = await updatePageRaw(pageId, raw, version)
+          let page: Page
+          try {
+            page = await updatePageRaw(pageId, raw, version)
+          } catch (err) {
+            const cur = conflictCurrent(err)
+            if (cur == null) throw err
+            // Un reintento con la versión actual del servidor.
+            page = await updatePageRaw(pageId, raw, cur)
+          }
+          // Siempre refresca versión/AST aunque haya otro draft pendiente.
+          onUpdate?.(page)
           if (gen !== genRef.current || pendingRef.current !== null) {
+            setStatus('saving')
             return page
           }
           setStatus('saved')
-          onUpdate?.(page)
           return page
         } catch (err) {
           if (gen === genRef.current) {
             setStatus('error')
-            // Re-encola el draft si el servidor falló (salvo conflicto de versión).
-            if (!(err instanceof ApiError && err.status === 409)) {
-              pendingRef.current = raw
-            }
+            // Conserva el draft (incl. 409 sin reintento viable) para no perder texto.
+            pendingRef.current = raw
           }
           throw err
         }
       })()
+
       inflightRef.current = work
       try {
         return await work
@@ -119,13 +158,18 @@ export function usePageUpdate(
       clearTimeout(timerRef.current)
       timerRef.current = null
     }
+    // Espera inflight antes de decidir si hay draft pendiente.
+    if (inflightRef.current) {
+      try {
+        await inflightRef.current
+      } catch {
+        /* continue with pending draft */
+      }
+    }
     const raw = pendingRef.current
     pendingRef.current = null
     if (raw != null) {
       return save(raw)
-    }
-    if (inflightRef.current) {
-      return inflightRef.current
     }
   }, [save])
 

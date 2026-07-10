@@ -117,6 +117,11 @@ export function LabCanvas() {
           })),
         )
       })
+      .catch((err) => {
+        if (cancelled) return
+        console.error(err)
+        setCells([])
+      })
       .finally(() => {
         if (!cancelled) setLoading(false)
       })
@@ -162,9 +167,9 @@ export function LabCanvas() {
     if (!activePageId) return
     const cell = cells.find((c) => c.cell_id === cellId)
     if (!cell) return
-    await saveCell(cellId, cell.language, cell.source)
     setCells((prev) => prev.map((c) => (c.cell_id === cellId ? { ...c, status: 'running' } : c)))
     try {
+      await saveCell(cellId, cell.language, cell.source)
       const result = await executeCell(activePageId, cellId)
       setCells((prev) =>
         prev.map((c) =>
@@ -193,8 +198,12 @@ export function LabCanvas() {
 
   const removeCell = async (cellId: string) => {
     if (!activePageId) return
-    await deleteCell(activePageId, cellId)
-    setCells((prev) => prev.filter((c) => c.cell_id !== cellId))
+    try {
+      await deleteCell(activePageId, cellId)
+      setCells((prev) => prev.filter((c) => c.cell_id !== cellId))
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   const moveCell = async (index: number, direction: -1 | 1) => {
@@ -202,13 +211,17 @@ export function LabCanvas() {
     const newIndex = index + direction
     if (newIndex < 0 || newIndex >= cells.length) return
     const cellId = cells[index].cell_id
-    await moveCellApi(activePageId, cellId, newIndex)
-    setCells((prev) => {
-      const next = [...prev]
-      const [moved] = next.splice(index, 1)
-      next.splice(newIndex, 0, moved)
-      return next
-    })
+    try {
+      await moveCellApi(activePageId, cellId, newIndex)
+      setCells((prev) => {
+        const next = [...prev]
+        const [moved] = next.splice(index, 1)
+        next.splice(newIndex, 0, moved)
+        return next
+      })
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   const toggleCollapse = (cellId: string) => {

@@ -30,7 +30,7 @@ from lablog.commands import (
     UnsupportedLanguageError,
 )
 from lablog.config import settings, ui_dist_dir
-from lablog.event_store import EventStore
+from lablog.event_store import EventStore, VersionConflictError
 from lablog.events import (
     Event,
     vault_deletion_scheduled,
@@ -431,8 +431,23 @@ def update_page_raw(page_id: str, req: UpdatePageRawRequest) -> PageDetail:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
-    _check_version(page_id, req.version)
-    commands.replace_document(store, page_id=page_id, latex=req.raw)
+    try:
+        commands.replace_document(
+            store,
+            page_id=page_id,
+            latex=req.raw,
+            expected_version=req.version,
+        )
+    except VersionConflictError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "VERSION_CONFLICT",
+                "message": "La página cambió en otro cliente; recarga e inténtalo de nuevo",
+                "expected": exc.expected,
+                "current": exc.current,
+            },
+        ) from exc
     try:
         return PageDetail(**projections.page_detail(store, page_id))
     except PageNotFoundError:
@@ -478,8 +493,23 @@ def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
-    _check_version(page_id, payload.version)
-    commands.replace_document(store, page_id=page_id, latex=payload.latex)
+    try:
+        commands.replace_document(
+            store,
+            page_id=page_id,
+            latex=payload.latex,
+            expected_version=payload.version,
+        )
+    except VersionConflictError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "VERSION_CONFLICT",
+                "message": "La página cambió en otro cliente; recarga e inténtalo de nuevo",
+                "expected": exc.expected,
+                "current": exc.current,
+            },
+        ) from exc
     try:
         detail = projections.page_detail(store, page_id)
     except PageNotFoundError:

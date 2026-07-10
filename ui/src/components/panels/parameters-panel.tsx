@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import {
   applyDiagramParams,
   diagramSimulateSource,
+  getPage,
   insertCell,
   replacePageLatex,
   type DiagramExpandResult,
@@ -244,9 +245,13 @@ export function ParametersPanel() {
         activeDiagramPresetId ?? undefined,
         { highlightParam: highlight ?? activeHighlightParam },
       )
-      setActiveLatex(applied.document_latex)
-      const version = useAppStore.getState().activeVersion || undefined
-      const page = await replacePageLatex(activePageId, applied.document_latex, version)
+      const version = useAppStore.getState().activeVersion
+      const page = await replacePageLatex(
+        activePageId,
+        applied.document_latex,
+        typeof version === 'number' ? version : undefined,
+      )
+      setActiveLatex(page.latex)
       setActiveAst(page.ast)
       setActiveVersion(page.version)
       setActiveDiagramPresetId(applied.preset_id)
@@ -263,6 +268,10 @@ export function ParametersPanel() {
           language: 'python',
           source: sim.source,
         })
+        const refreshed = await getPage(activePageId)
+        setActiveLatex(refreshed.raw || refreshed.latex)
+        setActiveAst(refreshed.ast)
+        setActiveVersion(refreshed.version)
         setPanel('cells', true)
         toast.success('Diagrama actualizado + nueva celda de simulación')
       } else {

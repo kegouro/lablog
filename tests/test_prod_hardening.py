@@ -52,6 +52,26 @@ def test_version_conflict_on_put() -> None:
     assert r.json()["detail"]["error_code"] == "VERSION_CONFLICT"
 
 
+def test_atomic_version_conflict_on_concurrent_replace(tmp_path: Path) -> None:
+    """OCC debe fallar atómicamente bajo el lock del EventStore."""
+    from lablog.commands import replace_document
+    from lablog.event_store import EventStore, VersionConflictError
+    from lablog.events import page_created
+
+    store = EventStore(tmp_path)
+    pid = "page-atomic-1"
+    store.append(page_created(page_id=pid, title="A"))
+    assert len(store.get_events(pid)) == 1
+    replace_document(store, pid, "v1", expected_version=1)
+    assert len(store.get_events(pid)) == 2
+    try:
+        replace_document(store, pid, "stale", expected_version=1)
+        raise AssertionError("expected VersionConflictError")
+    except VersionConflictError as exc:
+        assert exc.expected == 1
+        assert exc.current == 2
+
+
 def test_create_page_rejects_huge_title_and_project_id() -> None:
     huge = "x" * 10_000
     r = client.post("/api/v1/pages", json={"title": huge})
