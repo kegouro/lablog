@@ -1,6 +1,41 @@
-import type { LatexSymbol, Page, Snippet, VaultFile } from '@/types'
+import type { AstNode, LatexSymbol, Page, Snippet, VaultFile } from '@/types'
 
 const API_BASE = '/api/v1'
+
+export class ApiError extends Error {
+  readonly status: number
+  readonly errorCode: string | null
+  readonly detail: unknown
+
+  constructor(status: number, message: string, errorCode: string | null = null, detail: unknown = null) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+    this.errorCode = errorCode
+    this.detail = detail
+  }
+}
+
+function parseErrorBody(text: string): { message: string; errorCode: string | null; detail: unknown } {
+  try {
+    const json = JSON.parse(text) as { detail?: unknown }
+    const detail = json.detail
+    if (detail && typeof detail === 'object' && detail !== null && 'message' in detail) {
+      const d = detail as { message?: string; error_code?: string }
+      return {
+        message: d.message ?? text,
+        errorCode: d.error_code ?? null,
+        detail,
+      }
+    }
+    if (typeof detail === 'string') {
+      return { message: detail, errorCode: null, detail }
+    }
+  } catch {
+    // body no JSON
+  }
+  return { message: text || 'Unknown error', errorCode: null, detail: text }
+}
 
 async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${input}`, {
@@ -9,9 +44,32 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => 'Unknown error')
-    throw new Error(`${res.status}: ${text}`)
+    const parsed = parseErrorBody(text)
+    throw new ApiError(res.status, parsed.message, parsed.errorCode, parsed.detail)
   }
   return res.json() as Promise<T>
+}
+
+interface PageDetailWire {
+  page_id: string
+  title: string
+  latex: string
+  raw: string
+  ast: AstNode[]
+  version: number
+}
+
+function detailToPage(d: PageDetailWire): Page {
+  return {
+    id: d.page_id,
+    title: d.title,
+    project_id: null,
+    latex: d.latex,
+    raw: d.raw,
+    ast: d.ast,
+    version: d.version,
+    updated_at: new Date().toISOString(),
+  }
 }
 
 export async function listPages(): Promise<Page[]> {
@@ -22,6 +80,8 @@ export async function listPages(): Promise<Page[]> {
     project_id: p.project_id,
     updated_at: p.updated_at,
     latex: '',
+    raw: '',
+    version: 0,
   }))
 }
 
@@ -36,6 +96,8 @@ export async function createPage(title = 'Sin título', projectId?: string): Pro
     project_id: raw.project_id,
     updated_at: raw.updated_at,
     latex: '',
+    raw: '',
+    version: 0,
   }
 }
 
@@ -51,20 +113,16 @@ export async function deletePage(pageId: string): Promise<void> {
 }
 
 export async function getPage(pageId: string): Promise<Page> {
-  const detail = await fetchJson<{
-    page_id: string
-    title: string
-    latex: string
-    ast: Page['ast']
-  }>(`/pages/${pageId}`)
-  return {
-    id: detail.page_id,
-    title: detail.title,
-    project_id: null,
-    latex: detail.latex,
-    ast: detail.ast,
-    updated_at: new Date().toISOString(),
-  }
+  return detailToPage(await fetchJson<PageDetailWire>(`/pages/${pageId}`))
+}
+
+export async function updatePageRaw(pageId: string, raw: string): Promise<Page> {
+  return detailToPage(
+    await fetchJson<PageDetailWire>(`/pages/${pageId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ raw }),
+    }),
+  )
 }
 
 export async function getLatex(pageId: string): Promise<string> {
@@ -82,11 +140,9 @@ export async function appendText(pageId: string, text: string, position = -1): P
 export async function replacePageLatex(
   pageId: string,
   latex: string,
-): Promise<{ status: string; latex: string; ast: Page['ast'] }> {
-  return fetchJson(`/pages/${pageId}/replace`, {
-    method: 'POST',
-    body: JSON.stringify({ latex }),
-  })
+): Promise<{ status: string; latex: string; ast: Page['ast']; version: number }> {
+  const page = await updatePageRaw(pageId, latex)
+  return { status: 'ok', latex: page.latex, ast: page.ast, version: page.version }
 }
 
 export async function insertMath(pageId: string, latex: string, mode: 'inline' | 'display'): Promise<void> {
@@ -122,8 +178,19 @@ export async function updateCell(pageId: string, cellId: string, cell: { languag
   })
 }
 
-export async function executeCell(pageId: string, cellId: string): Promise<Cell & { status: string; figure_paths: string[] }> {
-  return fetchJson(`/pages/${pageId}/cells/${cellId}/execute`, { method: 'POST' })
+export async function executeCell(
+  pageId: string,
+  cellId: string,
+): Promise<Cell & { status: string; figure_paths: string[] }> {
+  const cell = await fetchJson<Cell & { status?: string }>(
+    `/pages/${pageId}/cells/${cellId}/execute`,
+    { method: 'POST' },
+  )
+  return {
+    ...cell,
+    status: cell.status ?? 'ok',
+    figure_paths: cell.figure_path ? [cell.figure_path] : [],
+  }
 }
 
 export async function deleteCell(pageId: string, cellId: string): Promise<void> {
@@ -237,8 +304,10 @@ export async function exportPage(pageId: string, format: string): Promise<Blob> 
 export interface PdfError {
   message: string
   source_line: number | null
+  editor_line?: number | null
   ref: string | null
   kind: string | null
+  severity?: string | null
 }
 
 export class PdfCompileError extends Error {
@@ -274,24 +343,6 @@ export interface HistoryEvent {
   type: string
   timestamp: string
   summary: string
-}
-
-interface PageDetailWire {
-  page_id: string
-  title: string
-  latex: string
-  ast: Page['ast']
-}
-
-function detailToPage(d: PageDetailWire): Page {
-  return {
-    id: d.page_id,
-    title: d.title,
-    project_id: null,
-    latex: d.latex,
-    ast: d.ast,
-    updated_at: new Date().toISOString(),
-  }
 }
 
 export async function getHistory(pageId: string): Promise<HistoryEvent[]> {

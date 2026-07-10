@@ -51,14 +51,17 @@ class SourceMarker:
     tex_line: int
     kind: str
     ref: str
+    editor_line: int | None = None
 
 
 @dataclass
 class CompileError:
     message: str
     source_line: int | None = None
+    editor_line: int | None = None
     ref: str | None = None
     kind: str | None = None
+    severity: str = "error"  # error | warning
 
 
 def _verbatim(body: str) -> str:
@@ -77,12 +80,81 @@ def _is_full_document(doc: DocumentNode) -> bool:
     )
 
 
-def build_document(doc: DocumentNode, title: str) -> tuple[str, list[SourceMarker], list[str]]:
+def _line_of_snippet(haystack: str, needle: str) -> int | None:
+    if not needle.strip():
+        return None
+    idx = haystack.find(needle)
+    if idx < 0:
+        # Prueba primera línea no vacía del snippet
+        first = next((ln for ln in needle.splitlines() if ln.strip()), "")
+        if not first:
+            return None
+        idx = haystack.find(first)
+        if idx < 0:
+            return None
+    return haystack.count("\n", 0, idx) + 1
+
+
+_INPUT_RE = re.compile(r"\\input\{([^}]+)\}")
+_INCLUDE_RE = re.compile(r"\\include\{([^}]+)\}")
+_MAX_INCLUDE_DEPTH = 5
+
+
+def expand_inputs(
+    latex: str,
+    *,
+    resolve: dict[str, str],
+    depth: int = 0,
+    stack: set[str] | None = None,
+) -> str:
+    """Expande ``\\input{key}`` / ``\\include{key}`` usando el mapa ``resolve``.
+
+    Keys típicas: ``page:<uuid>`` o nombre de vault sin path traversal.
+    Ciclos y profundidad excesiva se dejan como comentario de error.
+    """
+    if depth > _MAX_INCLUDE_DEPTH:
+        return "% lablog: include depth exceeded\n" + latex
+    seen = stack if stack is not None else set()
+
+    def repl(m: re.Match[str]) -> str:
+        key = m.group(1).strip()
+        if key in seen:
+            return f"% lablog: cyclic include {key}\n"
+        body = resolve.get(key)
+        if body is None:
+            # Intento sin prefijo page:
+            body = resolve.get(f"page:{key}") or resolve.get(key.removeprefix("page:"))
+        if body is None:
+            return m.group(0)  # deja el input original
+        nested = expand_inputs(
+            body, resolve=resolve, depth=depth + 1, stack=seen | {key}
+        )
+        return nested
+
+    out = _INPUT_RE.sub(repl, latex)
+    out = _INCLUDE_RE.sub(repl, out)
+    return out
+
+
+def build_document(
+    doc: DocumentNode,
+    title: str,
+    *,
+    includes: dict[str, str] | None = None,
+) -> tuple[str, list[SourceMarker], list[str]]:
+    """Construye .tex. ``includes`` resuelve \\input{page:id} al compilar."""
+    if includes:
+        raw = serialize_ast(doc)
+        expanded = expand_inputs(raw, resolve=includes)
+        from lablog.latex_ast import parse_latex
+
+        doc = parse_latex(expanded)
+
     if _is_full_document(doc):
-        # Modo raw: compilar exactamente lo escrito. Sin marcadores: la línea
-        # del .tex ES la línea del editor (mapeo 1:1). Celdas no soportadas aquí.
+        # Modo raw: la línea del .tex ES la línea del editor (mapeo 1:1).
         return serialize_ast(doc), [], []
 
+    editor_src = serialize_ast(doc)
     parts: list[str] = []
     markers: list[SourceMarker] = []
     figures: list[str] = []
@@ -99,15 +171,31 @@ def build_document(doc: DocumentNode, title: str) -> tuple[str, list[SourceMarke
     def flush() -> None:
         if not buffer:
             return
-        markers.append(SourceMarker(cur_line(), "text", "prose"))
+        snippet = serialize_ast(DocumentNode(children=list(buffer)))
+        markers.append(
+            SourceMarker(
+                tex_line=cur_line(),
+                kind="text",
+                ref="prose",
+                editor_line=_line_of_snippet(editor_src, snippet),
+            )
+        )
         parts.append("% lablog-src: kind=text ref=prose\n")
-        parts.append(serialize_ast(DocumentNode(children=list(buffer))) + "\n")
+        parts.append(snippet + "\n")
         buffer.clear()
 
     for node in doc.children:
         if isinstance(node, CellNode):
             flush()
-            markers.append(SourceMarker(cur_line(), "cell", node.cell_id))
+            markers.append(
+                SourceMarker(
+                    tex_line=cur_line(),
+                    kind="cell",
+                    ref=node.cell_id,
+                    editor_line=_line_of_snippet(editor_src, node.source)
+                    or _line_of_snippet(editor_src, "\\begin{python}"),
+                )
+            )
             parts.append(f"% lablog-src: kind=cell ref={node.cell_id}\n")
             parts.append(_verbatim(node.source))
             if node.output:
@@ -117,7 +205,7 @@ def build_document(doc: DocumentNode, title: str) -> tuple[str, list[SourceMarke
                 parts.append(
                     f"\\includegraphics[width=\\linewidth]{{{figure_basename(node.figure_path)}}}\n"
                 )
-        elif isinstance(node, (TextNode, MathNode)):
+        elif isinstance(node, TextNode | MathNode):
             buffer.append(node)
 
     flush()
@@ -125,27 +213,110 @@ def build_document(doc: DocumentNode, title: str) -> tuple[str, list[SourceMarke
     return "".join(parts), markers, figures
 
 
+_BANG_RE = re.compile(r"^!\s*(.+)$")
+_L_DOT_RE = re.compile(r"^l\.(\d+)\s*(.*)$")
+
+
+def _nearest_marker(ordered: list[SourceMarker], line: int) -> SourceMarker | None:
+    marker: SourceMarker | None = None
+    for mk in ordered:
+        if mk.tex_line <= line:
+            marker = mk
+        else:
+            break
+    return marker
+
+
 def parse_errors(log: str, markers: list[SourceMarker]) -> list[CompileError]:
+    """FSM línea-a-línea sobre el log de Tectonic/XeTeX.
+
+    No depende de una única regex: acumula mensajes multi-línea tras ``!``.
+    """
     ordered = sorted(markers, key=lambda m: m.tex_line)
     errors: list[CompileError] = []
-    for m in re.finditer(r"(?:main\.tex|\.tex)?:(\d+):\s*(.+)", log):
-        line = int(m.group(1))
-        message = m.group(2).strip()
-        marker = None
-        for mk in ordered:
-            if mk.tex_line <= line:
-                marker = mk
-            else:
-                break
+    pending_msg: str | None = None
+    pending_severity = "error"
+
+    def emit(line: int | None, message: str, severity: str = "error") -> None:
+        marker = _nearest_marker(ordered, line) if line is not None else None
+        if marker is None and not markers:
+            kind: str | None = "raw"
+            editor_line = line  # 1:1 en modo documento completo
+            ref = None
+        elif marker is None:
+            kind, editor_line, ref = None, None, None
+        else:
+            kind, editor_line, ref = marker.kind, marker.editor_line, marker.ref
+            # En modo raw no hay markers; en wrapped usamos editor_line del marcador
+            # o, si falta, no inventamos offset falso.
+        if editor_line is None and not markers:
+            editor_line = line
+        kind_out = kind if kind is not None else ("raw" if not markers else None)
         errors.append(
             CompileError(
-                message=message,
+                message=message.strip() or "Error de compilación",
                 source_line=line,
-                ref=marker.ref if marker else None,
-                kind=marker.kind if marker else ("raw" if not markers else None),
+                editor_line=editor_line,
+                ref=ref,
+                kind=kind_out,
+                severity=severity,
             )
         )
-    return errors
+
+    for raw in log.splitlines():
+        line = raw.rstrip()
+        if not line:
+            continue
+
+        if line.startswith("!"):
+            m = _BANG_RE.match(line)
+            pending_msg = m.group(1).strip() if m else line[1:].strip()
+            pending_severity = "error"
+            continue
+
+        if pending_msg is not None:
+            m = _L_DOT_RE.match(line)
+            if m:
+                extra = m.group(2).strip()
+                msg = f"{pending_msg} {extra}" if extra else pending_msg
+                emit(int(m.group(1)), msg, pending_severity)
+                pending_msg = None
+                continue
+            # Algunas líneas de contexto no llevan l.N; sigue acumulando una línea.
+            if not line.startswith(" ") and ":" in line:
+                m2 = re.search(r"(?:main\.tex|\.tex):(\d+):\s*(.+)", line)
+                if m2:
+                    combined = f"{pending_msg} {m2.group(2).strip()}"
+                    emit(int(m2.group(1)), combined, pending_severity)
+                    pending_msg = None
+                    continue
+            pending_msg = f"{pending_msg} {line.strip()}"
+            continue
+
+        m = re.search(r"(?:main\.tex|\.tex):(\d+):\s*(.+)", line)
+        if m:
+            msg = m.group(2).strip()
+            sev = "warning" if msg.lower().startswith("warning") or "Warning" in line else "error"
+            emit(int(m.group(1)), msg, sev)
+            continue
+
+        if line.lower().startswith("warning") or "LaTeX Warning" in line:
+            # Warning sin número de línea: se emite igual.
+            emit(None, line, "warning")
+
+    if pending_msg is not None:
+        emit(None, pending_msg, pending_severity)
+
+    # Dedup por (line, message)
+    seen: set[tuple[int | None, str]] = set()
+    unique: list[CompileError] = []
+    for e in errors:
+        key = (e.source_line, e.message)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(e)
+    return unique
 
 
 # Tectonic binary acquisition.
@@ -275,8 +446,13 @@ class CompileResult:
     log: str = ""
 
 
-def document_hash(doc: DocumentNode, title: str) -> str:
-    tex, _m, _f = build_document(doc, title)
+def document_hash(
+    doc: DocumentNode,
+    title: str,
+    *,
+    includes: dict[str, str] | None = None,
+) -> str:
+    tex, _m, _f = build_document(doc, title, includes=includes)
     return hashlib.sha256(tex.encode("utf-8")).hexdigest()[:32]
 
 
@@ -299,8 +475,9 @@ async def compile_page(
     *,
     figures_dir: Path,
     timeout: float = 120.0,
+    includes: dict[str, str] | None = None,
 ) -> CompileResult:
-    doc_hash = document_hash(doc, title)
+    doc_hash = document_hash(doc, title, includes=includes)
     cached = cached_pdf_path(page_id, doc_hash)
     if cached.exists():
         return CompileResult(status="ok", pdf=cached.read_bytes())
@@ -309,7 +486,7 @@ async def compile_page(
     if binary is None:
         return CompileResult(status="no_engine", log="Tectonic no disponible")
 
-    tex, markers, figures = build_document(doc, title)
+    tex, markers, figures = build_document(doc, title, includes=includes)
 
     with tempfile.TemporaryDirectory() as td:
         tdir = Path(td)

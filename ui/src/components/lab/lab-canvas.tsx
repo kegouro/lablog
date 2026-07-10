@@ -9,13 +9,20 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { deleteCell, executeCell, insertCell, listCells, moveCell as moveCellApi, updateCell } from '@/lib/api'
-import { escapeHtml } from '@/lib/latex-render'
+import {
+  ApiError,
+  deleteCell,
+  executeCell,
+  insertCell,
+  listCells,
+  moveCell as moveCellApi,
+  updateCell,
+} from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
 type LabCell = {
@@ -34,23 +41,54 @@ const LANGUAGE_OPTIONS = [
   { value: 'latex', label: 'LaTeX' },
 ]
 
-function renderInlineLatex(text: string): string {
-  const escaped = escapeHtml(text)
-  return escaped.replace(/\$([^$]+)\$/g, (_, latex) => {
-    try {
-      return katex.renderToString(latex.trim(), { throwOnError: false })
-    } catch {
-      return `$${latex}$`
-    }
-  })
-}
-
+/** Preview markdown/texto sin HTML crudo: KaTeX en nodos React. */
 function MarkdownPreview({ source }: { source: string }) {
-  const html = renderInlineLatex(source)
-    .split('\n')
-    .map((line) => (line.trim() ? `<p class="mb-2 leading-relaxed">${line}</p>` : ''))
-    .join('')
-  return <div className="prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: html }} />
+  const lines = source.split('\n')
+  return (
+    <div className="prose prose-sm dark:prose-invert max-w-none">
+      {lines.map((line, li) => {
+        if (!line.trim()) return <div key={li} className="h-2" />
+        const parts: ReactNode[] = []
+        const re = /\$([^$]+)\$/g
+        let last = 0
+        let m: RegExpExecArray | null
+        let pi = 0
+        while ((m = re.exec(line)) !== null) {
+          if (m.index > last) {
+            parts.push(<Fragment key={`${li}-t-${pi++}`}>{line.slice(last, m.index)}</Fragment>)
+          }
+          const latex = m[1].trim()
+          let html = ''
+          try {
+            html = katex.renderToString(latex, { throwOnError: false })
+          } catch {
+            html = ''
+          }
+          if (html) {
+            parts.push(
+              <span
+                key={`${li}-m-${pi++}`}
+                className="katex-inline"
+                // KaTeX genera HTML confiable (no input de usuario crudo).
+                dangerouslySetInnerHTML={{ __html: html }}
+              />,
+            )
+          } else {
+            parts.push(<Fragment key={`${li}-m-${pi++}`}>${latex}$</Fragment>)
+          }
+          last = m.index + m[0].length
+        }
+        if (last < line.length) {
+          parts.push(<Fragment key={`${li}-t-${pi++}`}>{line.slice(last)}</Fragment>)
+        }
+        return (
+          <p key={li} className="mb-2 leading-relaxed">
+            {parts}
+          </p>
+        )
+      })}
+    </div>
+  )
 }
 
 export function LabCanvas() {
@@ -125,7 +163,10 @@ export function LabCanvas() {
         ),
       )
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al ejecutar la celda'
+      let message = err instanceof Error ? err.message : 'Error al ejecutar la celda'
+      if (err instanceof ApiError && err.errorCode === 'KERNEL_DEAD') {
+        message = `Motor de cálculo no disponible. Reinicia el kernel.\n${err.message}`
+      }
       setCells((prev) =>
         prev.map((c) =>
           c.cell_id === cellId ? { ...c, status: 'error', output: message } : c,

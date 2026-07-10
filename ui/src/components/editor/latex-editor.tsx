@@ -4,10 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { getPage, replacePageLatex } from '@/lib/api'
-import { parseLatex } from '@/lib/latex-parser'
-import { escapeHtml } from '@/lib/latex-render'
+import { usePageUpdate } from '@/hooks/use-page-update'
+import { getPage } from '@/lib/api'
+import {
+  completionPrefix,
+  fetchSuggestions,
+  type CompletionItem,
+} from '@/lib/latex-completions'
 import { useAppStore } from '@/stores/app-store'
+import type { Page } from '@/types'
 
 function countLines(text: string) {
   return text.split('\n').length
@@ -19,7 +24,7 @@ const PARAM_COLORS = [
   'bg-emerald-400/30 text-emerald-900 dark:text-emerald-100 border-emerald-400/40',
   'bg-amber-400/30 text-amber-900 dark:text-amber-100 border-amber-400/40',
   'bg-violet-400/30 text-violet-900 dark:text-violet-100 border-violet-400/40',
-  'bg-pink-400/30 text-pink-900 dark:text-pink-100 border-pink-400/40',
+  'bg-pink-400/30 text-pink-900 dark:text-rose-100 border-pink-400/40',
 ]
 
 function colorForName(name: string) {
@@ -28,14 +33,37 @@ function colorForName(name: string) {
   return PARAM_COLORS[hash % PARAM_COLORS.length]
 }
 
-function buildOverlayHtml(text: string, hints: Record<string, { description: string }>) {
-  const escaped = escapeHtml(text)
-  return escaped.replace(/\{\{(\w+)\}\}/g, (_, name) => {
+/** Overlay de parámetros como nodos React (sin HTML de usuario). */
+function buildOverlayNodes(text: string, hints: Record<string, { description: string }>) {
+  const parts: React.ReactNode[] = []
+  const re = /\{\{(\w+)\}\}/g
+  let last = 0
+  let m: RegExpExecArray | null
+  let i = 0
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) {
+      parts.push(<span key={`t-${i++}`}>{text.slice(last, m.index)}</span>)
+    }
+    const name = m[1]
     const hint = hints[name]
     const colorClass = colorForName(name)
     const title = hint?.description ?? `Parámetro ${name}`
-    return `<span class="inline rounded border px-1 py-0.5 text-xs font-medium ${colorClass}" title="${escapeHtml(title)}" data-param="${name}">{{${name}}}</span>`
-  })
+    parts.push(
+      <span
+        key={`p-${i++}`}
+        className={`inline rounded border px-1 py-0.5 text-xs font-medium ${colorClass}`}
+        title={title}
+        data-param={name}
+      >
+        {`{{${name}}}`}
+      </span>,
+    )
+    last = m.index + m[0].length
+  }
+  if (last < text.length) {
+    parts.push(<span key={`t-${i++}`}>{text.slice(last)}</span>)
+  }
+  return parts
 }
 
 const CLOSERS: Record<string, string> = { '{': '}', '(': ')', '[': ']', '$': '$' }
@@ -49,7 +77,19 @@ export function LatexEditor() {
   const setInsertAtCursor = useAppStore((s) => s.setInsertAtCursor)
   const setFlushSave = useAppStore((s) => s.setFlushSave)
   const setGoToLine = useAppStore((s) => s.setGoToLine)
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
+
+  const onUpdate = useCallback(
+    (page: Page) => {
+      setActiveAst(page.ast)
+      setActiveVersion(page.version)
+    },
+    [setActiveAst, setActiveVersion],
+  )
+
+  const { status, updateRaw, flush } = usePageUpdate(activePageId, onUpdate)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const gutterRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -65,23 +105,25 @@ export function LatexEditor() {
   const [findQuery, setFindQuery] = useState('')
   const [replaceText, setReplaceText] = useState('')
   const findInputRef = useRef<HTMLInputElement>(null)
+  const [completions, setCompletions] = useState<CompletionItem[]>([])
+  const [completionIndex, setCompletionIndex] = useState(0)
+  const [completionOpen, setCompletionOpen] = useState(false)
+  const completionTokenRef = useRef(0)
 
-  const resetHistory = (value: string) => {
+  const resetHistory = useCallback((value: string) => {
     valueRef.current = value
     undoRef.current = []
     redoRef.current = []
     lastPushRef.current = 0
-  }
+  }, [])
 
   useEffect(() => {
     if (!activePageId) {
       setActiveLatex('')
       setActiveAst(undefined)
-      setStatus('idle')
       resetHistory('')
       return
     }
-    setStatus('idle')
     getPage(activePageId)
       .then((page) => {
         setActiveLatex(page.latex)
@@ -93,59 +135,39 @@ export function LatexEditor() {
         setActiveAst(undefined)
         resetHistory('')
       })
-  }, [activePageId, setActiveLatex, setActiveAst])
+  }, [activePageId, setActiveLatex, setActiveAst, resetHistory])
 
-  const save = useCallback(
-    async (latex: string) => {
-      if (!activePageId) return
-      setStatus('saving')
-      try {
-        const result = await replacePageLatex(activePageId, latex)
-        setActiveAst(result.ast)
-        setStatus('saved')
-      } catch {
-        setStatus('error')
-      }
-    },
-    [activePageId, setActiveAst],
-  )
-
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const scheduleSave = useCallback(
-    (latex: string) => {
-      if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = setTimeout(() => {
-        saveTimerRef.current = null
-        void save(latex)
-      }, 600)
-    },
-    [save],
-  )
-
-  const flushSave = useCallback(async () => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current)
-      saveTimerRef.current = null
-      await save(valueRef.current)
-    }
-  }, [save])
+  const wrappedFlush = useCallback(async () => {
+    await flush()
+  }, [flush])
 
   useEffect(() => {
-    setFlushSave(flushSave)
+    setFlushSave(wrappedFlush)
     return () => setFlushSave(null)
-  }, [flushSave, setFlushSave])
+  }, [wrappedFlush, setFlushSave])
 
-  const goToLine = useCallback((line: number) => {
-    const ta = textareaRef.current
-    if (!ta) return
-    const lines = ta.value.split('\n')
-    const clamped = Math.max(1, Math.min(line, lines.length))
-    const start = lines.slice(0, clamped - 1).reduce((n, l) => n + l.length + 1, 0)
-    ta.focus()
-    ta.setSelectionRange(start, start + (lines[clamped - 1]?.length ?? 0))
-    ta.scrollTop = Math.max(0, (clamped - 3) * 24) // leading-6 = 24px por línea
-  }, [])
+  const setHighlightLine = useAppStore((s) => s.setHighlightLine)
+  const highlightLine = useAppStore((s) => s.highlightLine)
+
+  const goToLine = useCallback(
+    (line: number) => {
+      const ta = textareaRef.current
+      if (!ta) return
+      const lines = ta.value.split('\n')
+      const clamped = Math.max(1, Math.min(line, lines.length))
+      const start = lines.slice(0, clamped - 1).reduce((n, l) => n + l.length + 1, 0)
+      ta.focus()
+      ta.setSelectionRange(start, start + (lines[clamped - 1]?.length ?? 0))
+      ta.scrollTop = Math.max(0, (clamped - 3) * 24) // leading-6 = 24px por línea
+      setHighlightLine(clamped)
+      window.setTimeout(() => {
+        if (useAppStore.getState().highlightLine === clamped) {
+          setHighlightLine(null)
+        }
+      }, 2500)
+    },
+    [setHighlightLine],
+  )
 
   useEffect(() => {
     setGoToLine(goToLine)
@@ -156,9 +178,7 @@ export function LatexEditor() {
     (value: string, caret?: number) => {
       valueRef.current = value
       setActiveLatex(value)
-      setActiveAst(parseLatex(value))
-      setStatus('saving')
-      scheduleSave(value)
+      updateRaw(value)
       if (caret != null) {
         requestAnimationFrame(() => {
           const ta = textareaRef.current
@@ -169,7 +189,7 @@ export function LatexEditor() {
         })
       }
     },
-    [setActiveLatex, setActiveAst, scheduleSave],
+    [setActiveLatex, updateRaw],
   )
 
   const commit = useCallback(
@@ -203,7 +223,43 @@ export function LatexEditor() {
     applyValue(next)
   }, [applyValue])
 
-  const handleChange = (value: string) => commit(value)
+  const applyCompletion = useCallback(
+    (item: CompletionItem) => {
+      const ta = textareaRef.current
+      if (!ta) return
+      const caret = ta.selectionStart
+      const value = ta.value
+      const before = value.slice(0, caret)
+      const m = before.match(/\\[A-Za-z]*$/)
+      if (!m) return
+      const start = caret - m[0].length
+      const next = value.slice(0, start) + item.insert + value.slice(caret)
+      const newCaret = start + item.insert.length
+      commit(next, newCaret)
+      setCompletionOpen(false)
+      setCompletions([])
+    },
+    [commit],
+  )
+
+  const handleChange = (value: string) => {
+    commit(value)
+    const ta = textareaRef.current
+    if (!ta) return
+    const caret = ta.selectionStart
+    const prefix = completionPrefix(value, caret)
+    if (prefix === null) {
+      setCompletionOpen(false)
+      return
+    }
+    const token = ++completionTokenRef.current
+    void fetchSuggestions(prefix).then((items) => {
+      if (token !== completionTokenRef.current) return
+      setCompletions(items)
+      setCompletionIndex(0)
+      setCompletionOpen(items.length > 0)
+    })
+  }
 
   const findNext = useCallback(
     (forward = true) => {
@@ -294,6 +350,29 @@ export function LatexEditor() {
     const ta = e.currentTarget
     const mod = e.metaKey || e.ctrlKey
 
+    if (completionOpen && completions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setCompletionIndex((i) => (i + 1) % completions.length)
+        return
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setCompletionIndex((i) => (i - 1 + completions.length) % completions.length)
+        return
+      }
+      if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault()
+        applyCompletion(completions[completionIndex] ?? completions[0])
+        return
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setCompletionOpen(false)
+        return
+      }
+    }
+
     if (mod && e.key.toLowerCase() === 'z') {
       e.preventDefault()
       if (e.shiftKey) redo()
@@ -356,8 +435,8 @@ export function LatexEditor() {
     [activeLatex],
   )
 
-  const overlayHtml = useMemo(
-    () => buildOverlayHtml(activeLatex, parameterHints),
+  const overlayNodes = useMemo(
+    () => buildOverlayNodes(activeLatex, parameterHints),
     [activeLatex, parameterHints],
   )
 
@@ -379,130 +458,160 @@ export function LatexEditor() {
 
   return (
     <div className="flex h-full flex-col gap-2">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-            Editor LaTeX
+      <div className="flex items-center justify-between px-1">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+          Editor LaTeX
+        </span>
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] text-muted-foreground">
+            {countLines(activeLatex)} líneas · {activeLatex.length} caracteres
           </span>
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] text-muted-foreground">
-              {countLines(activeLatex)} líneas · {activeLatex.length} caracteres
-            </span>
-            <span
-              className={`text-[10px] font-medium uppercase tracking-wider transition-colors ${
-                status === 'error'
-                  ? 'text-destructive'
-                  : status === 'saved'
-                    ? 'text-emerald-500'
-                    : status === 'saving'
-                      ? 'text-muted-foreground'
-                      : 'text-transparent'
-              }`}
-            >
-              {status === 'error' ? 'Error al guardar' : status === 'saved' ? 'Guardado' : status === 'saving' ? 'Guardando…' : '·'}
-            </span>
-          </div>
-        </div>
-
-        {findOpen && (
-          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-card/80 p-1.5 shadow-sm">
-            <div className="relative">
-              <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                ref={findInputRef}
-                value={findQuery}
-                onChange={(e) => setFindQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    findNext(!e.shiftKey)
-                  } else if (e.key === 'Escape') {
-                    setFindOpen(false)
-                  }
-                }}
-                placeholder="Buscar…"
-                className="h-7 w-40 pl-7 text-xs"
-              />
-            </div>
-            <span className="min-w-10 text-center text-[10px] tabular-nums text-muted-foreground">
-              {matchCount}
-            </span>
-            <Button variant="ghost" size="icon" className="size-7" title="Anterior" onClick={() => findNext(false)}>
-              <ArrowUp className="size-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="size-7" title="Siguiente (Enter)" onClick={() => findNext(true)}>
-              <ArrowDown className="size-3.5" />
-            </Button>
-            <div className="relative">
-              <Replace className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={replaceText}
-                onChange={(e) => setReplaceText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault()
-                    replaceCurrent()
-                  } else if (e.key === 'Escape') {
-                    setFindOpen(false)
-                  }
-                }}
-                placeholder="Reemplazar…"
-                className="h-7 w-40 pl-7 text-xs"
-              />
-            </div>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={replaceCurrent}>
-              Uno
-            </Button>
-            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={replaceAll}>
-              Todo
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="ml-auto size-7"
-              title="Cerrar (Esc)"
-              onClick={() => setFindOpen(false)}
-            >
-              <X className="size-3.5" />
-            </Button>
-          </div>
-        )}
-
-        <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/50 shadow-sm">
-          <div
-            ref={gutterRef}
-            className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-10 select-none overflow-hidden border-r bg-muted/30 py-3 pr-2 text-right font-mono text-xs leading-6 text-muted-foreground/60"
+          <span
+            className={`text-[10px] font-medium uppercase tracking-wider transition-colors ${
+              status === 'error'
+                ? 'text-destructive'
+                : status === 'saved'
+                  ? 'text-emerald-500'
+                  : status === 'saving'
+                    ? 'text-muted-foreground'
+                    : 'text-transparent'
+            }`}
           >
-            {lines.map((n) => (
-              <div key={n}>{n}</div>
-            ))}
-          </div>
-
-          {/* Overlay de parámetros resaltados */}
-          <div
-            ref={overlayRef}
-            className="absolute inset-0 z-20 overflow-hidden whitespace-pre-wrap break-words py-3 pl-12 pr-4 font-mono text-sm leading-6"
-            aria-hidden="true"
-          >
-            <div
-              className="pointer-events-none"
-              dangerouslySetInnerHTML={{ __html: overlayHtml }}
-            />
-          </div>
-
-          <Textarea
-            ref={textareaRef}
-            value={activeLatex}
-            onChange={(e) => handleChange(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onScroll={syncScroll}
-            className="relative z-30 h-full flex-1 resize-none overflow-auto rounded-none border-0 bg-transparent py-3 pl-12 pr-4 font-mono text-sm leading-6 text-foreground shadow-none focus-visible:ring-0"
-            placeholder="Escribe tu bitácora en LaTeX...\n\section{Introducción}\nLa energía se conserva: $E = mc^2$."
-            spellCheck={false}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-          />
+            {status === 'error' ? 'Error al guardar' : status === 'saved' ? 'Guardado' : status === 'saving' ? 'Guardando…' : '·'}
+          </span>
         </div>
       </div>
+
+      {findOpen && (
+        <div className="flex flex-wrap items-center gap-1.5 rounded-lg border bg-card/80 p-1.5 shadow-sm">
+          <div className="relative">
+            <Search className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={findInputRef}
+              value={findQuery}
+              onChange={(e) => setFindQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  findNext(!e.shiftKey)
+                } else if (e.key === 'Escape') {
+                  setFindOpen(false)
+                }
+              }}
+              placeholder="Buscar…"
+              className="h-7 w-40 pl-7 text-xs"
+            />
+          </div>
+          <span className="min-w-10 text-center text-[10px] tabular-nums text-muted-foreground">
+            {matchCount}
+          </span>
+          <Button variant="ghost" size="icon" className="size-7" title="Anterior" onClick={() => findNext(false)}>
+            <ArrowUp className="size-3.5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="size-7" title="Siguiente (Enter)" onClick={() => findNext(true)}>
+            <ArrowDown className="size-3.5" />
+          </Button>
+          <div className="relative">
+            <Replace className="absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={replaceText}
+              onChange={(e) => setReplaceText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  replaceCurrent()
+                } else if (e.key === 'Escape') {
+                  setFindOpen(false)
+                }
+              }}
+              placeholder="Reemplazar…"
+              className="h-7 w-40 pl-7 text-xs"
+            />
+          </div>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={replaceCurrent}>
+            Uno
+          </Button>
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={replaceAll}>
+            Todo
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-auto size-7"
+            title="Cerrar (Esc)"
+            onClick={() => setFindOpen(false)}
+          >
+            <X className="size-3.5" />
+          </Button>
+        </div>
+      )}
+
+      <div className="relative flex min-h-0 flex-1 overflow-hidden rounded-lg border bg-card/50 shadow-sm">
+        <div
+          ref={gutterRef}
+          className="pointer-events-none absolute bottom-0 left-0 top-0 z-10 w-10 select-none overflow-hidden border-r bg-muted/30 py-3 pr-2 text-right font-mono text-xs leading-6 text-muted-foreground/60"
+        >
+          {lines.map((n) => (
+            <div
+              key={n}
+              className={
+                highlightLine === n
+                  ? 'bg-destructive/25 font-semibold text-destructive'
+                  : undefined
+              }
+            >
+              {n}
+            </div>
+          ))}
+        </div>
+
+        {/* Overlay de parámetros resaltados */}
+        <div
+          ref={overlayRef}
+          className="absolute inset-0 z-20 overflow-hidden whitespace-pre-wrap break-words py-3 pl-12 pr-4 font-mono text-sm leading-6"
+          aria-hidden="true"
+        >
+          <div className="pointer-events-none text-transparent">{overlayNodes}</div>
+        </div>
+
+        <Textarea
+          ref={textareaRef}
+          value={activeLatex}
+          onChange={(e) => handleChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+          onScroll={syncScroll}
+          className="relative z-30 h-full flex-1 resize-none overflow-auto rounded-none border-0 bg-transparent py-3 pl-12 pr-4 font-mono text-sm leading-6 text-foreground shadow-none focus-visible:ring-0"
+          placeholder="Escribe tu bitácora en LaTeX...\n\\section{Introducción}\nLa energía se conserva: $E = mc^2$."
+          spellCheck={false}
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+        />
+
+        {completionOpen && completions.length > 0 && (
+          <div className="absolute bottom-2 left-12 z-40 max-h-48 w-72 overflow-auto rounded-md border bg-popover p-1 text-xs shadow-lg">
+            {completions.map((c, i) => (
+              <button
+                key={`${c.label}-${i}`}
+                type="button"
+                className={`flex w-full flex-col items-start rounded px-2 py-1 text-left ${
+                  i === completionIndex ? 'bg-accent' : 'hover:bg-muted'
+                }`}
+                onMouseDown={(ev) => {
+                  ev.preventDefault()
+                  applyCompletion(c)
+                }}
+              >
+                <span className="font-mono font-medium">{c.label}</span>
+                <span className="text-[10px] text-muted-foreground">
+                  {c.kind}
+                  {c.detail ? ` · ${c.detail}` : ''}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   )
 }

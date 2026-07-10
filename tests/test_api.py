@@ -50,6 +50,53 @@ def test_replace_page() -> None:
     assert res.json()["latex"] == "new latex"
 
 
+def test_put_page_raw_returns_ast_and_version() -> None:
+    res = client.post("/api/v1/pages", json={"title": "Put"})
+    page_id = res.json()["page_id"]
+
+    res = client.put(f"/api/v1/pages/{page_id}", json={"raw": "Hola $x^2$"})
+    assert res.status_code == 200
+    data = res.json()
+    assert data["page_id"] == page_id
+    assert data["title"] == "Put"
+    assert data["raw"] == "Hola $x^2$"
+    assert data["latex"] == data["raw"]
+    assert isinstance(data["ast"], list)
+    assert data["version"] == 2  # page_created + document_replaced
+
+    # El AST refleja el texto y la matemática inline.
+    node_types = {n["type"] for n in data["ast"]}
+    assert "text" in node_types
+    assert "math" in node_types
+
+
+def test_put_page_raw_overwrites_previous_content() -> None:
+    res = client.post("/api/v1/pages", json={"title": "Overwrite"})
+    page_id = res.json()["page_id"]
+
+    client.put(f"/api/v1/pages/{page_id}", json={"raw": "first"})
+    res = client.put(f"/api/v1/pages/{page_id}", json={"raw": "second"})
+    assert res.status_code == 200
+    assert res.json()["raw"] == "second"
+    assert res.json()["version"] == 3
+
+    res = client.get(f"/api/v1/pages/{page_id}")
+    assert res.json()["raw"] == "second"
+
+
+def test_put_page_raw_missing_payload_returns_422() -> None:
+    res = client.post("/api/v1/pages", json={"title": "Payload"})
+    page_id = res.json()["page_id"]
+
+    res = client.put(f"/api/v1/pages/{page_id}", json={})
+    assert res.status_code == 422
+
+
+def test_put_page_raw_not_found_returns_404() -> None:
+    res = client.put("/api/v1/pages/00000000-0000-0000-0000-000000000000", json={"raw": "x"})
+    assert res.status_code == 404
+
+
 def test_insert_math() -> None:
     res = client.post("/api/v1/pages", json={"title": "M"})
     page_id = res.json()["page_id"]
@@ -99,7 +146,7 @@ def test_insert_and_execute_cell() -> None:
     assert res.status_code == 201
 
     res = client.post(f"/api/v1/pages/{page_id}/cells/c1/execute")
-    assert res.status_code == 201
+    assert res.status_code == 200
     assert res.json()["status"] == "ok"
     assert "4" in res.json()["output"]
 
@@ -213,6 +260,7 @@ _CELL_PAYLOAD = {"cell_id": "c", "language": "python", "source": ""}
     "method, url, payload",
     [
         ("patch", "/api/v1/pages/{pid}", {"title": "x"}),
+        ("put", "/api/v1/pages/{pid}", {"raw": "x"}),
         ("delete", "/api/v1/pages/{pid}", None),
         ("post", "/api/v1/pages/{pid}/replace", {"latex": "x"}),
         ("post", "/api/v1/pages/{pid}/math", {"latex": "x"}),
@@ -262,7 +310,9 @@ def test_execute_cell_engine_unavailable_returns_503(monkeypatch) -> None:
     monkeypatch.setattr("lablog.api.get_engine", _broken_engine)
     res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
     assert res.status_code == 503
-    assert "kernel caído" in res.json()["detail"]
+    detail = res.json()["detail"]
+    assert detail["error_code"] == "KERNEL_DEAD"
+    assert "kernel caído" in detail["message"]
 
 
 def test_update_cell_and_list_cells() -> None:
@@ -314,8 +364,8 @@ def test_get_cell_figure() -> None:
         },
     )
     res = client.post(f"/api/v1/pages/{pid}/cells/plot/execute")
-    assert res.status_code == 201
-    assert res.json()["figure_paths"]
+    assert res.status_code == 200
+    assert res.json()["figure_path"]
 
     res = client.get(f"/api/v1/pages/{pid}/cells/plot/figure")
     assert res.status_code == 200
@@ -427,7 +477,7 @@ def test_get_cell_figure_path_outside_root(monkeypatch) -> None:
         source="",
         figure_path="/tmp/outside.png",  # nosec B108 (path de prueba intencional)
     )
-    monkeypatch.setattr("lablog.api._find_cell", lambda _p, _e, _c: fake_cell)
+    monkeypatch.setattr("lablog.projections.find_cell", lambda _s, _p, _c: fake_cell)
     res = client.get(f"/api/v1/pages/{pid}/cells/c1/figure")
     assert res.status_code == 404
 
@@ -443,7 +493,7 @@ def test_get_cell_figure_file_missing(monkeypatch) -> None:
         source="",
         figure_path=missing_path,
     )
-    monkeypatch.setattr("lablog.api._find_cell", lambda _p, _e, _c: fake_cell)
+    monkeypatch.setattr("lablog.projections.find_cell", lambda _s, _p, _c: fake_cell)
     res = client.get(f"/api/v1/pages/{pid}/cells/c1/figure")
     assert res.status_code == 404
 
@@ -496,7 +546,9 @@ def test_execute_cell_generic_engine_error_returns_503(monkeypatch) -> None:
     monkeypatch.setattr("lablog.api.get_engine", lambda: BrokenEngine())
     res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
     assert res.status_code == 503
-    assert "boom" in res.json()["detail"]
+    detail = res.json()["detail"]
+    assert detail["error_code"] == "KERNEL_DEAD"
+    assert "boom" in detail["message"]
 
 
 def test_execute_cell_figure_path_outside_root_is_stored(
@@ -520,7 +572,7 @@ def test_execute_cell_figure_path_outside_root_is_stored(
 
     monkeypatch.setattr("lablog.api.get_engine", lambda: EngineWithOutsideFigure())
     res = client.post(f"/api/v1/pages/{pid}/cells/c1/execute")
-    assert res.status_code == 201
+    assert res.status_code == 200
     events = client.get(f"/api/v1/pages/{pid}/events").json()
     executed = [e for e in events if e["type"] == "cell_executed"]
     assert executed
@@ -531,8 +583,8 @@ def test_execute_cell_figure_path_outside_root_is_stored(
 def test_event_summary_for_unknown_event_type() -> None:
     from datetime import datetime
 
-    from lablog.api import _event_summary
     from lablog.events import Event
+    from lablog.projections import _event_summary
 
     event = Event(
         type="vault_file_added",
@@ -543,12 +595,12 @@ def test_event_summary_for_unknown_event_type() -> None:
     assert _event_summary(event) == ""
 
 
-def test_extract_body_formats() -> None:
-    from lablog.api import _extract_body
+def test_extract_math_body_formats() -> None:
+    from lablog.commands import _extract_math_body
 
-    assert _extract_body("$x^2$") == ("x^2", "inline")
-    assert _extract_body("\\[x^2\\]") == ("x^2", "display")
-    assert _extract_body("plain") == ("plain", "inline")
+    assert _extract_math_body("$x^2$") == ("x^2", "inline")
+    assert _extract_math_body("\\[x^2\\]") == ("x^2", "display")
+    assert _extract_math_body("plain") == ("plain", "inline")
 
 
 def test_request_vault_deletion_not_found() -> None:

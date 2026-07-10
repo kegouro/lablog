@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections.abc import Iterator
 from pathlib import Path
@@ -26,32 +27,28 @@ class EventStore:
         return self.root_dir / f"{page_id}.jsonl"
 
     def append(self, event: Event) -> None:
-        """Añade un evento al final del log de la página."""
+        """Añade un evento al final del log de la página.
+
+        Escribe la línea completa y hace fsync para reducir el riesgo de
+        eventos truncados si el proceso muere a mitad del write.
+        """
         page_file = self._page_file(event.page_id)
+        line = event.model_dump_json() + "\n"
         with page_file.open("a", encoding="utf-8") as f:
-            f.write(event.model_dump_json() + "\n")
+            f.write(line)
+            f.flush()
+            os.fsync(f.fileno())
 
     def get_events(self, page_id: str) -> list[Event]:
-        """Devuelve todos los eventos de una página en orden."""
-        page_file = self._page_file(page_id)
-        if not page_file.exists():
-            return []
+        """Devuelve todos los eventos de una página en orden.
 
-        events: list[Event] = []
-        with page_file.open("r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    events.append(Event.model_validate_json(line))
-                except ValueError:
-                    # Salta un evento corrupto en vez de tumbar toda la página.
-                    continue
-        return events
+        Líneas vacías o JSON truncado/corrupto se omiten: un corte a mitad
+        de la última línea no tumba la proyección de la página.
+        """
+        return list(self.iter_events(page_id))
 
     def iter_events(self, page_id: str) -> Iterator[Event]:
-        """Itera eventos de una página sin cargarlos todos en memoria."""
+        """Itera eventos de una página omitiendo líneas corruptas."""
         page_file = self._page_file(page_id)
         if not page_file.exists():
             return
@@ -61,7 +58,11 @@ class EventStore:
                 line = line.strip()
                 if not line:
                     continue
-                yield Event.model_validate_json(line)
+                try:
+                    yield Event.model_validate_json(line)
+                except ValueError:
+                    # Salta un evento corrupto en vez de tumbar toda la página.
+                    continue
 
     def snapshot_at(self, page_id: str, timestamp: str) -> list[Event]:
         """Devuelve eventos hasta un timestamp dado (ISO 8601)."""

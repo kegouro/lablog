@@ -5,49 +5,42 @@ from __future__ import annotations
 import asyncio
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from shutil import which
 from subprocess import CalledProcessError, run
 from tempfile import NamedTemporaryFile
-from typing import Annotated, Any, Literal
-from uuid import uuid4
+from typing import Annotated, Any, Literal, NoReturn
 
 from fastapi import APIRouter, FastAPI, File, HTTPException, Response, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from lablog import pdf_engine
-from lablog.ast_nodes import CellNode, DocumentNode
+from lablog import commands, completions, pdf_engine, projections, templates
+from lablog.ast_nodes import node_to_json
 from lablog.code_engine import CodeEngine, EngineStartError
+from lablog.commands import (
+    CellNotFoundError,
+    EngineExecutionError,
+    PageDeletedError,
+    UnsupportedLanguageError,
+)
 from lablog.config import settings, ui_dist_dir
 from lablog.event_store import EventStore
 from lablog.events import (
     Event,
-    cell_deleted,
-    cell_executed,
-    cell_inserted,
-    cell_moved,
-    cell_updated,
-    document_replaced,
-    math_inserted,
-    page_created,
-    page_deleted,
-    page_metadata_updated,
-    text_inserted,
     vault_deletion_scheduled,
     vault_file_added,
     vault_file_deleted,
 )
 from lablog.exporter import export_site
-from lablog.latex_ast import serialize_ast
 from lablog.latex_symbols import FavoritesStore, list_symbols
-from lablog.projector import project
+from lablog.projections import PageNotFoundError
 from lablog.snippets import Snippet, find_snippet, render_snippet
 from lablog.vault import VaultFile, VaultService
-from lablog.voice.parser import IntentType, parse_intent, translate
 
 app = FastAPI(title="lablog engine")
 app.add_middleware(
@@ -93,12 +86,37 @@ def export_pages() -> dict[str, str]:
     return {"status": "ok", "path": str(out_dir)}
 
 
+@router.get("/templates")
+def list_latex_templates() -> list[dict[str, str]]:
+    return templates.templates_as_dicts()
+
+
+@router.get("/templates/{template_id}")
+def get_latex_template(template_id: str) -> dict[str, str]:
+    tmpl = templates.get_template(template_id)
+    if tmpl is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Plantilla no encontrada: {template_id}")
+    return {
+        "id": tmpl.id,
+        "name": tmpl.name,
+        "description": tmpl.description,
+        "content": tmpl.content,
+    }
+
+
+@router.get("/suggest")
+def suggest_latex(q: str = "", limit: int = 40) -> list[dict[str, str]]:
+    return completions.suggest_as_dicts(q, limit=min(max(limit, 1), 100))
+
+
 store = EventStore(settings.event_dir)
 favorites = FavoritesStore()
 vault = VaultService()
 _code_engine: CodeEngine | None = None
 _engine_lock = threading.Lock()
 _pdf_locks: dict[str, asyncio.Lock] = {}
+# Un solo worker: serializa Jupyter fuera del event loop sin saturar el pool default.
+_compute_pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lablog-compute")
 
 
 def _pdf_lock(page_id: str) -> asyncio.Lock:
@@ -142,6 +160,10 @@ class ReplacePayload(BaseModel):
     latex: str
 
 
+class UpdatePageRawRequest(BaseModel):
+    raw: str
+
+
 class MathPayload(BaseModel):
     latex: str
     mode: Literal["inline", "display"] = "inline"
@@ -162,7 +184,9 @@ class PageDetail(BaseModel):
     page_id: str
     title: str
     latex: str
+    raw: str
     ast: list[dict[str, Any]]
+    version: int
 
 
 class HistoryEntry(BaseModel):
@@ -226,45 +250,23 @@ def _events(page_id: str) -> list[Event]:
     return events
 
 
-def _summary(page_id: str) -> PageSummary:
-    events = _events(page_id)
-    proj = project(page_id, events)
-    return PageSummary(
-        page_id=page_id,
-        title=proj.title,
-        project_id=proj.project_id,
-        updated_at=events[-1].timestamp,
-    )
-
-
-def _ast_to_json(doc: DocumentNode) -> list[dict[str, Any]]:
-    return [asdict(child) for child in doc.children]
+def _handle_projection_not_found(page_id: str) -> NoReturn:
+    """Convierte errores de proyección en respuestas HTTP 404."""
+    raise HTTPException(status.HTTP_404_NOT_FOUND, f"Página no encontrada: {page_id}")
 
 
 @router.post("/pages", status_code=status.HTTP_201_CREATED, response_model=PageSummary)
 def create_page(req: CreatePageRequest) -> PageSummary:
-    page_id = str(uuid4())
-    store.append(page_created(page_id=page_id, title=req.title, project_id=req.project_id))
-    return _summary(page_id)
+    page_id = commands.create_page(store, title=req.title, project_id=req.project_id)
+    try:
+        return PageSummary(**projections.page_summary(store, page_id))
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
 
 
 @router.get("/pages", response_model=list[PageSummary])
 def list_pages() -> list[PageSummary]:
-    summaries: list[PageSummary] = []
-    for pid in store.list_pages():
-        events = store.get_events(pid)
-        proj = project(pid, events)
-        if proj.deleted:
-            continue
-        summaries.append(
-            PageSummary(
-                page_id=pid,
-                title=proj.title,
-                project_id=proj.project_id,
-                updated_at=events[-1].timestamp if events else None,
-            )
-        )
-    return summaries
+    return [PageSummary(**s) for s in projections.list_page_summaries(store)]
 
 
 @router.patch("/pages/{page_id}", response_model=PageSummary)
@@ -272,10 +274,28 @@ def update_page(page_id: str, req: UpdatePageRequest) -> PageSummary:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        page_metadata_updated(page_id=page_id, title=req.title, project_id=req.project_id)
+    commands.update_page_metadata(
+        store,
+        page_id=page_id,
+        title=req.title,
+        project_id=req.project_id,
     )
-    return _summary(page_id)
+    try:
+        return PageSummary(**projections.page_summary(store, page_id))
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
+
+
+@router.put("/pages/{page_id}", response_model=PageDetail)
+def update_page_raw(page_id: str, req: UpdatePageRawRequest) -> PageDetail:
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
+    _events(page_id)
+    commands.replace_document(store, page_id=page_id, latex=req.raw)
+    try:
+        return PageDetail(**projections.page_detail(store, page_id))
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
 
 
 @router.delete("/pages/{page_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -283,25 +303,24 @@ def delete_page(page_id: str) -> None:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(page_deleted(page_id=page_id))
+    commands.delete_page(store, page_id=page_id)
 
 
 @router.get("/pages/{page_id}", response_model=PageDetail)
 def get_page(page_id: str) -> PageDetail:
-    events = _events(page_id)
-    proj = project(page_id, events)
-    return PageDetail(
-        page_id=page_id,
-        title=proj.title,
-        latex=serialize_ast(proj.ast),
-        ast=_ast_to_json(proj.ast),
-    )
+    try:
+        return PageDetail(**projections.page_detail(store, page_id))
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
 
 
 @router.get("/pages/{page_id}/latex")
 def get_latex(page_id: str) -> dict[str, str]:
-    events = _events(page_id)
-    return {"latex": serialize_ast(project(page_id, events).ast)}
+    try:
+        detail = projections.page_detail(store, page_id)
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
+    return {"latex": detail["latex"]}
 
 
 @router.post("/pages/{page_id}/text", status_code=status.HTTP_201_CREATED)
@@ -309,7 +328,7 @@ def append_text(page_id: str, payload: TextPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(text_inserted(page_id=page_id, position=payload.position, text=payload.text))
+    commands.insert_text(store, page_id=page_id, position=payload.position, text=payload.text)
     return {"status": "ok"}
 
 
@@ -318,9 +337,12 @@ def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(document_replaced(page_id=page_id, latex=payload.latex))
-    proj = project(page_id, _events(page_id))
-    return {"status": "ok", "latex": serialize_ast(proj.ast), "ast": _ast_to_json(proj.ast)}
+    commands.replace_document(store, page_id=page_id, latex=payload.latex)
+    try:
+        detail = projections.page_detail(store, page_id)
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
+    return {"status": "ok", "latex": detail["latex"], "ast": detail["ast"]}
 
 
 @router.post("/pages/{page_id}/math", status_code=status.HTTP_201_CREATED)
@@ -328,13 +350,11 @@ def insert_math(page_id: str, payload: MathPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        math_inserted(
-            page_id=page_id,
-            ast_path="/document",
-            latex=payload.latex,
-            mode=payload.mode,
-        )
+    commands.insert_math(
+        store,
+        page_id=page_id,
+        latex=payload.latex,
+        mode=payload.mode,
     )
     return {"status": "ok"}
 
@@ -344,15 +364,8 @@ def voice_text(page_id: str, payload: VoicePayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    intent = parse_intent(payload.text)
-    result = translate(payload.text, intent.type)
-    math_intents = (IntentType.MATH, IntentType.INTEGRAL, IntentType.EQUATION, IntentType.MATRIX)
-    if intent.type in math_intents:
-        body, mode = _extract_body(result.latex)
-        store.append(math_inserted(page_id=page_id, ast_path="/document", latex=body, mode=mode))
-    else:
-        store.append(text_inserted(page_id=page_id, position=-1, text=payload.text))
-    return {"status": "ok", "intent": intent.type.value}
+    intent = commands.voice_insert(store, page_id=page_id, text=payload.text)
+    return {"status": "ok", "intent": intent}
 
 
 @router.get("/pages/{page_id}/events", response_model=list[Event])
@@ -360,81 +373,36 @@ def get_events(page_id: str) -> list[Event]:
     return store.get_events(page_id)
 
 
-_SUMMARY_LEN = 40
-
-
-def _event_summary(event: Event) -> str:
-    payload = event.payload
-    if event.type.startswith("cell_"):
-        text = str(payload.get("cell_id", ""))
-    elif event.type == "document_replaced":
-        text = f"{len(payload.get('latex', ''))} chars"
-    elif event.type in ("page_created", "page_metadata_updated"):
-        text = str(payload.get("title") or "")
-    elif event.type == "text_inserted":
-        text = str(payload.get("text", ""))
-    elif event.type == "math_inserted":
-        text = str(payload.get("latex", ""))
-    else:
-        text = ""
-    return text[:_SUMMARY_LEN]
-
-
-def _clamp_index(index: int, count: int) -> int:
-    return max(0, min(index, count - 1))
-
-
-def _detail_from(page_id: str, events: list[Event]) -> PageDetail:
-    proj = project(page_id, events)
-    return PageDetail(
-        page_id=page_id,
-        title=proj.title,
-        latex=serialize_ast(proj.ast),
-        ast=_ast_to_json(proj.ast),
-    )
-
-
 @router.get("/pages/{page_id}/history", response_model=list[HistoryEntry])
 def page_history(page_id: str) -> list[HistoryEntry]:
-    events = _events(page_id)
-    return [
-        HistoryEntry(
-            index=i, type=e.type, timestamp=e.timestamp, summary=_event_summary(e)
-        )
-        for i, e in enumerate(events)
-    ]
+    try:
+        entries = projections.page_history(store, page_id)
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
+    return [HistoryEntry(**entry) for entry in entries]
 
 
 @router.get("/pages/{page_id}/at/{event_index}", response_model=PageDetail)
 def page_at(page_id: str, event_index: int) -> PageDetail:
-    events = _events(page_id)
-    idx = _clamp_index(event_index, len(events))
-    return _detail_from(page_id, events[: idx + 1])
+    try:
+        return PageDetail(**projections.page_at(store, page_id, event_index))
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
 
 
 @router.post("/pages/{page_id}/restore/{event_index}", response_model=PageDetail)
 def restore_version(page_id: str, event_index: int) -> PageDetail:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    events = _events(page_id)
-    if project(page_id, events).deleted:
-        raise HTTPException(status.HTTP_409_CONFLICT, "Página eliminada")
-    idx = _clamp_index(event_index, len(events))
-    past = project(page_id, events[: idx + 1])
-    store.append(document_replaced(page_id=page_id, latex=serialize_ast(past.ast)))
-    # serialize_ast no persiste output/figura: re-emitir ejecución de cada celda
-    # para que los resultados sobrevivan el round-trip (append-only).
-    for child in past.ast.children:
-        if isinstance(child, CellNode) and (child.output or child.figure_path):
-            store.append(
-                cell_executed(
-                    page_id=page_id,
-                    cell_id=child.cell_id,
-                    output=child.output or "",
-                    figure_path=child.figure_path,
-                )
-            )
-    return _detail_from(page_id, store.get_events(page_id))
+    _events(page_id)
+    try:
+        commands.restore_version(store, page_id=page_id, event_index=event_index)
+    except PageDeletedError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Página eliminada") from None
+    try:
+        return PageDetail(**projections.page_detail(store, page_id))
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
 
 
 @router.post("/pages/{page_id}/cells", status_code=status.HTTP_201_CREATED)
@@ -442,13 +410,12 @@ def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        cell_inserted(
-            page_id=page_id,
-            cell_id=payload.cell_id,
-            language=payload.language,
-            source=payload.source,
-        )
+    commands.insert_cell(
+        store,
+        page_id=page_id,
+        cell_id=payload.cell_id,
+        language=payload.language,
+        source=payload.source,
     )
     return {"status": "ok"}
 
@@ -458,68 +425,56 @@ def update_cell(page_id: str, cell_id: str, payload: CellPayload) -> dict[str, s
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(
-        cell_updated(
-            page_id=page_id,
-            cell_id=cell_id,
-            language=payload.language,
-            source=payload.source,
-        )
+    commands.update_cell(
+        store,
+        page_id=page_id,
+        cell_id=cell_id,
+        language=payload.language,
+        source=payload.source,
     )
     return {"status": "ok"}
 
 
-@router.post("/pages/{page_id}/cells/{cell_id}/execute", status_code=status.HTTP_201_CREATED)
-def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
+@router.post("/pages/{page_id}/cells/{cell_id}/execute", status_code=status.HTTP_200_OK)
+async def execute_cell(page_id: str, cell_id: str) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
-    events = _events(page_id)
-    cell = _find_cell(page_id, events, cell_id)
-    if cell is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Celda no encontrada")
-
-    if cell.language not in CodeEngine.SUPPORTED_LANGUAGES:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            f"Lenguaje no soportado: {cell.language}",
-        )
-
+    _events(page_id)
     figure_dir = settings.figures_dir / page_id
     try:
-        result = get_engine().execute(cell.source, figure_dir=figure_dir)
+        engine = get_engine()
     except EngineStartError as exc:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=str(exc),
-        ) from exc
-    except Exception as exc:
-        raise HTTPException(
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"El motor de ejecución no está disponible: {exc}",
+            detail={"error_code": "KERNEL_DEAD", "message": str(exc), "cell_id": cell_id},
         ) from exc
 
-    output_text = result.text
-    figure_path: str | None = None
-    if result.figure_paths:
-        # Guarda la ruta RELATIVA a figures_dir: sobrevive a mover el data dir.
-        abs_path = Path(result.figure_paths[0])
-        try:
-            figure_path = str(abs_path.relative_to(settings.figures_dir))
-        except ValueError:
-            figure_path = str(abs_path)
-    store.append(
-        cell_executed(
-            page_id=page_id,
-            cell_id=cell_id,
-            output=output_text,
-            figure_path=figure_path,
+    loop = asyncio.get_running_loop()
+    try:
+        await loop.run_in_executor(
+            _compute_pool,
+            lambda: commands.execute_cell(
+                store,
+                page_id=page_id,
+                cell_id=cell_id,
+                engine=engine,
+                figure_dir=figure_dir,
+            ),
         )
-    )
-    return {
-        "status": result.status,
-        "output": output_text,
-        "figure_paths": result.figure_paths,
-    }
+    except CellNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except UnsupportedLanguageError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+    except EngineExecutionError as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error_code": "KERNEL_DEAD", "message": str(exc), "cell_id": cell_id},
+        ) from exc
+
+    cell = projections.find_cell(store, page_id, cell_id)
+    if cell is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Celda no encontrada: {cell_id}")
+    return node_to_json(cell)
 
 
 @router.delete("/pages/{page_id}/cells/{cell_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -527,7 +482,7 @@ def delete_cell(page_id: str, cell_id: str) -> None:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(cell_deleted(page_id=page_id, cell_id=cell_id))
+    commands.delete_cell(store, page_id=page_id, cell_id=cell_id)
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/move", status_code=status.HTTP_200_OK)
@@ -535,33 +490,24 @@ def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str,
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _events(page_id)
-    store.append(cell_moved(page_id=page_id, cell_id=cell_id, new_index=payload.new_index))
+    commands.move_cell(store, page_id=page_id, cell_id=cell_id, new_index=payload.new_index)
     return {"status": "ok"}
 
 
 @router.get("/pages/{page_id}/cells")
 def list_cells(page_id: str) -> list[dict[str, Any]]:
-    events = _events(page_id)
-    proj = project(page_id, events)
-    cells: list[dict[str, Any]] = []
-    for child in proj.ast.children:
-        if isinstance(child, CellNode):
-            cells.append(
-                {
-                    "cell_id": child.cell_id,
-                    "language": child.language,
-                    "source": child.source,
-                    "output": child.output,
-                    "figure_path": child.figure_path,
-                }
-            )
-    return cells
+    try:
+        return projections.list_cells(store, page_id)
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
 
 
 @router.get("/pages/{page_id}/cells/{cell_id}/figure")
 def get_cell_figure(page_id: str, cell_id: str) -> Response:
-    events = _events(page_id)
-    cell = _find_cell(page_id, events, cell_id)
+    try:
+        cell = projections.find_cell(store, page_id, cell_id)
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
     if cell is None or not cell.figure_path:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Figura no encontrada")
 
@@ -636,23 +582,6 @@ def add_favorite(symbol_id: str) -> dict[str, str]:
 @router.delete("/latex-symbols/favorites/{symbol_id}", status_code=status.HTTP_204_NO_CONTENT)
 def remove_favorite(symbol_id: str) -> None:
     favorites.remove(symbol_id)
-
-
-def _find_cell(page_id: str, events: list[Event], cell_id: str) -> CellNode | None:
-    proj = project(page_id, events)
-    for child in proj.ast.children:
-        if getattr(child, "type", None) == "cell" and getattr(child, "cell_id", None) == cell_id:
-            return child  # type: ignore[return-value]
-    return None
-
-
-def _extract_body(latex: str) -> tuple[str, Literal["inline", "display"]]:
-    latex = latex.strip()
-    if latex.startswith("\\[") and latex.endswith("\\]"):
-        return latex[2:-2].strip(), "display"
-    if latex.startswith("$") and latex.endswith("$"):
-        return latex[1:-1].strip(), "inline"
-    return latex, "inline"
 
 
 def _vault_summary(vf: VaultFile) -> VaultSummary:
@@ -912,14 +841,38 @@ code {{ background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: 
 </html>"""
 
 
+def _page_includes() -> dict[str, str]:
+    """Mapa page_id / page:<id> → raw para resolver \\input en compile."""
+    out: dict[str, str] = {}
+    for summary in projections.list_page_summaries(store):
+        pid = str(summary["page_id"])
+        try:
+            detail = projections.page_detail(store, pid)
+        except PageNotFoundError:
+            continue
+        raw = str(detail["raw"])
+        out[pid] = raw
+        out[f"page:{pid}"] = raw
+    return out
+
+
 @router.get("/pages/{page_id}/export/pdf")
 async def export_page_pdf(page_id: str) -> Response:
-    events = _events(page_id)
-    proj = project(page_id, events)
+    try:
+        proj = projections.page_projection(store, page_id)
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
     title = proj.title or "lablog_export"
     figures_dir = settings.figures_dir / page_id
+    includes = _page_includes()
     async with _pdf_lock(page_id):
-        result = await pdf_engine.compile_page(page_id, proj.ast, title, figures_dir=figures_dir)
+        result = await pdf_engine.compile_page(
+            page_id,
+            proj.ast,
+            title,
+            figures_dir=figures_dir,
+            includes=includes,
+        )
     if result.status == "ok" and result.pdf is not None:
         filename = f"{title.replace(' ', '_')}.pdf"
         return Response(
@@ -928,7 +881,10 @@ async def export_page_pdf(page_id: str) -> Response:
             headers={"Content-Disposition": f"inline; filename={filename}"},
         )
     if result.status == "no_engine":
-        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Tectonic no disponible")
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={"error_code": "PUBLISH_ENGINE_CRASH", "message": "Tectonic no disponible"},
+        )
     if result.status == "timeout":
         raise HTTPException(status.HTTP_504_GATEWAY_TIMEOUT, "Compilación excedió el tiempo límite")
     raise HTTPException(
@@ -939,10 +895,12 @@ async def export_page_pdf(page_id: str) -> Response:
 
 @router.get("/pages/{page_id}/export/{format}")
 def export_page(page_id: str, format: str) -> Response:
-    events = _events(page_id)
-    proj = project(page_id, events)
-    latex = serialize_ast(proj.ast)
-    title = proj.title or "lablog_export"
+    try:
+        detail = projections.page_detail(store, page_id)
+    except PageNotFoundError:
+        _handle_projection_not_found(page_id)
+    latex = detail["latex"]
+    title = str(detail["title"] or "lablog_export")
 
     if format == "tex":
         content = _latex_document(latex, title)

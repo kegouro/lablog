@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from lablog.ast_nodes import CellNode, DocumentNode, MathNode, TextNode
 from lablog.events import Event
@@ -70,7 +70,21 @@ class PageProjection:
                 self._update_cell_source(event.payload)
 
             case "cell_executed":
-                self._update_cell_output(event.payload)
+                self._update_cell_output(event.payload, status="ok")
+
+            case "execution_failed":
+                tb = event.payload.get("traceback") or []
+                ename = event.payload.get("ename", "")
+                evalue = event.payload.get("evalue", "")
+                output = "\n".join(tb) if tb else f"{ename}: {evalue}".strip(": ")
+                self._update_cell_output(
+                    {
+                        "cell_id": event.payload["cell_id"],
+                        "output": output,
+                        "figure_path": None,
+                    },
+                    status="error",
+                )
 
             case "cell_deleted":
                 self._delete_cell(event.payload)
@@ -104,13 +118,18 @@ class PageProjection:
         end = min(pos + length, len(current))
         last.text = current[:pos] + current[end:]
 
-    def _update_cell_output(self, payload: dict[str, Any]) -> None:
-        """Actualiza el output de una celda ejecutada."""
+    def _update_cell_output(
+        self,
+        payload: dict[str, Any],
+        status: Literal["idle", "running", "ok", "error"] = "ok",
+    ) -> None:
+        """Actualiza el output y estado de una celda ejecutada."""
         cell_id = payload.get("cell_id")
         for child in self.ast.children:
             if isinstance(child, CellNode) and child.cell_id == cell_id:
                 child.output = payload.get("output")
                 child.figure_path = payload.get("figure_path")
+                child.status = status
                 break
 
     def _update_cell_source(self, payload: dict[str, Any]) -> None:

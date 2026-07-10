@@ -40,27 +40,36 @@ interface SpeechWindow extends Window {
   webkitSpeechRecognition?: SpeechRecognitionConstructor
 }
 
+/** FSM: idle → listening → processing → idle */
+export type SpeechPhase = 'idle' | 'listening' | 'processing'
+
 interface SpeechHook {
+  phase: SpeechPhase
   listening: boolean
   supported: boolean
   transcript: string
   error: string | null
   start: () => void
   stop: () => void
+  /** Consume el transcript y vuelve a idle (transición processing → idle). */
+  completeProcessing: () => void
   resetTranscript: () => void
 }
 
-// ponytail: tope de sesión; el reconocedor puede colgarse sin emitir onend.
 const MAX_SESSION_MS = 120_000
 
 export function useSpeechRecognition(): SpeechHook {
-  const [listening, setListening] = useState(false)
+  const [phase, setPhase] = useState<SpeechPhase>('idle')
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
   const recognitionRef = useRef<SpeechRecognitionInstance | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingFinalRef = useRef('')
   const generationRef = useRef(0)
+  const phaseRef = useRef<SpeechPhase>('idle')
+  const transcriptRef = useRef('')
+
+  phaseRef.current = phase
+  transcriptRef.current = transcript
 
   const supported =
     typeof window !== 'undefined' &&
@@ -79,13 +88,20 @@ export function useSpeechRecognition(): SpeechHook {
     recognition.lang = 'es-ES'
 
     recognition.onstart = () => {
-      setListening(true)
+      setPhase('listening')
       setError(null)
     }
 
     recognition.onend = () => {
-      setListening(false)
       if (timerRef.current) clearTimeout(timerRef.current)
+      // stop() ya pudo poner processing; no bajar a idle si hay texto por consumir.
+      if (phaseRef.current === 'listening') {
+        if (transcriptRef.current.trim()) {
+          setPhase('processing')
+        } else {
+          setPhase('idle')
+        }
+      }
     }
 
     recognition.onerror = (event) => {
@@ -98,36 +114,23 @@ export function useSpeechRecognition(): SpeechHook {
       } else {
         setError(`Error: ${event.error}`)
       }
-      setListening(false)
+      setPhase('idle')
     }
 
     recognition.onresult = (event) => {
       const generation = generationRef.current
       let final = ''
-      let interim = ''
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i]
-        if (result.isFinal) {
+        if (result.isFinal && result[0]?.transcript) {
           final += result[0].transcript
-        } else {
-          interim += result[0].transcript
         }
       }
-      if (final) {
-        pendingFinalRef.current += final
-        setTranscript((prev) => {
-          if (generation !== generationRef.current) return prev
-          return prev + final
-        })
-      }
-      if (interim) {
-        setTranscript((prev) => {
-          if (generation !== generationRef.current) return prev
-          const trimmed = interim.trim()
-          const base = prev.endsWith(trimmed) ? prev : prev + interim
-          return base
-        })
-      }
+      if (!final) return
+      setTranscript((prev) => {
+        if (generation !== generationRef.current) return prev
+        return prev + final
+      })
     }
 
     recognitionRef.current = recognition
@@ -143,13 +146,19 @@ export function useSpeechRecognition(): SpeechHook {
 
   const resetTranscript = useCallback(() => {
     generationRef.current += 1
-    pendingFinalRef.current = ''
     setTranscript('')
+  }, [])
+
+  const completeProcessing = useCallback(() => {
+    generationRef.current += 1
+    setTranscript('')
+    setPhase('idle')
   }, [])
 
   const start = useCallback(() => {
     resetTranscript()
     setError(null)
+    setPhase('listening')
     try {
       recognitionRef.current?.start()
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -159,22 +168,34 @@ export function useSpeechRecognition(): SpeechHook {
         } catch {
           // ignore
         }
-        setListening(false)
       }, MAX_SESSION_MS)
     } catch {
       setError('No se pudo iniciar el dictado')
+      setPhase('idle')
     }
   }, [resetTranscript])
 
   const stop = useCallback(() => {
     if (timerRef.current) clearTimeout(timerRef.current)
+    const hasText = transcriptRef.current.trim().length > 0
+    // Anticipar processing antes de onend para que el consumer no pierda el ciclo.
+    setPhase(hasText ? 'processing' : 'idle')
     try {
       recognitionRef.current?.stop()
     } catch {
       // ignore
     }
-    setListening(false)
   }, [])
 
-  return { listening, supported, transcript, error, start, stop, resetTranscript }
+  return {
+    phase,
+    listening: phase === 'listening',
+    supported,
+    transcript,
+    error,
+    start,
+    stop,
+    completeProcessing,
+    resetTranscript,
+  }
 }

@@ -1,4 +1,5 @@
 import { LayoutTemplate } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -9,15 +10,31 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { replacePageLatex } from '@/lib/api'
-import { LATEX_TEMPLATES } from '@/lib/latex-templates'
+import { LATEX_TEMPLATES, type LatexTemplate } from '@/lib/latex-templates'
 import { useAppStore } from '@/stores/app-store'
+
+async function loadTemplates(): Promise<LatexTemplate[]> {
+  try {
+    const res = await fetch('/api/v1/templates')
+    if (!res.ok) throw new Error('fail')
+    return (await res.json()) as LatexTemplate[]
+  } catch {
+    return LATEX_TEMPLATES
+  }
+}
 
 export function TemplatesMenu() {
   const activePageId = useAppStore((s) => s.activePageId)
   const activeLatex = useAppStore((s) => s.activeLatex)
   const setActiveLatex = useAppStore((s) => s.setActiveLatex)
   const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
   const flushSave = useAppStore((s) => s.flushSave)
+  const [items, setItems] = useState<LatexTemplate[]>(LATEX_TEMPLATES)
+
+  useEffect(() => {
+    void loadTemplates().then(setItems)
+  }, [])
 
   const applyTemplate = async (content: string) => {
     if (!activePageId) {
@@ -32,6 +49,7 @@ export function TemplatesMenu() {
       const result = await replacePageLatex(activePageId, content)
       setActiveLatex(result.latex)
       setActiveAst(result.ast)
+      setActiveVersion(result.version)
       toast.success('Plantilla aplicada')
     } catch {
       toast.error('No se pudo aplicar la plantilla')
@@ -46,9 +64,13 @@ export function TemplatesMenu() {
           <span className="hidden sm:inline">Plantillas</span>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="center" className="w-72">
-        {LATEX_TEMPLATES.map((t) => (
-          <DropdownMenuItem key={t.id} onClick={() => applyTemplate(t.content)} className="flex flex-col items-start gap-0.5">
+      <DropdownMenuContent align="center" className="w-80 max-h-96 overflow-auto">
+        {items.map((t) => (
+          <DropdownMenuItem
+            key={t.id}
+            onClick={() => applyTemplate(t.content)}
+            className="flex flex-col items-start gap-0.5"
+          >
             <span className="font-medium">{t.name}</span>
             <span className="text-xs text-muted-foreground">{t.description}</span>
           </DropdownMenuItem>

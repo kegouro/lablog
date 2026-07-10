@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
-import { deleteCell, executeCell, getPage, insertCell, listCells, moveCell } from '@/lib/api'
+import { ApiError, deleteCell, executeCell, getPage, insertCell, listCells, moveCell } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
 const LANGUAGES = [
@@ -64,7 +64,10 @@ export function CellsPanel() {
       await executeCell(activePageId, cellId)
       await refreshCells()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Error al ejecutar'
+      let message = err instanceof Error ? err.message : 'Error al ejecutar'
+      if (err instanceof ApiError && err.errorCode === 'KERNEL_DEAD') {
+        message = `Motor de cálculo no disponible. Reinicia el kernel.\n${err.message}`
+      }
       setCells((prev) =>
         prev.map((c) => (c.cell_id === cellId ? { ...c, status: 'error', output: message } : c)),
       )

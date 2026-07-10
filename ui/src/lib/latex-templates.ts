@@ -5,7 +5,18 @@ export interface LatexTemplate {
   content: string
 }
 
+/** Fallback local si /api/v1/templates no responde (p.ej. tests). */
 export const LATEX_TEMPLATES: LatexTemplate[] = [
+  {
+    id: 'lab-report-physics',
+    name: 'Informe de laboratorio (física)',
+    description: 'Objetivo, datos, celda python — preferir API SSOT',
+    content: `\\documentclass[11pt]{article}
+\\begin{document}
+\\section{Objetivo}
+\\end{document}
+`,
+  },
   {
     id: 'articulo',
     name: 'Artículo científico',

@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 
 import { LatexEditor } from '@/components/editor/latex-editor'
+import { ErrorBoundary } from '@/components/error-boundary'
 import { CellsPanel } from '@/components/panels/cells-panel'
 import { ParametersPanel } from '@/components/panels/parameters-panel'
 import { SnippetsPanel } from '@/components/panels/snippets-panel'
@@ -9,6 +10,7 @@ import { SymbolsPanel } from '@/components/panels/symbols-panel'
 import { TutorialsPanel } from '@/components/panels/tutorials-panel'
 import { VaultPanel } from '@/components/panels/vault-panel'
 import { LatexPreview } from '@/components/preview/latex-preview'
+import { getPage } from '@/lib/api'
 import {
   ResizableHandle,
   ResizablePanel,
@@ -48,8 +50,26 @@ export function AppShell() {
   const setSymbols = useAppStore((s) => s.setSymbols)
   const setFavorites = useAppStore((s) => s.setFavorites)
   const setActivePageId = useAppStore((s) => s.setActivePageId)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
+  const activePageId = useAppStore((s) => s.activePageId)
+  const activeVersion = useAppStore((s) => s.activeVersion)
   const labMode = useAppStore((s) => s.labMode)
   const panels = useAppStore(useShallow((s) => s.panels))
+
+  const reloadActivePage = async () => {
+    const id = useAppStore.getState().activePageId
+    if (!id) return
+    try {
+      const page = await getPage(id)
+      setActiveLatex(page.raw || page.latex)
+      setActiveAst(page.ast)
+      setActiveVersion(page.version)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   useEffect(() => {
     async function load() {
@@ -124,11 +144,19 @@ export function AppShell() {
 
   const PanelComponent = activePanel ? PANELS[activePanel] : null
 
+  const boundaryKey = `${activePageId ?? 'none'}:${activeVersion}`
+
   if (labMode) {
     return (
       <div className="flex h-full flex-col">
         <Toolbar onCreatePage={handleCreatePage} />
-        <LabCanvas />
+        <ErrorBoundary
+          label="Laboratorio"
+          resetKey={boundaryKey}
+          onReset={() => void reloadActivePage()}
+        >
+          <LabCanvas />
+        </ErrorBoundary>
       </div>
     )
   }
@@ -147,7 +175,13 @@ export function AppShell() {
             <ResizablePanel defaultSize={55} minSize={30}>
               <ScrollArea className="h-full">
                 <div className="h-[calc(100vh-3rem)] p-4">
-                  <LatexEditor />
+                  <ErrorBoundary
+                    label="Editor"
+                    resetKey={boundaryKey}
+                    onReset={() => void reloadActivePage()}
+                  >
+                    <LatexEditor />
+                  </ErrorBoundary>
                 </div>
               </ScrollArea>
             </ResizablePanel>
@@ -155,7 +189,13 @@ export function AppShell() {
             <ResizablePanel defaultSize={45} minSize={25}>
               <ScrollArea className="h-full">
                 <div className="h-[calc(100vh-3rem)] p-4">
-                  <LatexPreview />
+                  <ErrorBoundary
+                    label="Vista previa"
+                    resetKey={boundaryKey}
+                    onReset={() => void reloadActivePage()}
+                  >
+                    <LatexPreview />
+                  </ErrorBoundary>
                 </div>
               </ScrollArea>
             </ResizablePanel>

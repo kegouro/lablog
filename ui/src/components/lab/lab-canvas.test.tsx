@@ -4,14 +4,18 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 
 import { useAppStore } from '@/stores/app-store'
 
-vi.mock('@/lib/api', () => ({
-  deleteCell: vi.fn(() => Promise.resolve()),
-  executeCell: vi.fn(),
-  insertCell: vi.fn(() => Promise.resolve()),
-  listCells: vi.fn(),
-  moveCell: vi.fn(() => Promise.resolve()),
-  updateCell: vi.fn(() => Promise.resolve()),
-}))
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>()
+  return {
+    ...actual,
+    deleteCell: vi.fn(() => Promise.resolve()),
+    executeCell: vi.fn(),
+    insertCell: vi.fn(() => Promise.resolve()),
+    listCells: vi.fn(),
+    moveCell: vi.fn(() => Promise.resolve()),
+    updateCell: vi.fn(() => Promise.resolve()),
+  }
+})
 
 import { executeCell, listCells } from '@/lib/api'
 import { LabCanvas } from './lab-canvas'

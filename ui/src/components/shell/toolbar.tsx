@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { useSpeechRecognition } from '@/hooks/use-speech'
-import { appendText } from '@/lib/api'
+import { replacePageLatex } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
 import { ExportMenu } from './export-menu'
@@ -22,28 +22,62 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
   const setLabMode = useAppStore((s) => s.setLabMode)
   const activePageId = useAppStore((s) => s.activePageId)
   const setActiveLatex = useAppStore((s) => s.setActiveLatex)
-  const { listening, supported, transcript, error, start, stop, resetTranscript } = useSpeechRecognition()
-  const processedRef = useRef<string | null>(null)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
+  const flushSave = useAppStore((s) => s.flushSave)
+  const {
+    phase,
+    listening,
+    supported,
+    transcript,
+    error,
+    start,
+    stop,
+    completeProcessing,
+  } = useSpeechRecognition()
+  const processingRef = useRef(false)
 
   useEffect(() => {
     if (error) toast.error(error)
   }, [error])
 
+  // Solo en phase === processing se consume el transcript (FSM).
   useEffect(() => {
-    if (!listening && transcript.trim() && activePageId) {
-      if (processedRef.current === transcript) return
-      processedRef.current = transcript
-      const text = transcript.trim()
-      const normalized = text.endsWith('.') || text.endsWith(' ') ? text : `${text}. `
-      const currentLatex = useAppStore.getState().activeLatex
-      const next = currentLatex ? `${currentLatex}\n${normalized}` : normalized
-      setActiveLatex(next)
-      appendText(activePageId, normalized).catch(() => {
-        toast.error('No se pudo guardar el dictado')
-      })
-      resetTranscript()
+    if (phase !== 'processing' || !activePageId || processingRef.current) return
+    const text = transcript.trim()
+    if (!text) {
+      completeProcessing()
+      return
     }
-  }, [listening, transcript, activePageId, setActiveLatex, resetTranscript])
+    processingRef.current = true
+    const normalized = text.endsWith('.') || text.endsWith(' ') ? text : `${text}. `
+
+    ;(async () => {
+      try {
+        if (flushSave) await flushSave()
+        const currentLatex = useAppStore.getState().activeLatex
+        const next = currentLatex ? `${currentLatex}\n${normalized}` : normalized
+        setActiveLatex(next)
+        const result = await replacePageLatex(activePageId, next)
+        setActiveAst(result.ast)
+        setActiveVersion(result.version)
+      } catch {
+        toast.error('No se pudo guardar el dictado')
+      } finally {
+        completeProcessing()
+        processingRef.current = false
+      }
+    })()
+  }, [
+    phase,
+    transcript,
+    activePageId,
+    setActiveLatex,
+    setActiveAst,
+    setActiveVersion,
+    completeProcessing,
+    flushSave,
+  ])
 
   const handleDictate = () => {
     if (!supported) {

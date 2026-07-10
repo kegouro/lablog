@@ -12,6 +12,8 @@ export interface ParameterHint {
 interface AppState {
   pages: Page[]
   activePageId: string | null
+  /** Versión del documento en el backend (para ErrorBoundary resetKey). */
+  activeVersion: number
   activeLatex: string
   activeAst: Page['ast']
   searchQuery: string
@@ -36,8 +38,11 @@ interface AppState {
   flushSave: (() => Promise<void>) | null
   /** Registrado por el editor: mueve el cursor a la línea indicada (1-based). */
   goToLine: ((line: number) => void) | null
+  /** Línea resaltada en el gutter (error PDF, etc.). */
+  highlightLine: number | null
   setPages: (pages: Page[]) => void
   setActivePageId: (id: string | null) => void
+  setActiveVersion: (version: number) => void
   setActiveLatex: (latex: string) => void
   setActiveAst: (ast: Page['ast']) => void
   setSearchQuery: (q: string) => void
@@ -61,6 +66,7 @@ interface AppState {
   setInsertAtCursor: (fn: ((text: string) => void) | null) => void
   setFlushSave: (fn: (() => Promise<void>) | null) => void
   setGoToLine: (fn: ((line: number) => void) | null) => void
+  setHighlightLine: (line: number | null) => void
 }
 
 function persist(key: string, value: string): void {
@@ -74,6 +80,7 @@ function persist(key: string, value: string): void {
 export const useAppStore = create<AppState>((set) => ({
   pages: [],
   activePageId: null,
+  activeVersion: 0,
   activeLatex: '',
   activeAst: undefined,
   searchQuery: '',
@@ -103,8 +110,10 @@ export const useAppStore = create<AppState>((set) => ({
   insertAtCursor: null,
   flushSave: null,
   goToLine: null,
+  highlightLine: null,
   setPages: (pages) => set({ pages }),
-  setActivePageId: (id) => set({ activePageId: id }),
+  setActivePageId: (id) => set({ activePageId: id, activeVersion: 0 }),
+  setActiveVersion: (activeVersion) => set({ activeVersion }),
   setActiveLatex: (activeLatex) => set({ activeLatex }),
   setActiveAst: (activeAst) => set({ activeAst }),
   setSearchQuery: (searchQuery) => set({ searchQuery }),
@@ -144,4 +153,5 @@ export const useAppStore = create<AppState>((set) => ({
   setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
   setFlushSave: (flushSave) => set({ flushSave }),
   setGoToLine: (goToLine) => set({ goToLine }),
+  setHighlightLine: (highlightLine) => set({ highlightLine }),
 }))

@@ -5,15 +5,31 @@ export interface CellNode {
   source: string
   output: string
   figure_path: string | null
+  status?: 'idle' | 'running' | 'ok' | 'error'
 }
+
+export interface MathNode {
+  type: 'math'
+  latex: string
+  mode: 'inline' | 'display'
+}
+
+export interface TextNode {
+  type: 'text'
+  text: string
+}
+
+export type AstNode = TextNode | MathNode | CellNode
 
 export interface Page {
   id: string
   title: string
   project_id: string | null
   latex: string
+  raw: string
   updated_at: string
-  ast?: (CellNode | { type: string; text?: string; latex?: string; mode?: string })[]
+  version: number
+  ast?: AstNode[]
 }
 
 export interface VaultFile {
