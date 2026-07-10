@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from lablog import commands, completions, pdf_engine, projections, templates
+from lablog import commands, completions, diagrams, pdf_engine, projections, templates
 from lablog.ast_nodes import node_to_json
 from lablog.code_engine import CodeEngine, EngineStartError
 from lablog.commands import (
@@ -64,9 +64,13 @@ def _engine_ready() -> bool:
 
 @router.get("/health")
 def health() -> dict[str, Any]:
+    from lablog import __version__
+
     return {
         "status": "ok",
+        "version": __version__,
         "engine_ready": _engine_ready(),
+        "diagram_presets": len(diagrams.list_presets()),
         "tools": {
             "pandoc": which("pandoc") is not None,
             "xelatex": which("xelatex") is not None,
@@ -112,6 +116,42 @@ def get_latex_template(template_id: str) -> dict[str, str]:
 @router.get("/suggest")
 def suggest_latex(q: str = "", limit: int = 40) -> list[dict[str, str]]:
     return completions.suggest_as_dicts(q, limit=min(max(limit, 1), 100))
+
+
+class DiagramExpandRequest(BaseModel):
+    params: dict[str, float] | None = None
+
+
+@router.get("/diagrams/presets")
+def list_diagram_presets() -> list[dict[str, Any]]:
+    return [p.summary_dict() for p in diagrams.list_presets()]
+
+
+@router.get("/diagrams/presets/{preset_id}")
+def get_diagram_preset(preset_id: str) -> dict[str, Any]:
+    preset = diagrams.get_preset(preset_id)
+    if preset is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Preset no encontrado: {preset_id}")
+    return preset.model_dump()
+
+
+@router.post("/diagrams/presets/{preset_id}/expand")
+def expand_diagram_preset(preset_id: str, body: DiagramExpandRequest) -> dict[str, Any]:
+    preset = diagrams.get_preset(preset_id)
+    if preset is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Preset no encontrado: {preset_id}")
+    return diagrams.expand_preset(preset, body.params)
+
+
+@router.post("/diagrams/presets/{preset_id}/simulate-source")
+def diagram_simulate_source(preset_id: str, body: DiagramExpandRequest) -> dict[str, Any]:
+    preset = diagrams.get_preset(preset_id)
+    if preset is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Preset no encontrado: {preset_id}")
+    try:
+        return diagrams.expand_simulation(preset, body.params)
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
 
 store = EventStore(settings.event_dir)

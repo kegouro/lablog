@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   Archive,
+  CircuitBoard,
   FileText,
   GraduationCap,
   Plus,
@@ -27,6 +28,7 @@ interface SidebarProps {
 
 const TOOLS: { id: PanelId; icon: React.ElementType; label: string }[] = [
   { id: 'vault', icon: Archive, label: 'Bóveda' },
+  { id: 'diagrams', icon: CircuitBoard, label: 'Diagramas' },
   { id: 'snippets', icon: Type, label: 'Snippets' },
   { id: 'symbols', icon: Sigma, label: 'Símbolos' },
   { id: 'cells', icon: Terminal, label: 'Celdas' },

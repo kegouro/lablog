@@ -11,6 +11,18 @@ parametrizadas, con UX de presets, highlight y rangos seguros.
 | [circuitikz-jupyter-simulation.md](./circuitikz-jupyter-simulation.md) | Circuitos Circuitikz → simulación SPICE/Python en notebook |
 | [diagram-presets-and-parameters.md](./diagram-presets-and-parameters.md) | Presets de diagramas (cualquier tipo), parámetros, highlight, rangos |
 | [diagram-catalog.md](./diagram-catalog.md) | Catálogo inicial de diagramas (circuitos, Feynman, bloques, mecánicos) |
+| [pgplots-and-live-data.md](./pgplots-and-live-data.md) | Curvas / Bode / datos vault → Jupyter |
+
+## Implementación parcial (código)
+
+| Pieza | Ubicación |
+|-------|-----------|
+| Modelos + catálogo + expand/sim | `src/lablog/diagrams/` |
+| API | `GET/POST /api/v1/diagrams/presets…` |
+| UI panel Diagramas | `ui/src/components/panels/diagrams-panel.tsx` |
+| Parámetros con rango + highlight línea | `parameters-panel.tsx` |
+
+Presets vivos hoy: `rc_series_charge`, `voltage_divider`, `mass_spring_damper`, `qed_moller`.
 
 ## Principios de producto
 

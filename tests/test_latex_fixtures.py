@@ -105,6 +105,7 @@ def test_preamble_includes_scientific_packages() -> None:
         "physics",
         "braket",
         "tikz",
+        "circuitikz",
         "graphicx",
     ):
         assert pkg in _PREAMBLE

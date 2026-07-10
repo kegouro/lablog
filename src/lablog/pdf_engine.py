@@ -36,6 +36,7 @@ _PREAMBLE = (
     "\\usepackage{tikz}\n"
     "\\usetikzlibrary{positioning,arrows.meta,decorations.pathmorphing,"
     "decorations.markings,calc,shapes.geometric}\n"
+    "\\usepackage{circuitikz}\n"
     # tikz-feynman (Lua) no siempre en XeTeX; dibujos Feynman manuales con tikz bastan.
     "\\usepackage{fvextra}\n"
     "\\usepackage[hidelinks]{hyperref}\n"

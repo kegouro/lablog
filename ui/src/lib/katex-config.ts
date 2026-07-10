@@ -75,6 +75,7 @@ export const PDF_ONLY_ENVS = new Set([
   'fmfgraph',
   'fmfgraph*',
   'circuitikz',
+  'circuitikz*',
   'axis', // pgfplots
   'figure',
   'figure*',

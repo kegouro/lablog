@@ -4,6 +4,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { LatexEditor } from '@/components/editor/latex-editor'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { CellsPanel } from '@/components/panels/cells-panel'
+import { DiagramsPanel } from '@/components/panels/diagrams-panel'
 import { ParametersPanel } from '@/components/panels/parameters-panel'
 import { SnippetsPanel } from '@/components/panels/snippets-panel'
 import { SymbolsPanel } from '@/components/panels/symbols-panel'
@@ -36,6 +37,7 @@ import { WelcomeDialog } from './welcome-dialog'
 
 const PANELS: Record<string, React.FC> = {
   vault: VaultPanel,
+  diagrams: DiagramsPanel,
   snippets: SnippetsPanel,
   symbols: SymbolsPanel,
   cells: CellsPanel,
@@ -136,6 +138,7 @@ export function AppShell() {
 
   const activePanel =
     panels.parameters ? 'parameters' :
+    panels.diagrams ? 'diagrams' :
     panels.tutorials ? 'tutorials' :
     panels.cells ? 'cells' :
     panels.snippets ? 'snippets' :
