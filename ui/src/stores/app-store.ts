@@ -43,6 +43,8 @@ export interface AppPreferences {
   editorFont: EditorFont
   reducedMotion: boolean
   labMode: boolean
+  /** Chord overrides (mod+k, …). */
+  shortcuts?: Partial<Record<ShortcutAction, string>>
 }
 
 /** Perfiles listos: un clic cambia varios knobs a la vez. */
@@ -285,6 +287,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       editorFont: s.editorFont,
       reducedMotion: s.reducedMotion,
       labMode: s.labMode,
+      shortcuts: { ...s.shortcuts },
     }
   },
   importPreferences: (prefs) => {
@@ -302,6 +305,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       if (typeof prefs.reducedMotion === 'boolean') next.reducedMotion = prefs.reducedMotion
       if (typeof prefs.labMode === 'boolean') next.labMode = prefs.labMode
+      if (prefs.shortcuts && typeof prefs.shortcuts === 'object') {
+        next.shortcuts = { ...DEFAULT_SHORTCUTS, ...prefs.shortcuts }
+        persist('lablog-shortcuts', JSON.stringify(next.shortcuts))
+      }
       persist('lablog-accent', next.accent)
       persist('lablog-palette', next.palette)
       persist('lablog-custom-colors', JSON.stringify(next.customColors))

@@ -124,7 +124,8 @@ try:
     analysis = simulator.transient(step_time=t_end / 800, end_time=t_end)
     t = np.array(analysis.time)
     v_c = np.array(analysis["n3"])
-    i = np.array(analysis["V-in"][0]) if False else np.gradient(np.array(analysis["n3"]) * C, t)
+    # Corriente por la C: i ≈ C dv/dt (robusto entre versiones PySpice)
+    i = C * np.gradient(v_c, t, edge_order=1)
     zeta = R / 2.0 * np.sqrt(C / L)
     backend = "pyspice"
 except Exception as exc:  # noqa: BLE001
@@ -181,15 +182,16 @@ def _numpy_hwr(Vpeak, f, Rload, C):
 
 try:
     from PySpice.Spice.Netlist import Circuit
-    from PySpice.Unit import u_V, u_Hz, u_Ohm, u_F, u_Degree  # type: ignore
+    from PySpice.Unit import u_V, u_Hz, u_Ohm, u_F  # type: ignore
 
-    # Fuente senoidal + diodo 1N4148-like + RC paralelo (media onda).
+    # Fuente senoidal + diodo primitivo (D) + RC paralelo.
+    # Evita subcircuitos externos que fallan sin librerías ngspice.
     circuit = Circuit("half-wave rectifier")
     circuit.SinusoidalVoltageSource(
         "in", "n_ac", circuit.gnd, amplitude=Vpeak @ u_V, frequency=f @ u_Hz
     )
-    circuit.X("D1", "1N4148", "n_ac", "n_out")
-    circuit.model("1N4148", "D", IS=2.52e-9, RS=0.568, N=1.752, CJO=4e-12, M=0.4, TT=20e-9)
+    circuit.D(1, "n_ac", "n_out", model="IdealDiode")
+    circuit.model("IdealDiode", "D", IS=1e-14, N=1)
     circuit.R("load", "n_out", circuit.gnd, Rload @ u_Ohm)
     circuit.C(1, "n_out", circuit.gnd, C @ u_F)
     simulator = circuit.simulator(temperature=25, nominal_temperature=25)
