@@ -522,6 +522,17 @@ def test_export_docx_503_without_pandoc(monkeypatch) -> None:
     assert "pandoc" in res.json()["detail"]
 
 
+def test_canva_export_escapes_title() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "</title><script>alert(1)</script>"}).json()[
+        "page_id"
+    ]
+    res = client.get(f"/api/v1/pages/{pid}/export/canva")
+    assert res.status_code == 200
+    body = res.text
+    assert "<script>" not in body
+    assert "&lt;/title&gt;" in body or "&#" in body or "&lt;script&gt;" in body
+
+
 def test_export_txt_fallback_without_pandoc(monkeypatch) -> None:
     monkeypatch.setattr("lablog.api.which", lambda _cmd: None)
     pid = client.post("/api/v1/pages", json={"title": "Plain"}).json()["page_id"]

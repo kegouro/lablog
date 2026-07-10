@@ -17,6 +17,9 @@ export function CellsPanel() {
   const activePageId = useAppStore((s) => s.activePageId)
   const togglePanel = useAppStore((s) => s.togglePanel)
   const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
+  const flushSave = useAppStore((s) => s.flushSave)
   const [cells, setCells] = useState<Array<{
     cell_id: string
     language: string
@@ -33,7 +36,10 @@ export function CellsPanel() {
     const [cellList, page] = await Promise.all([listCells(activePageId), getPage(activePageId)])
     setCells(cellList)
     setActiveAst(page.ast)
-  }, [activePageId, setActiveAst])
+    // Sincroniza el raw del editor para que el autosave no pise celdas nuevas.
+    setActiveLatex(page.raw || page.latex)
+    setActiveVersion(page.version)
+  }, [activePageId, setActiveAst, setActiveLatex, setActiveVersion])
 
   useEffect(() => {
     if (!activePageId) {
@@ -45,6 +51,7 @@ export function CellsPanel() {
 
   const addCell = async () => {
     if (!activePageId || !newSource.trim()) return
+    if (flushSave) await flushSave()
     const cell = {
       cell_id: crypto.randomUUID(),
       language: newLang,
@@ -57,6 +64,7 @@ export function CellsPanel() {
 
   const runCell = async (cellId: string) => {
     if (!activePageId) return
+    if (flushSave) await flushSave()
     setCells((prev) =>
       prev.map((c) => (c.cell_id === cellId ? { ...c, status: 'running' } : c)),
     )

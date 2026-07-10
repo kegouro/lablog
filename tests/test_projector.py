@@ -122,3 +122,28 @@ def test_cell_executed_sets_cell_ok_status():
     proj = project(page_id, events)
     assert proj.ast.children[0].status == "ok"
     assert proj.ast.children[0].output == "2"
+
+
+def test_document_replaced_preserves_cell_runtime_by_label():
+    """Autosave (document_replaced) no debe borrar output/figura de celdas."""
+    from lablog.events import document_replaced
+    from lablog.latex_ast import serialize_ast
+
+    page_id = str(uuid4())
+    events = [
+        page_created(page_id=page_id, title="Test"),
+        cell_inserted(page_id=page_id, cell_id="c1", language="python", source="1+1"),
+        cell_executed(page_id=page_id, cell_id="c1", output="2", figure_path="p/fig_0.png"),
+    ]
+    mid = project(page_id, events)
+    latex = serialize_ast(mid.ast)
+    assert "label=c1" in latex
+    # Simula un PUT crudo con el mismo documento (como el editor al guardar).
+    events.append(document_replaced(page_id=page_id, latex=latex + "\n% note\n"))
+    final = project(page_id, events)
+    cells = [c for c in final.ast.children if isinstance(c, CellNode)]
+    assert len(cells) == 1
+    assert cells[0].cell_id == "c1"
+    assert cells[0].output == "2"
+    assert cells[0].figure_path == "p/fig_0.png"
+    assert cells[0].status == "ok"

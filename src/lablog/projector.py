@@ -50,7 +50,24 @@ class PageProjection:
 
             case "document_replaced":
                 latex = event.payload.get("latex", "")
+                # Preserva output/figura/status de celdas con el mismo cell_id.
+                # serialize_ast escribe [label=id]; sin esto cada PUT crudo
+                # (autosave) borra resultados de ejecución.
+                prev_cells = {
+                    child.cell_id: child
+                    for child in self.ast.children
+                    if isinstance(child, CellNode) and child.cell_id
+                }
                 self.ast = parse_latex(latex)
+                for child in self.ast.children:
+                    if not isinstance(child, CellNode) or not child.cell_id:
+                        continue
+                    old = prev_cells.get(child.cell_id)
+                    if old is None:
+                        continue
+                    child.output = old.output
+                    child.figure_path = old.figure_path
+                    child.status = old.status
 
             case "math_inserted":
                 latex = event.payload.get("latex", "")

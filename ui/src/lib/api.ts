@@ -47,7 +47,15 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
     const parsed = parseErrorBody(text)
     throw new ApiError(res.status, parsed.message, parsed.errorCode, parsed.detail)
   }
-  return res.json() as Promise<T>
+  // 204 / cuerpo vacío: DELETE y similares no devuelven JSON.
+  if (res.status === 204) {
+    return undefined as T
+  }
+  const text = await res.text()
+  if (!text.trim()) {
+    return undefined as T
+  }
+  return JSON.parse(text) as T
 }
 
 interface PageDetailWire {
