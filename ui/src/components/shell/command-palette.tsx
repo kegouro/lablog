@@ -18,6 +18,7 @@ export function CommandPalette() {
   const setActivePageId = useAppStore((s) => s.setActivePageId)
   const setPanel = useAppStore((s) => s.setPanel)
   const setLabMode = useAppStore((s) => s.setLabMode)
+  const flushSave = useAppStore((s) => s.flushSave)
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -55,7 +56,21 @@ export function CommandPalette() {
           <CommandItem onSelect={() => { setPanel('vault', true); setOpen(false) }}>Abrir bóveda</CommandItem>
           <CommandItem onSelect={() => { setPanel('snippets', true); setOpen(false) }}>Abrir snippets</CommandItem>
           <CommandItem onSelect={() => { setPanel('symbols', true); setOpen(false) }}>Abrir símbolos</CommandItem>
-          <CommandItem onSelect={() => { setLabMode(true); setOpen(false) }}>Modo laboratorio</CommandItem>
+          <CommandItem
+            onSelect={async () => {
+              if (flushSave) {
+                try {
+                  await flushSave()
+                } catch {
+                  /* ignore */
+                }
+              }
+              setLabMode(true)
+              setOpen(false)
+            }}
+          >
+            Modo laboratorio
+          </CommandItem>
         </CommandGroup>
       </CommandList>
     </CommandDialog>

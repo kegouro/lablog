@@ -117,7 +117,7 @@ export function LabCanvas() {
       .finally(() => setLoading(false))
   }, [activePageId])
 
-  const addCell = (language: string) => {
+  const addCell = async (language: string) => {
     if (!activePageId) return
     const cell: LabCell = {
       cell_id: crypto.randomUUID(),
@@ -128,9 +128,17 @@ export function LabCanvas() {
       status: 'idle',
       collapsed: false,
     }
-    insertCell(activePageId, { cell_id: cell.cell_id, language: cell.language, source: cell.source })
-    setCells((prev) => [...prev, cell])
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    try {
+      await insertCell(activePageId, {
+        cell_id: cell.cell_id,
+        language: cell.language,
+        source: cell.source,
+      })
+      setCells((prev) => [...prev, cell])
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   const updateSource = (cellId: string, source: string) => {

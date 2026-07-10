@@ -39,6 +39,23 @@ plt.title('Test')
     assert len(result.figure_paths) == 1
 
 
+def test_figures_are_isolated_per_run(engine: CodeEngine, tmp_path) -> None:
+    """Cada ejecución usa prefijo único; no reutiliza fig_0 ni glob de ajenas."""
+    code = """
+import matplotlib.pyplot as plt
+plt.figure()
+plt.plot([1, 2], [1, 2])
+"""
+    r1 = engine.execute(code, figure_dir=tmp_path)
+    r2 = engine.execute(code, figure_dir=tmp_path)
+    assert r1.status == "ok" and r2.status == "ok"
+    assert len(r1.figure_paths) == 1
+    assert len(r2.figure_paths) == 1
+    assert r1.figure_paths[0] != r2.figure_paths[0]
+    # Solo la figura de esta corrida (token distinto), no el glob completo del dir.
+    assert len(list(tmp_path.glob("*_fig_*.png"))) == 2
+
+
 def test_execute_error(engine: CodeEngine) -> None:
     result = engine.execute("1 / 0")
     assert result.status == "error"

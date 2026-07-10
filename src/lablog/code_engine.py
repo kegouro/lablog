@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar, Literal
@@ -181,10 +182,15 @@ class CodeEngine:
         return False
 
     def _save_figures(self, figure_dir: Path) -> list[str]:
+        # Prefijo único por ejecución: evita reusar fig_0.png y el glob de
+        # restos de otras celdas (adjunta figuras ajenas).
+        token = uuid.uuid4().hex[:12]
         save_code = f"""
 import matplotlib.pyplot as plt
 for i, num in enumerate(plt.get_fignums()):
-    plt.figure(num).savefig({str(figure_dir)!r} + f"/fig_{{i}}.png", bbox_inches="tight")
+    plt.figure(num).savefig(
+        {str(figure_dir)!r} + f"/{token}_fig_{{i}}.png", bbox_inches="tight"
+    )
 plt.close("all")
 """
         msg_id = self._client.execute(save_code)
@@ -201,4 +207,4 @@ plt.close("all")
                 and msg["content"].get("execution_state") == "idle"
             ):
                 break
-        return sorted(str(p) for p in Path(figure_dir).glob("fig_*.png"))
+        return sorted(str(p) for p in Path(figure_dir).glob(f"{token}_fig_*.png"))

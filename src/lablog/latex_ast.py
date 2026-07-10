@@ -9,8 +9,22 @@ from lablog.ast_nodes import CellNode, DocumentNode, MathNode, Node, TextNode
 # Lenguajes que lablog ejecuta como celdas de código. Cualquier otro
 # \begin{...} (align, equation, itemize, figure, table, …) es LaTeX normal
 # y se preserva verbatim para que lo renderice el preview, no una celda.
+# Incluye lenguajes de texto del lab (markdown/latex) para round-trip por
+# document_replaced: sin esto se pierden como CellNode al re-parsear.
 CODE_ENVIRONMENTS = frozenset(
-    {"python", "py", "code", "sage", "julia", "r", "octave", "bash", "sh"}
+    {
+        "python",
+        "py",
+        "code",
+        "sage",
+        "julia",
+        "r",
+        "octave",
+        "bash",
+        "sh",
+        "markdown",
+        "latex",
+    }
 )
 
 

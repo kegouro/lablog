@@ -20,16 +20,28 @@ export function usePageUpdate(
   const pendingRef = useRef<string | null>(null)
   /** Descarta respuestas de saves obsoletos si el usuario siguió escribiendo. */
   const genRef = useRef(0)
+  /** PUT en vuelo: flush debe esperarlo para no insertar celdas sobre un replace viejo. */
+  const inflightRef = useRef<Promise<Page | undefined> | null>(null)
+  const pageIdRef = useRef(pageId)
+  pageIdRef.current = pageId
 
-  // Cancela cualquier guardado pendiente cuando cambia la página activa.
+  // Al cambiar de página o desmontar: cancela debounce y persiste draft pendiente.
   useEffect(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
+    const previousPageId = pageId
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current)
+        timerRef.current = null
+      }
+      const raw = pendingRef.current
+      pendingRef.current = null
+      genRef.current += 1
+      if (raw != null && previousPageId) {
+        void updatePageRaw(previousPageId, raw).catch(() => {
+          // best-effort: no hay UI al desmontar
+        })
+      }
     }
-    pendingRef.current = null
-    genRef.current += 1
-    setStatus('idle')
   }, [pageId])
 
   const save = useCallback(
@@ -37,17 +49,28 @@ export function usePageUpdate(
       if (!pageId) return
       const gen = genRef.current
       setStatus('saving')
-      try {
-        const page = await updatePageRaw(pageId, raw)
-        // Si el draft local ya es más nuevo, no pisar AST/versión con respuesta vieja.
-        if (gen !== genRef.current || pendingRef.current !== null) {
+      const work = (async (): Promise<Page | undefined> => {
+        try {
+          const page = await updatePageRaw(pageId, raw)
+          // Si el draft local ya es más nuevo, no pisar AST/versión con respuesta vieja.
+          if (gen !== genRef.current || pendingRef.current !== null) {
+            return page
+          }
+          setStatus('saved')
+          onUpdate?.(page)
           return page
+        } catch {
+          if (gen === genRef.current) setStatus('error')
+          return undefined
         }
-        setStatus('saved')
-        onUpdate?.(page)
-        return page
-      } catch {
-        if (gen === genRef.current) setStatus('error')
+      })()
+      inflightRef.current = work
+      try {
+        return await work
+      } finally {
+        if (inflightRef.current === work) {
+          inflightRef.current = null
+        }
       }
     },
     [pageId, onUpdate],
@@ -78,7 +101,13 @@ export function usePageUpdate(
     }
     const raw = pendingRef.current
     pendingRef.current = null
-    if (raw != null) return save(raw)
+    if (raw != null) {
+      return save(raw)
+    }
+    // Espera el PUT ya enviado para que insertCell no pierda la carrera.
+    if (inflightRef.current) {
+      return inflightRef.current
+    }
   }, [save])
 
   return { status, updateRaw, flush }

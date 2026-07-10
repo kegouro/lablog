@@ -24,9 +24,22 @@ _INLINE_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\\(?:textit|emph|textsl)\{([^{}]*)\}"), r"<em>\1</em>"),
     (re.compile(r"\\underline\{([^{}]*)\}"), r"<u>\1</u>"),
     (re.compile(r"\\(?:texttt|verb)\{([^{}]*)\}"), r"<code>\1</code>"),
-    (re.compile(r"\\href\{([^{}]*)\}\{([^{}]*)\}"), r'<a href="\1">\2</a>'),
-    (re.compile(r"\\url\{([^{}]*)\}"), r'<a href="\1">\1</a>'),
 ]
+
+_HREF_RE = re.compile(r"\\href\{([^{}]*)\}\{([^{}]*)\}")
+_URL_RE = re.compile(r"\\url\{([^{}]*)\}")
+_SAFE_URL = re.compile(r"^(https?://|mailto:)", re.IGNORECASE)
+
+
+def _safe_href(url: str, label: str) -> str:
+    """Solo http(s)/mailto; escapa atributos para evitar XSS en export HTML."""
+    cleaned = url.strip()
+    if not _SAFE_URL.match(cleaned):
+        return html.escape(label or cleaned)
+    return (
+        f'<a href="{html.escape(cleaned, quote=True)}">'
+        f"{html.escape(label or cleaned)}</a>"
+    )
 
 
 def _items(body: str) -> str:
@@ -39,6 +52,8 @@ def _inline(text: str) -> str:
         before = text
         for pattern, repl in _INLINE_RULES:
             text = pattern.sub(repl, text)
+        text = _HREF_RE.sub(lambda m: _safe_href(m.group(1), m.group(2)), text)
+        text = _URL_RE.sub(lambda m: _safe_href(m.group(1), m.group(1)), text)
         if text == before:
             break
     return text.replace(r"\\", "<br/>")

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-07-10
+
+### Fixed
+
+- Figure isolation: each cell run writes unique `{token}_fig_N.png` files (no shared `fig_0` overwrite or stale glob).
+- Autosave races: flush awaits in-flight PUT; debounce cancelled + draft flushed on unmount/page change; lab mode switch flushes editor first.
+- Ghost `"vault"` page no longer appears in page lists (vault audit stream excluded).
+- Lab `markdown` / `latex` cells survive editor autosave round-trip (`CODE_ENVIRONMENTS`).
+- Cells panel no longer offers Julia (engine is Python-only).
+- Export/PDF compile flush the editor buffer before reading the event log.
+- Static HTML export: `\href`/`\url` only allow `http(s)`/`mailto` and escape attributes (XSS).
+- Voice dictation uses `/voice` intent pipeline instead of raw latex append.
+- Lab canvas awaits `insertCell` so failed inserts do not leave phantom cells.
+- Post-v0.2.0 critical client/data fixes (204 empty body, cell runtime merge, figures path, Canva escape, cells latex sync).
+
 ## [0.2.0] - 2026-07-10
 
 ### Added
@@ -63,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved live preview: renders AST directly where possible and shows per-block KaTeX errors.
 - Raised backend test coverage threshold to 80%.
 
-[Unreleased]: https://github.com/kegouro/lablog/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/kegouro/lablog/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/kegouro/lablog/releases/tag/v0.2.1
 [0.2.0]: https://github.com/kegouro/lablog/releases/tag/v0.2.0
 [0.1.0]: https://github.com/kegouro/lablog/releases/tag/v0.1.0

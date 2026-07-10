@@ -70,5 +70,11 @@ class EventStore:
         return [e for e in events if e.timestamp.isoformat() <= timestamp]
 
     def list_pages(self) -> list[str]:
-        """Lista todos los page_id almacenados."""
-        return [f.stem for f in self.root_dir.glob("*.jsonl")]
+        """Lista page_id de documentos (excluye streams auxiliares como vault)."""
+        # vault.jsonl reutiliza el EventStore para auditoría de archivos; no es
+        # una página del laboratorio y no debe aparecer en listados/export.
+        return [
+            f.stem
+            for f in self.root_dir.glob("*.jsonl")
+            if f.stem != "vault"
+        ]
