@@ -45,6 +45,8 @@ interface AppState {
   transcription: string
   parameterHints: Record<string, ParameterHint>
   parameterValues: Record<string, string>
+  /** Preset de diagrama activo en la página (para re-aplicar desde Parámetros). */
+  activeDiagramPresetId: string | null
   /** Registrado por el editor: inserta texto en la posición del cursor. */
   insertAtCursor: ((text: string) => void) | null
   /** Registrado por el editor: fuerza el guardado inmediato si hay cambios pendientes. */
@@ -77,6 +79,7 @@ interface AppState {
   setTranscription: (text: string) => void
   setParameterHints: (hints: Record<string, ParameterHint>) => void
   setParameterValue: (name: string, value: string) => void
+  setActiveDiagramPresetId: (id: string | null) => void
   clearParameters: () => void
   setInsertAtCursor: (fn: ((text: string) => void) | null) => void
   setFlushSave: (fn: (() => Promise<void>) | null) => void
@@ -124,6 +127,7 @@ export const useAppStore = create<AppState>((set) => ({
   transcription: '',
   parameterHints: {},
   parameterValues: {},
+  activeDiagramPresetId: null,
   insertAtCursor: null,
   flushSave: null,
   discardPendingSave: null,
@@ -167,7 +171,9 @@ export const useAppStore = create<AppState>((set) => ({
     set((state) => ({
       parameterValues: { ...state.parameterValues, [name]: value },
     })),
-  clearParameters: () => set({ parameterHints: {}, parameterValues: {} }),
+  setActiveDiagramPresetId: (activeDiagramPresetId) => set({ activeDiagramPresetId }),
+  clearParameters: () =>
+    set({ parameterHints: {}, parameterValues: {}, activeDiagramPresetId: null }),
   setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
   setFlushSave: (flushSave) => set({ flushSave }),
   setDiscardPendingSave: (discardPendingSave) => set({ discardPendingSave }),

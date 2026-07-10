@@ -112,3 +112,83 @@ def parse_lablog_params(latex: str) -> dict[str, float]:
         except ValueError:
             continue
     return out
+
+
+def parse_lablog_preset_id(latex: str) -> str | None:
+    """Extrae ``% lablog-diagram: preset=ID`` del documento."""
+    m = re.search(r"%\s*lablog-diagram:\s*preset=([A-Za-z0-9_-]+)", latex)
+    return m.group(1) if m else None
+
+
+def _find_env_end(text: str, begin_pos: int) -> int | None:
+    """Devuelve el índice justo tras el ``\\end{env}`` que cierra el ``\\begin`` en begin_pos."""
+    m = re.match(r"\\begin\{([a-zA-Z*]+)\}", text[begin_pos:])
+    if not m:
+        return None
+    env = m.group(1)
+    depth = 0
+    pos = begin_pos
+    begin_re = re.compile(rf"\\begin\{{{re.escape(env)}\}}")
+    end_re = re.compile(rf"\\end\{{{re.escape(env)}\}}")
+    while pos < len(text):
+        b = begin_re.search(text, pos)
+        e = end_re.search(text, pos)
+        if e is None:
+            return None
+        if b is not None and b.start() < e.start():
+            depth += 1
+            pos = b.end()
+            continue
+        depth -= 1
+        pos = e.end()
+        if depth == 0:
+            return pos
+    return None
+
+
+def _diagram_span(doc_latex: str) -> tuple[int, int] | None:
+    """Rango [start, end) del primer bloque lablog-diagram + entorno TikZ asociado."""
+    header = re.search(r"%\s*lablog-diagram:", doc_latex)
+    if not header:
+        return None
+    start = header.start()
+    rest = doc_latex[start:]
+    begin = re.search(r"\\begin\{([a-zA-Z*]+)\}", rest)
+    if not begin:
+        # Solo cabecera de comentarios hasta la siguiente línea no-comentario o EOF.
+        end_rel = len(rest)
+        for i, line in enumerate(rest.splitlines(keepends=True)):
+            if i == 0:
+                continue
+            if not line.lstrip().startswith("%"):
+                # fin de comentarios (sin contar el salto previo ya incluido)
+                end_rel = sum(len(x) for x in rest.splitlines(keepends=True)[:i])
+                break
+        return start, start + end_rel
+
+    env_start = start + begin.start()
+    env_end = _find_env_end(doc_latex, env_start)
+    if env_end is None:
+        # Fallback conservador: no devorar el resto del documento.
+        line_end = doc_latex.find("\n", env_start)
+        env_end = len(doc_latex) if line_end < 0 else line_end
+    # Incluye newline final del bloque si existe.
+    if env_end < len(doc_latex) and doc_latex[env_end] == "\n":
+        env_end += 1
+    return start, env_end
+
+
+def replace_or_append_diagram(doc_latex: str, new_block: str) -> str:
+    """Sustituye el bloque lablog-diagram existente o lo añade al final.
+
+    Preserva el texto del documento fuera del bloque (no reemplaza hasta EOF).
+    """
+    new_block = new_block.strip() + "\n"
+    span = _diagram_span(doc_latex)
+    if span is None:
+        base = doc_latex.rstrip()
+        if base:
+            return base + "\n\n" + new_block
+        return new_block
+    start, end = span
+    return doc_latex[:start] + new_block + doc_latex[end:]

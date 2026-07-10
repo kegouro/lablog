@@ -154,6 +154,37 @@ def diagram_simulate_source(preset_id: str, body: DiagramExpandRequest) -> dict[
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
 
+class DiagramApplyRequest(BaseModel):
+    """Reaplica un preset sobre el LaTeX de la página (params opcionales)."""
+
+    latex: str = Field(max_length=_MAX_LATEX_CHARS)
+    params: dict[str, float] | None = None
+    preset_id: str | None = None
+
+
+@router.post("/diagrams/apply")
+def apply_diagram_params(body: DiagramApplyRequest) -> dict[str, Any]:
+    """Detecta preset en el doc o usa preset_id; reexpande y sustituye el bloque."""
+    preset_id = body.preset_id or diagrams.parse_lablog_preset_id(body.latex)
+    if not preset_id:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "No hay lablog-diagram en el documento ni preset_id",
+        )
+    preset = diagrams.get_preset(preset_id)
+    if preset is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Preset no encontrado: {preset_id}")
+    # Params del body > comentarios del doc > defaults
+    from_doc = diagrams.parse_lablog_params(body.latex)
+    merged = {**from_doc, **(body.params or {})}
+    expanded = diagrams.expand_preset(preset, merged)
+    new_latex = diagrams.replace_or_append_diagram(body.latex, expanded["latex"])
+    return {
+        **expanded,
+        "document_latex": new_latex,
+    }
+
+
 store = EventStore(settings.event_dir)
 favorites = FavoritesStore()
 vault = VaultService()

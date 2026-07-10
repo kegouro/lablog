@@ -11,6 +11,8 @@ from lablog.diagrams import (
     expand_simulation,
     get_preset,
     list_presets,
+    parse_lablog_preset_id,
+    replace_or_append_diagram,
 )
 from lablog.diagrams.expand import parse_lablog_params
 
@@ -23,6 +25,8 @@ def test_catalog_has_core_presets() -> None:
     assert "voltage_divider" in ids
     assert "mass_spring_damper" in ids
     assert "qed_moller" in ids
+    assert "rlc_series_step" in ids
+    assert "second_order_step" in ids
 
 
 def test_expand_rc_defaults() -> None:
@@ -91,5 +95,66 @@ def test_health_reports_presets() -> None:
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["diagram_presets"] >= 4
+    assert body["diagram_presets"] >= 6
     assert "version" in body
+
+
+def test_rlc_and_second_order_expand() -> None:
+    rlc = get_preset("rlc_series_step")
+    assert rlc is not None
+    out = expand_preset(rlc, {"R": 50, "L": 1e-3, "C": 1e-6, "V0": 12})
+    assert "circuitikz" in out["latex"]
+    assert "lablog-diagram: preset=rlc_series_step" in out["latex"]
+    assert out["params"]["R"] == 50
+    sim = expand_simulation(rlc, out["params"])
+    assert "zeta" in sim["source"] or "ζ" in sim["source"] or "wn" in sim["source"]
+
+    so = get_preset("second_order_step")
+    assert so is not None
+    so_out = expand_preset(so, {"wn": 3, "zeta": 0.2, "K": 2})
+    assert "tikzpicture" in so_out["latex"]
+    assert so_out["params"]["zeta"] == 0.2
+    so_sim = expand_simulation(so, so_out["params"])
+    assert "LABLOG_PARAMS" in so_sim["source"]
+
+
+def test_parse_preset_id_and_replace_preserves_tail() -> None:
+    preset = get_preset("rc_series_charge")
+    assert preset is not None
+    block = expand_preset(preset)["latex"]
+    doc = f"% intro\n\n{block}\n\nTexto del lab que no debe borrarse.\n"
+    assert parse_lablog_preset_id(doc) == "rc_series_charge"
+
+    new_block = expand_preset(preset, {"R": 470})["latex"]
+    updated = replace_or_append_diagram(doc, new_block)
+    assert "Texto del lab que no debe borrarse" in updated
+    assert "% intro" in updated
+    assert "lablog-param: R=470" in updated or "R=470" in updated
+    # append path
+    plain = "Solo texto."
+    appended = replace_or_append_diagram(plain, new_block)
+    assert appended.startswith("Solo texto.")
+    assert "lablog-diagram" in appended
+
+
+def test_api_apply_diagram() -> None:
+    r = client.post("/api/v1/diagrams/presets/rc_series_charge/expand", json={})
+    assert r.status_code == 200
+    latex = r.json()["latex"]
+    doc = f"Prefacio.\n\n{latex}\n\nEpilogo.\n"
+
+    r = client.post(
+        "/api/v1/diagrams/apply",
+        json={"latex": doc, "params": {"R": 2200, "C": 2e-6}},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["preset_id"] == "rc_series_charge"
+    assert "document_latex" in body
+    assert "Prefacio" in body["document_latex"]
+    assert "Epilogo" in body["document_latex"]
+    assert body["params"]["R"] == 2200
+    assert "lablog-param: R=2200" in body["document_latex"]
+
+    r = client.post("/api/v1/diagrams/apply", json={"latex": "sin diagrama"})
+    assert r.status_code == 422
