@@ -37,7 +37,7 @@ from lablog.events import (
     vault_file_added,
     vault_file_deleted,
 )
-from lablog.exporter import export_site
+from lablog.exporter import export_site, page_to_ipynb_bytes
 from lablog.latex_symbols import FavoritesStore, list_symbols
 from lablog.projections import PageNotFoundError
 from lablog.snippets import Snippet, find_snippet, render_snippet
@@ -1085,6 +1085,18 @@ def export_page(page_id: str, format: str) -> Response:
         return Response(
             content=content.encode("utf-8"),
             media_type="text/html",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    if format in ("ipynb", "notebook"):
+        try:
+            cells = projections.list_cells(store, page_id)
+        except PageNotFoundError:
+            _handle_projection_not_found(page_id)
+        payload = page_to_ipynb_bytes(title, latex, cells)
+        filename = _safe_download_filename(title, "ipynb")
+        return Response(
+            content=payload,
+            media_type="application/x-ipynb+json",
             headers={"Content-Disposition": f'attachment; filename="{filename}"'},
         )
 

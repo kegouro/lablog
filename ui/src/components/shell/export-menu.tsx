@@ -1,4 +1,13 @@
-import { Download, FileCode, FileImage, FileText, FileType2, Globe, Palette } from 'lucide-react'
+import {
+  Download,
+  FileCode,
+  FileImage,
+  FileJson,
+  FileText,
+  FileType2,
+  Globe,
+  Palette,
+} from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -16,6 +25,7 @@ const FORMATS = [
   { id: 'txt', label: 'Texto plano (.txt)', icon: FileType2 },
   { id: 'pdf', label: 'PDF (.pdf)', icon: FileImage },
   { id: 'docx', label: 'Word (.docx)', icon: FileText },
+  { id: 'ipynb', label: 'Notebook Jupyter (.ipynb)', icon: FileJson },
   { id: 'canva', label: 'Canva-ready (.html)', icon: Palette },
   { id: 'site', label: 'Sitio estático (GitHub Pages)', icon: Globe },
 ]
@@ -77,7 +87,7 @@ export function ExportMenu() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      const ext = format === 'canva' ? 'html' : format
+      const ext = format === 'canva' ? 'html' : format === 'ipynb' ? 'ipynb' : format
       a.download = `lablog_export.${ext}`
       document.body.appendChild(a)
       a.click()
