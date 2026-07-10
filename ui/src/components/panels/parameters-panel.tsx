@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import {
   applyDiagramParams,
   diagramSimulateSource,
+  getPage,
   insertCell,
   replacePageLatex,
   type DiagramExpandResult,
@@ -211,12 +212,21 @@ export function ParametersPanel() {
       const value = parameterValues[name] ?? parameterHints[name]?.default ?? `{{${name}}}`
       next = next.replaceAll(`{{${name}}}`, value)
     }
-    setActiveLatex(next)
-    if (activePageId) {
+    if (!activePageId) {
+      setActiveLatex(next)
+      return
+    }
+    try {
+      // Persiste primero; solo refleja en la UI si el servidor lo aceptó.
       const version = useAppStore.getState().activeVersion || undefined
       const result = await replacePageLatex(activePageId, next, version)
+      setActiveLatex(result.latex)
       setActiveAst(result.ast)
       setActiveVersion(result.version)
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudieron congelar los parámetros')
+      throw err
     }
   }
 
@@ -235,9 +245,13 @@ export function ParametersPanel() {
         activeDiagramPresetId ?? undefined,
         { highlightParam: highlight ?? activeHighlightParam },
       )
-      setActiveLatex(applied.document_latex)
-      const version = useAppStore.getState().activeVersion || undefined
-      const page = await replacePageLatex(activePageId, applied.document_latex, version)
+      const version = useAppStore.getState().activeVersion
+      const page = await replacePageLatex(
+        activePageId,
+        applied.document_latex,
+        typeof version === 'number' ? version : undefined,
+      )
+      setActiveLatex(page.latex)
       setActiveAst(page.ast)
       setActiveVersion(page.version)
       setActiveDiagramPresetId(applied.preset_id)
@@ -254,6 +268,10 @@ export function ParametersPanel() {
           language: 'python',
           source: sim.source,
         })
+        const refreshed = await getPage(activePageId)
+        setActiveLatex(refreshed.raw || refreshed.latex)
+        setActiveAst(refreshed.ast)
+        setActiveVersion(refreshed.version)
         setPanel('cells', true)
         toast.success('Diagrama actualizado + nueva celda de simulación')
       } else {
@@ -268,16 +286,21 @@ export function ParametersPanel() {
   }
 
   const onPrimaryAction = async () => {
-    if (placeholderMatches.length > 0 && !hasDiagramMarkers) {
+    try {
+      if (placeholderMatches.length > 0 && !hasDiagramMarkers) {
+        await bakePlaceholders()
+        toast.success('Valores congelados')
+        return
+      }
+      if (isDiagramMode) {
+        await reapplyDiagram(false)
+        return
+      }
       await bakePlaceholders()
       toast.success('Valores congelados')
-      return
+    } catch {
+      // toast de error ya emitido en bakePlaceholders / reapplyDiagram
     }
-    if (isDiagramMode) {
-      await reapplyDiagram(false)
-      return
-    }
-    await bakePlaceholders()
   }
 
   return (

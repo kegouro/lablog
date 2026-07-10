@@ -31,12 +31,16 @@ export function CellsPanel() {
 
   const refreshCells = useCallback(async () => {
     if (!activePageId) return
-    const [cellList, page] = await Promise.all([listCells(activePageId), getPage(activePageId)])
-    setCells(cellList)
-    setActiveAst(page.ast)
-    // Sincroniza el raw del editor para que el autosave no pise celdas nuevas.
-    setActiveLatex(page.raw || page.latex)
-    setActiveVersion(page.version)
+    try {
+      const [cellList, page] = await Promise.all([listCells(activePageId), getPage(activePageId)])
+      setCells(cellList)
+      setActiveAst(page.ast)
+      // Sincroniza el raw del editor para que el autosave no pise celdas nuevas.
+      setActiveLatex(page.raw || page.latex)
+      setActiveVersion(page.version)
+    } catch (err) {
+      console.error(err)
+    }
   }, [activePageId, setActiveAst, setActiveLatex, setActiveVersion])
 
   useEffect(() => {
@@ -44,20 +48,25 @@ export function CellsPanel() {
       setCells([])
       return
     }
-    refreshCells()
+    void refreshCells()
   }, [activePageId, refreshCells])
 
   const addCell = async () => {
     if (!activePageId || !newSource.trim()) return
-    if (flushSave) await flushSave()
-    const cell = {
-      cell_id: crypto.randomUUID(),
-      language: newLang,
-      source: newSource,
+    try {
+      if (flushSave) await flushSave()
+      const cell = {
+        cell_id: crypto.randomUUID(),
+        language: newLang,
+        source: newSource,
+      }
+      await insertCell(activePageId, cell)
+      await refreshCells()
+      setNewSource('')
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'No se pudo añadir la celda')
     }
-    await insertCell(activePageId, cell)
-    await refreshCells()
-    setNewSource('')
   }
 
   const runCell = async (cellId: string) => {
@@ -82,8 +91,13 @@ export function CellsPanel() {
 
   const removeCell = async (cellId: string) => {
     if (!activePageId) return
-    await deleteCell(activePageId, cellId)
-    await refreshCells()
+    try {
+      await deleteCell(activePageId, cellId)
+      await refreshCells()
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'No se pudo eliminar la celda')
+    }
   }
 
   const handleMove = async (cellId: string, direction: 'up' | 'down') => {
@@ -92,8 +106,13 @@ export function CellsPanel() {
     if (index < 0) return
     const newIndex = direction === 'up' ? Math.max(0, index - 1) : Math.min(cells.length - 1, index + 1)
     if (newIndex === index) return
-    await moveCell(activePageId, cellId, newIndex)
-    await refreshCells()
+    try {
+      await moveCell(activePageId, cellId, newIndex)
+      await refreshCells()
+    } catch (err) {
+      console.error(err)
+      alert(err instanceof Error ? err.message : 'No se pudo reordenar la celda')
+    }
   }
 
   return (

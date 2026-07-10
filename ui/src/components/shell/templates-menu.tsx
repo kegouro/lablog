@@ -47,7 +47,12 @@ export function TemplatesMenu() {
     }
     try {
       if (flushSave) await flushSave()
-      const result = await replacePageLatex(activePageId, content)
+      const version = useAppStore.getState().activeVersion
+      const result = await replacePageLatex(
+        activePageId,
+        content,
+        typeof version === 'number' ? version : undefined,
+      )
       setActiveLatex(result.latex)
       setActiveAst(result.ast)
       setActiveVersion(result.version)

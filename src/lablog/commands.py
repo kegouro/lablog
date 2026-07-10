@@ -68,8 +68,17 @@ def delete_page(store: EventStore, page_id: str) -> None:
     store.append(page_deleted(page_id=page_id))
 
 
-def replace_document(store: EventStore, page_id: str, latex: str) -> None:
-    store.append(document_replaced(page_id=page_id, latex=latex))
+def replace_document(
+    store: EventStore,
+    page_id: str,
+    latex: str,
+    *,
+    expected_version: int | None = None,
+) -> None:
+    store.append(
+        document_replaced(page_id=page_id, latex=latex),
+        expected_version=expected_version,
+    )
 
 
 def insert_text(store: EventStore, page_id: str, position: int, text: str) -> None:

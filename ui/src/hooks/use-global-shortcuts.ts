@@ -75,7 +75,32 @@ export function useGlobalShortcuts() {
       if (run('toggleDiagrams', () => togglePanel('diagrams'))) return
       if (run('toggleParameters', () => togglePanel('parameters'))) return
       if (run('toggleCells', () => togglePanel('cells'))) return
-      if (run('toggleLabMode', () => setLabMode(!labMode))) return
+      if (
+        run('toggleLabMode', async () => {
+          if (labMode) {
+            const flushLab = useAppStore.getState().flushLabCells
+            if (flushLab) {
+              try {
+                await flushLab()
+              } catch {
+                /* best-effort */
+              }
+            }
+            setLabMode(false)
+          } else {
+            if (flushSave) {
+              try {
+                await flushSave()
+              } catch {
+                /* best-effort */
+              }
+            }
+            setLabMode(true)
+          }
+        })
+      ) {
+        return
+      }
 
       if (
         run('newPage', async () => {

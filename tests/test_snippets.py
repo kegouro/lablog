@@ -38,3 +38,20 @@ def test_catalog_has_parameters() -> None:
         assert snippet.parameters
         for param in snippet.parameters:
             assert param.description
+
+
+def test_every_catalog_snippet_renders_with_defaults() -> None:
+    """Regresión: f-strings / braces mal escapados rompen .format (fit_line)."""
+    for snippet in Snippet.catalog():
+        code = render_snippet(snippet, {})
+        assert isinstance(code, str) and code.strip()
+    fit = find_snippet("fit_line")
+    assert fit is not None
+    fit_code = render_snippet(fit, {})
+    assert "coeffs[0]" in fit_code
+    assert "f'y = {coeffs[0]:.2f}" in fit_code or "coeffs[0]:.2f" in fit_code
+    table = find_snippet("simple_table")
+    assert table is not None
+    table_code = render_snippet(table, {})
+    assert table_code.lstrip().startswith(r"\begin{table}")
+    assert not table_code.lstrip().startswith(r"\\begin")

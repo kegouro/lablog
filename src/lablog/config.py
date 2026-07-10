@@ -41,7 +41,12 @@ class Settings:
             os.getenv("LABLOG_DATA_DIR", Path.home() / ".lablog")
         ).expanduser().resolve()
         self.host = os.getenv("LABLOG_HOST", "127.0.0.1")
-        self.port = int(os.getenv("LABLOG_PORT", "8000"))
+        try:
+            self.port = int(os.getenv("LABLOG_PORT", "8000"))
+        except ValueError:
+            self.port = 8000
+        if not (1 <= self.port <= 65535):
+            self.port = 8000
 
         _cors = os.getenv(
             "LABLOG_CORS_ORIGINS",

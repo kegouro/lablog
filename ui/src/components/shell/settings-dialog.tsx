@@ -289,7 +289,20 @@ export function SettingsDialog() {
               <input
                 type="checkbox"
                 checked={labMode}
-                onChange={(e) => setLabMode(e.target.checked)}
+                onChange={async (e) => {
+                  const next = e.target.checked
+                  if (!next) {
+                    const flushLab = useAppStore.getState().flushLabCells
+                    if (flushLab) {
+                      try {
+                        await flushLab()
+                      } catch {
+                        /* best-effort */
+                      }
+                    }
+                  }
+                  setLabMode(next)
+                }}
                 className="size-3.5 accent-primary"
               />
               Modo laboratorio (layout denso)

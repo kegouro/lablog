@@ -221,7 +221,7 @@ x_fit = np.linspace(x.min(), x.max(), 100)
 y_fit = np.polyval(coeffs, x_fit)
 plt.figure()
 plt.scatter(x, y, label='Datos')
-plt.plot(x_fit, y_fit, color='{color}', label=f'y = {coeffs[0]:.2f}x + {coeffs[1]:.2f}')
+plt.plot(x_fit, y_fit, color='{color}', label=f'y = {{coeffs[0]:.2f}}x + {{coeffs[1]:.2f}}')
 plt.xlabel('{xlabel}')
 plt.ylabel('{ylabel}')
 plt.title('{title}')
@@ -248,7 +248,7 @@ plt.legend()
         name="Tabla simple (LaTeX)",
         category="tikz",
         description="Tabla básica con booktabs.",
-        template="""\\\\begin{{table}}[h]
+        template="""\\begin{{table}}[h]
   \\centering
   \\begin{{tabular}}{{ {cols} }}
     \\toprule

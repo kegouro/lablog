@@ -131,6 +131,11 @@ interface AppState {
   flushSave: (() => Promise<void>) | null
   /** Cancela autosave pendiente sin escribir (p.ej. tras congelar parámetros). */
   discardPendingSave: (() => void) | null
+  /**
+   * Registrado por LabCanvas: persiste celdas dirty y re-sincroniza
+   * latex/versión antes de salir del modo laboratorio.
+   */
+  flushLabCells: (() => Promise<void>) | null
   /** Registrado por el editor: mueve el cursor a la línea indicada (1-based). */
   goToLine: ((line: number) => void) | null
   /** Línea resaltada en el gutter (error PDF, etc.). */
@@ -171,6 +176,7 @@ interface AppState {
   setInsertAtCursor: (fn: ((text: string) => void) | null) => void
   setFlushSave: (fn: (() => Promise<void>) | null) => void
   setDiscardPendingSave: (fn: (() => void) | null) => void
+  setFlushLabCells: (fn: (() => Promise<void>) | null) => void
   setGoToLine: (fn: ((line: number) => void) | null) => void
   setHighlightLine: (line: number | null) => void
 }
@@ -223,6 +229,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   insertAtCursor: null,
   flushSave: null,
   discardPendingSave: null,
+  flushLabCells: null,
   goToLine: null,
   highlightLine: null,
   setPages: (pages) => set({ pages }),
@@ -233,12 +240,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSearchQuery: (searchQuery) => set({ searchQuery }),
   togglePanel: (id) =>
     set((state) => {
+      if (!(id in state.panels)) return state
       const panels = { ...state.panels, [id]: !state.panels[id] }
       persist('lablog-panels', JSON.stringify(panels))
       return { panels }
     }),
   setPanel: (id, open) =>
     set((state) => {
+      if (!(id in state.panels)) return state
       const panels = { ...state.panels, [id]: open }
       persist('lablog-panels', JSON.stringify(panels))
       return { panels }
@@ -251,7 +260,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   setAccent: (accent) => set({ accent }),
   setPalette: (palette) => set({ palette }),
   setCustomColors: (customColors) => set({ customColors }),
-  setFontScale: (fontScale) => set({ fontScale }),
+  setFontScale: (fontScale) => {
+    const n = Number(fontScale)
+    if (!Number.isFinite(n)) return
+    set({ fontScale: Math.min(150, Math.max(70, Math.round(n))) })
+  },
   setDensity: (density) => {
     persist('lablog-density', density)
     set({ density })
@@ -296,7 +309,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (prefs.accent != null) next.accent = prefs.accent
       if (prefs.palette != null) next.palette = prefs.palette
       if (prefs.customColors != null) next.customColors = prefs.customColors
-      if (prefs.fontScale != null) next.fontScale = prefs.fontScale
+      if (prefs.fontScale != null && Number.isFinite(Number(prefs.fontScale))) {
+        next.fontScale = Math.min(150, Math.max(70, Math.round(Number(prefs.fontScale))))
+      }
       if (prefs.density === 'comfortable' || prefs.density === 'compact') {
         next.density = prefs.density
       }
@@ -348,6 +363,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setInsertAtCursor: (insertAtCursor) => set({ insertAtCursor }),
   setFlushSave: (flushSave) => set({ flushSave }),
   setDiscardPendingSave: (discardPendingSave) => set({ discardPendingSave }),
+  setFlushLabCells: (flushLabCells) => set({ flushLabCells }),
   setGoToLine: (goToLine) => set({ goToLine }),
   setHighlightLine: (highlightLine) => set({ highlightLine }),
 }))

@@ -35,6 +35,8 @@ export function ExportMenu() {
   const activeLatex = useAppStore((s) => s.activeLatex)
   const parameterValues = useAppStore((s) => s.parameterValues)
   const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
   const flushSave = useAppStore((s) => s.flushSave)
 
   const handleExport = async (format: string, _label: string) => {
@@ -79,8 +81,15 @@ export function ExportMenu() {
       if (hasPlaceholders) {
         source = activeLatex.replace(/\{\{(\w+)\}\}/g, (_, name) => parameterValues[name] ?? `{{${name}}}`)
         // Persiste primero; solo refleja en la UI si el servidor lo aceptó.
-        const result = await replacePageLatex(activePageId, source)
+        const version = useAppStore.getState().activeVersion
+        const result = await replacePageLatex(
+          activePageId,
+          source,
+          typeof version === 'number' ? version : undefined,
+        )
         setActiveLatex(result.latex)
+        setActiveAst(result.ast)
+        setActiveVersion(result.version)
       }
 
       const blob = await exportPage(activePageId, format)
@@ -113,7 +122,8 @@ export function ExportMenu() {
           <DropdownMenuItem
             key={f.id}
             onClick={() => handleExport(f.id, f.label)}
-            disabled={!activePageId}
+            // Sitio estático exporta todas las páginas; no requiere página activa.
+            disabled={f.id !== 'site' && !activePageId}
             className="gap-2"
           >
             <f.icon className="size-4" />

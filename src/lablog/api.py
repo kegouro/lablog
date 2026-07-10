@@ -30,7 +30,7 @@ from lablog.commands import (
     UnsupportedLanguageError,
 )
 from lablog.config import settings, ui_dist_dir
-from lablog.event_store import EventStore
+from lablog.event_store import EventStore, VersionConflictError
 from lablog.events import (
     Event,
     vault_deletion_scheduled,
@@ -227,14 +227,18 @@ def get_engine() -> CodeEngine:
     return _code_engine
 
 
+_MAX_TITLE_CHARS = 500
+_MAX_PROJECT_ID_CHARS = 128
+
+
 class CreatePageRequest(BaseModel):
-    title: str = "Sin título"
-    project_id: str | None = None
+    title: str = Field(default="Sin título", max_length=_MAX_TITLE_CHARS)
+    project_id: str | None = Field(default=None, max_length=_MAX_PROJECT_ID_CHARS)
 
 
 class UpdatePageRequest(BaseModel):
-    title: str | None = None
-    project_id: str | None = None
+    title: str | None = Field(default=None, max_length=_MAX_TITLE_CHARS)
+    project_id: str | None = Field(default=None, max_length=_MAX_PROJECT_ID_CHARS)
 
 
 class MoveCellPayload(BaseModel):
@@ -276,10 +280,12 @@ class PageSummary(BaseModel):
 class PageDetail(BaseModel):
     page_id: str
     title: str
+    project_id: str | None = None
     latex: str
     raw: str
     ast: list[dict[str, Any]]
     version: int
+    updated_at: datetime | None = None
 
 
 class HistoryEntry(BaseModel):
@@ -425,8 +431,23 @@ def update_page_raw(page_id: str, req: UpdatePageRawRequest) -> PageDetail:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
-    _check_version(page_id, req.version)
-    commands.replace_document(store, page_id=page_id, latex=req.raw)
+    try:
+        commands.replace_document(
+            store,
+            page_id=page_id,
+            latex=req.raw,
+            expected_version=req.version,
+        )
+    except VersionConflictError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "VERSION_CONFLICT",
+                "message": "La página cambió en otro cliente; recarga e inténtalo de nuevo",
+                "expected": exc.expected,
+                "current": exc.current,
+            },
+        ) from exc
     try:
         return PageDetail(**projections.page_detail(store, page_id))
     except PageNotFoundError:
@@ -472,8 +493,23 @@ def replace_page(page_id: str, payload: ReplacePayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
-    _check_version(page_id, payload.version)
-    commands.replace_document(store, page_id=page_id, latex=payload.latex)
+    try:
+        commands.replace_document(
+            store,
+            page_id=page_id,
+            latex=payload.latex,
+            expected_version=payload.version,
+        )
+    except VersionConflictError as exc:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            detail={
+                "error_code": "VERSION_CONFLICT",
+                "message": "La página cambió en otro cliente; recarga e inténtalo de nuevo",
+                "expected": exc.expected,
+                "current": exc.current,
+            },
+        ) from exc
     try:
         detail = projections.page_detail(store, page_id)
     except PageNotFoundError:
@@ -547,7 +583,7 @@ def restore_version(page_id: str, event_index: int) -> PageDetail:
 
 
 @router.post("/pages/{page_id}/cells", status_code=status.HTTP_201_CREATED)
-def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
+def insert_cell(page_id: str, payload: CellPayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
@@ -558,11 +594,11 @@ def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
         language=payload.language,
         source=payload.source,
     )
-    return {"status": "ok"}
+    return {"status": "ok", "version": len(store.get_events(page_id))}
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/update", status_code=status.HTTP_200_OK)
-def update_cell(page_id: str, cell_id: str, payload: UpdateCellPayload) -> dict[str, str]:
+def update_cell(page_id: str, cell_id: str, payload: UpdateCellPayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
@@ -573,7 +609,7 @@ def update_cell(page_id: str, cell_id: str, payload: UpdateCellPayload) -> dict[
         language=payload.language,
         source=payload.source,
     )
-    return {"status": "ok"}
+    return {"status": "ok", "version": len(store.get_events(page_id))}
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/execute", status_code=status.HTTP_200_OK)
@@ -627,12 +663,12 @@ def delete_cell(page_id: str, cell_id: str) -> None:
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/move", status_code=status.HTTP_200_OK)
-def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str, str]:
+def move_cell(page_id: str, cell_id: str, payload: MoveCellPayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
     commands.move_cell(store, page_id=page_id, cell_id=cell_id, new_index=payload.new_index)
-    return {"status": "ok"}
+    return {"status": "ok", "version": len(store.get_events(page_id))}
 
 
 @router.get("/pages/{page_id}/cells")

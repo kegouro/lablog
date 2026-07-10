@@ -54,10 +54,12 @@ def page_detail(store: EventStore, page_id: str) -> dict[str, Any]:
     return {
         "page_id": page_id,
         "title": proj.title,
+        "project_id": proj.project_id,
         "latex": latex,
         "raw": latex,
         "ast": [node_to_json(child) for child in proj.ast.children],
         "version": len(events),
+        "updated_at": events[-1].timestamp,
     }
 
 
@@ -120,10 +122,12 @@ def page_at(store: EventStore, page_id: str, event_index: int) -> dict[str, Any]
     return {
         "page_id": page_id,
         "title": proj.title,
+        "project_id": proj.project_id,
         "latex": latex,
         "raw": latex,
         "ast": [node_to_json(child) for child in proj.ast.children],
         "version": idx + 1,
+        "updated_at": events[idx].timestamp,
     }
 
 

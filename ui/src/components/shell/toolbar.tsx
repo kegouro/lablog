@@ -125,12 +125,24 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
           variant={labMode ? 'secondary' : 'ghost'}
           size="sm"
           onClick={async () => {
-            // Persiste el buffer del editor antes de desmontarlo (modo lab).
-            if (!labMode && flushSave) {
-              try {
-                await flushSave()
-              } catch {
-                /* el backend puede fallar; el switch sigue */
+            if (!labMode) {
+              // Persiste el buffer del editor antes de desmontarlo (modo lab).
+              if (flushSave) {
+                try {
+                  await flushSave()
+                } catch {
+                  /* el backend puede fallar; el switch sigue */
+                }
+              }
+            } else {
+              // Al salir: celdas dirty del lab + resync de versión.
+              const flushLab = useAppStore.getState().flushLabCells
+              if (flushLab) {
+                try {
+                  await flushLab()
+                } catch {
+                  /* best-effort */
+                }
               }
             }
             setLabMode(!labMode)

@@ -20,6 +20,7 @@ export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
   const activeLatex = useAppStore((s) => s.activeLatex)
   const setActiveLatex = useAppStore((s) => s.setActiveLatex)
   const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
   const flushSave = useAppStore((s) => s.flushSave)
   const [history, setHistory] = useState<HistoryEvent[]>([])
   const [index, setIndex] = useState(0)
@@ -67,8 +68,9 @@ export function TimeTravelOverlay({ pageId, onClose }: TimeTravelOverlayProps) {
     try {
       if (flushSave) await flushSave()
       const page = await restoreVersion(pageId, index)
-      setActiveLatex(page.latex)
+      setActiveLatex(page.raw || page.latex)
       setActiveAst(page.ast)
+      setActiveVersion(page.version)
       toast.success(`Versión del evento ${index} restaurada`)
       onClose()
     } catch {

@@ -89,10 +89,11 @@ export function LatexEditor() {
     [setActiveAst, setActiveVersion],
   )
 
-  const getVersion = useCallback(
-    () => useAppStore.getState().activeVersion || undefined,
-    [],
-  )
+  const getVersion = useCallback(() => {
+    // Incluye 0: `|| undefined` saltaba OCC al cambiar de página.
+    const v = useAppStore.getState().activeVersion
+    return typeof v === 'number' ? v : undefined
+  }, [])
 
   const { status, updateRaw, flush, discardPending } = usePageUpdate(
     activePageId,
@@ -140,10 +141,11 @@ export function LatexEditor() {
     getPage(requestedId)
       .then((page) => {
         if (cancelled || useAppStore.getState().activePageId !== requestedId) return
-        setActiveLatex(page.latex)
+        const text = page.raw || page.latex
+        setActiveLatex(text)
         setActiveAst(page.ast)
         setActiveVersion(page.version)
-        resetHistory(page.latex)
+        resetHistory(text)
       })
       .catch(() => {
         if (cancelled || useAppStore.getState().activePageId !== requestedId) return

@@ -61,22 +61,24 @@ async function fetchJson<T>(input: string, init?: RequestInit): Promise<T> {
 interface PageDetailWire {
   page_id: string
   title: string
+  project_id?: string | null
   latex: string
   raw: string
   ast: AstNode[]
   version: number
+  updated_at?: string | null
 }
 
 function detailToPage(d: PageDetailWire): Page {
   return {
     id: d.page_id,
     title: d.title,
-    project_id: null,
+    project_id: d.project_id ?? null,
     latex: d.latex,
     raw: d.raw,
     ast: d.ast,
     version: d.version,
-    updated_at: new Date().toISOString(),
+    updated_at: d.updated_at ?? new Date().toISOString(),
   }
 }
 
@@ -181,18 +183,30 @@ export async function listCells(pageId: string): Promise<Cell[]> {
   return fetchJson(`/pages/${pageId}/cells`)
 }
 
-export async function insertCell(pageId: string, cell: Omit<Cell, 'output' | 'figure_path'>): Promise<void> {
-  await fetchJson(`/pages/${pageId}/cells`, {
+export async function insertCell(
+  pageId: string,
+  cell: Omit<Cell, 'output' | 'figure_path'>,
+): Promise<{ version: number }> {
+  const res = await fetchJson<{ status: string; version?: number }>(`/pages/${pageId}/cells`, {
     method: 'POST',
     body: JSON.stringify(cell),
   })
+  return { version: res?.version ?? 0 }
 }
 
-export async function updateCell(pageId: string, cellId: string, cell: { language: string; source: string }): Promise<void> {
-  await fetchJson(`/pages/${pageId}/cells/${cellId}/update`, {
-    method: 'POST',
-    body: JSON.stringify(cell),
-  })
+export async function updateCell(
+  pageId: string,
+  cellId: string,
+  cell: { language: string; source: string },
+): Promise<{ version: number }> {
+  const res = await fetchJson<{ status: string; version?: number }>(
+    `/pages/${pageId}/cells/${cellId}/update`,
+    {
+      method: 'POST',
+      body: JSON.stringify(cell),
+    },
+  )
+  return { version: res?.version ?? 0 }
 }
 
 export async function executeCell(
@@ -214,11 +228,19 @@ export async function deleteCell(pageId: string, cellId: string): Promise<void> 
   await fetchJson(`/pages/${pageId}/cells/${cellId}`, { method: 'DELETE' })
 }
 
-export async function moveCell(pageId: string, cellId: string, newIndex: number): Promise<void> {
-  await fetchJson(`/pages/${pageId}/cells/${cellId}/move`, {
-    method: 'POST',
-    body: JSON.stringify({ new_index: newIndex }),
-  })
+export async function moveCell(
+  pageId: string,
+  cellId: string,
+  newIndex: number,
+): Promise<{ version: number }> {
+  const res = await fetchJson<{ status: string; version?: number }>(
+    `/pages/${pageId}/cells/${cellId}/move`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ new_index: newIndex }),
+    },
+  )
+  return { version: res?.version ?? 0 }
 }
 
 export async function exportPages(): Promise<{ path: string }> {

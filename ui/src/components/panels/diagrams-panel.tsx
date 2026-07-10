@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import {
   diagramSimulateSource,
   expandDiagramPreset,
+  getPage,
   insertCell,
   listDiagramPresets,
   replacePageLatex,
@@ -104,9 +105,13 @@ export function DiagramsPanel() {
       const next = current.trim()
         ? `${current.trimEnd()}\n\n${result.latex}`
         : result.latex
-      setActiveLatex(next)
-      const version = useAppStore.getState().activeVersion || undefined
-      const page = await replacePageLatex(activePageId, next, version)
+      const version = useAppStore.getState().activeVersion
+      const page = await replacePageLatex(
+        activePageId,
+        next,
+        typeof version === 'number' ? version : undefined,
+      )
+      setActiveLatex(page.latex)
       setActiveAst(page.ast)
       setActiveVersion(page.version)
       clearParameters()
@@ -136,9 +141,13 @@ export function DiagramsPanel() {
       const next = current.trim()
         ? `${current.trimEnd()}\n\n${result.latex}`
         : result.latex
-      setActiveLatex(next)
-      const version = useAppStore.getState().activeVersion || undefined
-      const page = await replacePageLatex(activePageId, next, version)
+      const version = useAppStore.getState().activeVersion
+      const page = await replacePageLatex(
+        activePageId,
+        next,
+        typeof version === 'number' ? version : undefined,
+      )
+      setActiveLatex(page.latex)
       setActiveAst(page.ast)
       setActiveVersion(page.version)
       clearParameters()
@@ -151,6 +160,11 @@ export function DiagramsPanel() {
         language: 'python',
         source: sim.source,
       })
+      // insertCell avanza la versión del event log; resincroniza OCC.
+      const refreshed = await getPage(activePageId)
+      setActiveLatex(refreshed.raw || refreshed.latex)
+      setActiveAst(refreshed.ast)
+      setActiveVersion(refreshed.version)
       setPanel('cells', true)
       toast.success(`${result.title}: diagrama + celda de simulación`)
     } catch (err) {
@@ -175,9 +189,13 @@ export function DiagramsPanel() {
       const next = current.trim()
         ? `${current.trimEnd()}\n\n${result.latex}`
         : result.latex
-      setActiveLatex(next)
-      const version = useAppStore.getState().activeVersion || undefined
-      const page = await replacePageLatex(activePageId, next, version)
+      const version = useAppStore.getState().activeVersion
+      const page = await replacePageLatex(
+        activePageId,
+        next,
+        typeof version === 'number' ? version : undefined,
+      )
+      setActiveLatex(page.latex)
       setActiveAst(page.ast)
       setActiveVersion(page.version)
       clearParameters()
@@ -189,6 +207,10 @@ export function DiagramsPanel() {
         language: 'python',
         source: sim.source,
       })
+      const refreshed = await getPage(activePageId)
+      setActiveLatex(refreshed.raw || refreshed.latex)
+      setActiveAst(refreshed.ast)
+      setActiveVersion(refreshed.version)
       setPanel('cells', true)
       toast.success(`${result.title}: diagrama + sim PySpice (fallback numpy)`)
     } catch (err) {

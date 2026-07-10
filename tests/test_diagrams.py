@@ -160,6 +160,12 @@ def test_tikz_color_highlight_and_pyspice_source() -> None:
     colored = colorize_named_component(raw, "R1", "orange")
     assert "color=orange,name=R1" in colored.replace(" ", "")
 
+    # color= de un componente anterior no bloquea al siguiente en la misma línea
+    multi = r"\draw (0,0) to[R, color=red, name=R2] (1,0) to[R, name=R1] (2,0);"
+    multi_c = colorize_named_component(multi, "R1", "orange")
+    assert "color=orange,name=R1" in multi_c.replace(" ", "")
+    assert "color=red,name=R2" in multi_c.replace(" ", "") or "color=red, name=R2" in multi_c
+
     preset = get_preset("rc_series_charge")
     assert preset is not None
     out = expand_preset(preset, highlight_param="R")

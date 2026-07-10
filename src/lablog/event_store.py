@@ -15,6 +15,15 @@ from lablog.events import Event
 _SAFE_PAGE_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 
 
+class VersionConflictError(Exception):
+    """El log no tiene la versión esperada al intentar un append condicional."""
+
+    def __init__(self, expected: int, current: int) -> None:
+        self.expected = expected
+        self.current = current
+        super().__init__(f"version conflict: expected={expected} current={current}")
+
+
 class EventStore:
     """Almacén inmutable de eventos por página."""
 
@@ -37,19 +46,42 @@ class EventStore:
                 self._locks[page_id] = lock
             return lock
 
-    def append(self, event: Event) -> None:
+    def append(self, event: Event, *, expected_version: int | None = None) -> int:
         """Añade un evento al final del log de la página.
 
         Escribe la línea completa y hace fsync para reducir el riesgo de
         eventos truncados si el proceso muere a mitad del write.
         Lock por página: serializa appends concurrentes (autosave + execute).
+
+        Si ``expected_version`` no es None, comprueba atómicamente (bajo el
+        mismo lock) que el log tiene esa longitud antes de escribir.
+        Devuelve la nueva versión (número de eventos tras el append).
         """
         page_file = self._page_file(event.page_id)
         line = event.model_dump_json() + "\n"
-        with self._lock_for(event.page_id), page_file.open("a", encoding="utf-8") as f:
-            f.write(line)
-            f.flush()
-            os.fsync(f.fileno())
+        with self._lock_for(event.page_id):
+            if expected_version is not None:
+                current = self._count_events_unlocked(page_file)
+                if current != expected_version:
+                    raise VersionConflictError(expected_version, current)
+            with page_file.open("a", encoding="utf-8") as f:
+                f.write(line)
+                f.flush()
+                os.fsync(f.fileno())
+            if expected_version is not None:
+                return expected_version + 1
+            return self._count_events_unlocked(page_file)
+
+    @staticmethod
+    def _count_events_unlocked(page_file: Path) -> int:
+        if not page_file.exists():
+            return 0
+        count = 0
+        with page_file.open("r", encoding="utf-8") as f:
+            for line in f:
+                if line.strip():
+                    count += 1
+        return count
 
     def get_events(self, page_id: str) -> list[Event]:
         """Devuelve todos los eventos de una página en orden.
