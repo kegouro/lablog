@@ -5,6 +5,8 @@ import { CommandPalette } from '@/components/shell/command-palette'
 import { ThemeProvider } from '@/components/shell/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { useGlobalShortcuts } from '@/hooks/use-global-shortcuts'
+import { DEFAULT_SHORTCUTS, type ShortcutAction } from '@/lib/shortcuts'
 import { useAppStore } from '@/stores/app-store'
 
 function AppInitializer() {
@@ -17,9 +19,13 @@ function AppInitializer() {
   const setDensity = useAppStore((s) => s.setDensity)
   const setEditorFont = useAppStore((s) => s.setEditorFont)
   const setReducedMotion = useAppStore((s) => s.setReducedMotion)
+  const setShortcut = useAppStore((s) => s.setShortcut)
+  const resetShortcuts = useAppStore((s) => s.resetShortcuts)
   const density = useAppStore((s) => s.density)
   const editorFont = useAppStore((s) => s.editorFont)
   const reducedMotion = useAppStore((s) => s.reducedMotion)
+
+  useGlobalShortcuts()
 
   useEffect(() => {
     let savedScale: string | null = null
@@ -31,6 +37,7 @@ function AppInitializer() {
     let savedDensity: string | null = null
     let savedEditorFont: string | null = null
     let savedMotion: string | null = null
+    let savedShortcuts: string | null = null
     try {
       savedScale = localStorage.getItem('lablog-fontScale')
       savedAccent = localStorage.getItem('lablog-accent')
@@ -41,6 +48,7 @@ function AppInitializer() {
       savedDensity = localStorage.getItem('lablog-density')
       savedEditorFont = localStorage.getItem('lablog-editorFont')
       savedMotion = localStorage.getItem('lablog-reducedMotion')
+      savedShortcuts = localStorage.getItem('lablog-shortcuts')
     } catch {
       // localStorage no disponible
     }
@@ -69,6 +77,19 @@ function AppInitializer() {
       setEditorFont(savedEditorFont)
     }
     if (savedMotion === 'true') setReducedMotion(true)
+    if (savedShortcuts) {
+      try {
+        const parsed = JSON.parse(savedShortcuts) as Partial<Record<ShortcutAction, string>>
+        resetShortcuts()
+        for (const [action, chord] of Object.entries(parsed)) {
+          if (action in DEFAULT_SHORTCUTS && typeof chord === 'string') {
+            setShortcut(action as ShortcutAction, chord)
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
     if (savedPanels) {
       try {
         const panels = JSON.parse(savedPanels) as Record<string, boolean>
@@ -89,6 +110,8 @@ function AppInitializer() {
     setDensity,
     setEditorFont,
     setReducedMotion,
+    setShortcut,
+    resetShortcuts,
   ])
 
   useEffect(() => {

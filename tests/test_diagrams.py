@@ -171,6 +171,19 @@ def test_tikz_color_highlight_and_pyspice_source() -> None:
     assert sim["backend"] == "pyspice"
     assert "PySpice" in sim["source"] or "numpy_fallback" in sim["source"]
 
+    rlc = get_preset("rlc_series_step")
+    assert rlc is not None
+    rlc_sim = expand_simulation(rlc, prefer_pyspice=True)
+    assert rlc_sim["backend"] == "pyspice"
+    assert "RLC" in rlc_sim["source"] or "rlc" in rlc_sim["source"].lower()
+    assert "numpy_fallback" in rlc_sim["source"]
+
+    hwr = get_preset("half_wave_rectifier")
+    assert hwr is not None
+    hwr_sim = expand_simulation(hwr, prefer_pyspice=True)
+    assert hwr_sim["backend"] == "pyspice"
+    assert "half" in hwr_sim["source"].lower() or "rectifier" in hwr_sim["source"].lower()
+
     r = client.post(
         "/api/v1/diagrams/presets/rc_series_charge/expand",
         json={"highlight_param": "C"},

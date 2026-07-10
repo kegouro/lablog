@@ -1,4 +1,5 @@
 import type { LatexSymbol, Page, Snippet, VaultFile } from '@/types'
+import { DEFAULT_SHORTCUTS, type ShortcutAction } from '@/lib/shortcuts'
 import { create } from 'zustand'
 
 export type PanelId =
@@ -108,6 +109,8 @@ interface AppState {
   density: UiDensity
   editorFont: EditorFont
   reducedMotion: boolean
+  /** Chord por acción; ausentes → DEFAULT_SHORTCUTS. */
+  shortcuts: Partial<Record<ShortcutAction, string>>
   vaultFiles: VaultFile[]
   snippets: Snippet[]
   symbols: LatexSymbol[]
@@ -147,6 +150,8 @@ interface AppState {
   setDensity: (density: UiDensity) => void
   setEditorFont: (font: EditorFont) => void
   setReducedMotion: (on: boolean) => void
+  setShortcut: (action: ShortcutAction, chord: string) => void
+  resetShortcuts: () => void
   exportPreferences: () => AppPreferences
   importPreferences: (prefs: Partial<AppPreferences>) => void
   applyPreferenceProfile: (id: PreferenceProfileId) => void
@@ -202,6 +207,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   density: 'comfortable',
   editorFont: 'mono',
   reducedMotion: false,
+  shortcuts: { ...DEFAULT_SHORTCUTS },
   vaultFiles: [],
   snippets: [],
   symbols: [],
@@ -255,6 +261,17 @@ export const useAppStore = create<AppState>((set, get) => ({
   setReducedMotion: (reducedMotion) => {
     persist('lablog-reducedMotion', String(reducedMotion))
     set({ reducedMotion })
+  },
+  setShortcut: (action, chord) =>
+    set((state) => {
+      const shortcuts = { ...state.shortcuts, [action]: chord }
+      persist('lablog-shortcuts', JSON.stringify(shortcuts))
+      return { shortcuts }
+    }),
+  resetShortcuts: () => {
+    const shortcuts = { ...DEFAULT_SHORTCUTS }
+    persist('lablog-shortcuts', JSON.stringify(shortcuts))
+    set({ shortcuts })
   },
   exportPreferences: (): AppPreferences => {
     const s = get()
