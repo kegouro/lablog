@@ -1,8 +1,13 @@
 import 'katex/dist/katex.min.css'
 
 import katex from 'katex'
-import { memo, useEffect, useMemo, useRef } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 
+import {
+  KATEX_MATH_ENVS,
+  PDF_ONLY_ENVS,
+  katexOptions,
+} from '@/lib/katex-config'
 import type { AstNode, CellNode } from '@/types'
 
 interface MathProps {
@@ -12,25 +17,39 @@ interface MathProps {
 
 const MathNode = memo(function MathNode({ latex, displayMode }: MathProps) {
   const ref = useRef<HTMLSpanElement>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (!ref.current) return
     try {
-      katex.render(latex, ref.current, {
-        throwOnError: false,
-        displayMode,
-        strict: 'ignore',
-      })
+      katex.render(latex, ref.current, katexOptions(displayMode))
+      setFailed(false)
     } catch {
       ref.current.textContent = latex
+      setFailed(true)
     }
   }, [latex, displayMode])
 
-  return displayMode ? (
-    <div className="my-2 block overflow-x-auto" ref={ref as React.RefObject<HTMLDivElement>} />
+  const body = displayMode ? (
+    <div
+      className="my-2 block overflow-x-auto"
+      ref={ref as React.RefObject<HTMLDivElement>}
+    />
   ) : (
     <span ref={ref} />
   )
+
+  if (failed && displayMode) {
+    return (
+      <div className="my-2 rounded border border-amber-500/40 bg-amber-500/5 p-2 text-xs">
+        <p className="mb-1 text-amber-700 dark:text-amber-300">
+          KaTeX no pudo renderizar este bloque — prueba Compilar PDF.
+        </p>
+        {body}
+      </div>
+    )
+  }
+  return body
 })
 
 interface CellProps {
@@ -72,23 +91,25 @@ const CellNodeView = memo(function CellNodeView({ cell, pageId }: CellProps) {
   )
 })
 
-interface TextProps {
-  text: string
-}
-
-/** Prosa con math inline $...$ / $$...$$ / \[...\] sin HTML crudo. */
-const TextNodeView = memo(function TextNodeView({ text }: TextProps) {
-  const parts = useMemo(() => splitProseMath(text), [text])
-  if (!text.trim()) return null
+const PdfOnlyBlock = memo(function PdfOnlyBlock({
+  env,
+  body,
+}: {
+  env: string
+  body: string
+}) {
   return (
-    <div className="my-1.5 leading-relaxed whitespace-pre-wrap">
-      {parts.map((p, i) =>
-        p.kind === 'text' ? (
-          <span key={i}>{p.value}</span>
-        ) : (
-          <MathNode key={i} latex={p.value} displayMode={p.display} />
-        ),
-      )}
+    <div className="my-3 rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-primary">
+        {env} · vista previa PDF
+      </p>
+      <p className="mb-2 text-xs text-muted-foreground">
+        Tablas, TikZ y diagramas de Feynman se ven al compilar con Tectonic (paquetes
+        booktabs, tikz, tikz-feynman, …).
+      </p>
+      <pre className="max-h-40 overflow-auto rounded bg-muted/60 p-2 text-[11px] font-mono whitespace-pre-wrap">
+        {`\\begin{${env}}${body}\\end{${env}}`}
+      </pre>
     </div>
   )
 })
@@ -96,22 +117,49 @@ const TextNodeView = memo(function TextNodeView({ text }: TextProps) {
 type ProsePart =
   | { kind: 'text'; value: string }
   | { kind: 'math'; value: string; display: boolean }
+  | { kind: 'pdf'; env: string; body: string }
 
-function splitProseMath(text: string): ProsePart[] {
+/**
+ * Parte prosa en: math display/inline, entornos KaTeX, entornos solo-PDF, texto.
+ */
+export function splitProseMath(text: string): ProsePart[] {
   const parts: ProsePart[] = []
-  const re = /\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\$([^$\n]+?)\$/g
+  // Entornos \begin{env}...\end{env} (no code cells: los filtra el backend).
+  const envRe =
+    /\\begin\{([a-zA-Z*]+)\}([\s\S]*?)\\end\{\1\}|\$\$([\s\S]+?)\$\$|\\\[([\s\S]+?)\\\]|\$([^$\n]+?)\$/g
   let last = 0
   let m: RegExpExecArray | null
-  while ((m = re.exec(text)) !== null) {
+  while ((m = envRe.exec(text)) !== null) {
     if (m.index > last) {
       parts.push({ kind: 'text', value: text.slice(last, m.index) })
     }
     if (m[1] != null) {
-      parts.push({ kind: 'math', value: m[1].trim(), display: true })
-    } else if (m[2] != null) {
-      parts.push({ kind: 'math', value: m[2].trim(), display: true })
+      const env = m[1]
+      const body = m[2] ?? ''
+      const base = env.replace(/\*$/, '')
+      if (KATEX_MATH_ENVS.has(env) || KATEX_MATH_ENVS.has(base)) {
+        // KaTeX espera el entorno completo para align/matrix.
+        parts.push({
+          kind: 'math',
+          value: `\\begin{${env}}${body}\\end{${env}}`,
+          display: true,
+        })
+      } else if (PDF_ONLY_ENVS.has(env) || PDF_ONLY_ENVS.has(base)) {
+        parts.push({ kind: 'pdf', env, body })
+      } else {
+        // Entorno desconocido: intentar como math display, si falla se verá el fallback.
+        parts.push({
+          kind: 'math',
+          value: `\\begin{${env}}${body}\\end{${env}}`,
+          display: true,
+        })
+      }
     } else if (m[3] != null) {
-      parts.push({ kind: 'math', value: m[3].trim(), display: false })
+      parts.push({ kind: 'math', value: m[3].trim(), display: true })
+    } else if (m[4] != null) {
+      parts.push({ kind: 'math', value: m[4].trim(), display: true })
+    } else if (m[5] != null) {
+      parts.push({ kind: 'math', value: m[5].trim(), display: false })
     }
     last = m.index + m[0].length
   }
@@ -120,6 +168,20 @@ function splitProseMath(text: string): ProsePart[] {
   }
   return parts.length ? parts : [{ kind: 'text', value: text }]
 }
+
+const TextNodeView = memo(function TextNodeView({ text }: { text: string }) {
+  const parts = useMemo(() => splitProseMath(text), [text])
+  if (!text.trim()) return null
+  return (
+    <div className="my-1.5 leading-relaxed whitespace-pre-wrap">
+      {parts.map((p, i) => {
+        if (p.kind === 'text') return <span key={i}>{p.value}</span>
+        if (p.kind === 'pdf') return <PdfOnlyBlock key={i} env={p.env} body={p.body} />
+        return <MathNode key={i} latex={p.value} displayMode={p.display} />
+      })}
+    </div>
+  )
+})
 
 interface AstNodeProps {
   node: AstNode
@@ -153,7 +215,7 @@ interface AstRendererProps {
   pageId?: string | null
 }
 
-/** Render del AST del backend — una sola fuente de verdad para live preview. */
+/** Render del AST del backend — SSOT del live preview. */
 export const AstRenderer = memo(function AstRenderer({
   ast,
   pageId = null,

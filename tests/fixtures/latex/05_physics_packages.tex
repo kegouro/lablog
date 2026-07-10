@@ -1,0 +1,37 @@
+% Lablog fixture: física con physics/braket/siunitx (PDF + macros KaTeX parciales)
+
+\section*{Mecánica cuántica}
+\[
+\hat{H}\ket{\psi} = E\ket{\psi},\quad
+\braket{\phi}{\psi},\quad
+\ketbra{\psi}{\psi},\quad
+\bra{\psi}\hat{O}\ket{\psi}
+\]
+\[
+\left[ \hat{x}, \hat{p} \right] = i\hbar,\quad
+U(t) = \exp\!\left(-\frac{i\hat{H}t}{\hbar}\right)
+\]
+
+\section*{Electromagnetismo}
+\[
+\nabla\cdot\mathbf{E} = \frac{\rho}{\varepsilon_0},\quad
+\nabla\times\mathbf{B} - \mu_0\varepsilon_0\frac{\partial\mathbf{E}}{\partial t} = \mu_0\mathbf{J}
+\]
+\[
+F^{\mu\nu} = \partial^\mu A^\nu - \partial^\nu A^\mu,\quad
+\mathcal{L} = -\frac{1}{4}F_{\mu\nu}F^{\mu\nu} + \bar{\psi}(i\gamma^\mu D_\mu - m)\psi
+\]
+
+\section*{Unidades y números}
+Longitud: $\ell = \SI{12.3}{\milli\meter}$,
+energía: $E = \SI{1.5e3}{\electronvolt}$,
+constante: $c = \SI{2.99792458e8}{\meter\per\second}$.
+
+\section*{Derivadas (physics)}
+\[
+\dv{f}{x},\quad
+\pdv{f}{x},\quad
+\pdv[2]{f}{x},\quad
+\dv{t}\begin{pmatrix} x \\ p \end{pmatrix}
+= \begin{pmatrix} \partial H/\partial p \\ -\partial H/\partial x \end{pmatrix}
+\]

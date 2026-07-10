@@ -3,9 +3,19 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAppStore } from '@/stores/app-store'
 
-const { replacePageLatex, completeProcessing } = vi.hoisted(() => ({
-  replacePageLatex: vi.fn(() =>
-    Promise.resolve({ status: 'ok', latex: '', ast: [], version: 2 }),
+const { sendVoice, getPage, completeProcessing } = vi.hoisted(() => ({
+  sendVoice: vi.fn(() => Promise.resolve({ status: 'ok', intent: 'text' })),
+  getPage: vi.fn(() =>
+    Promise.resolve({
+      id: 'page-1',
+      title: 'T',
+      project_id: null,
+      latex: 'hola mundo',
+      raw: 'hola mundo',
+      updated_at: '',
+      version: 2,
+      ast: [],
+    }),
   ),
   completeProcessing: vi.fn(),
 }))
@@ -25,7 +35,8 @@ vi.mock('@/hooks/use-speech', () => ({
 }))
 
 vi.mock('@/lib/api', () => ({
-  replacePageLatex,
+  sendVoice,
+  getPage,
 }))
 
 import { useSpeechRecognition } from '@/hooks/use-speech'
@@ -36,7 +47,8 @@ const mockUseSpeech = vi.mocked(useSpeechRecognition)
 
 describe('Toolbar dictation', () => {
   beforeEach(() => {
-    replacePageLatex.mockClear()
+    sendVoice.mockClear()
+    getPage.mockClear()
     completeProcessing.mockClear()
     mockUseSpeech.mockReturnValue({
       phase: 'idle',
@@ -51,8 +63,8 @@ describe('Toolbar dictation', () => {
     })
   })
 
-  it('saves dictated text only in processing phase and completes FSM', async () => {
-    useAppStore.setState({ activePageId: 'page-1', activeLatex: '' })
+  it('saves dictated text via /voice only in processing phase and completes FSM', async () => {
+    useAppStore.setState({ activePageId: 'page-1', activeLatex: '', flushSave: null })
 
     const { rerender } = render(<Toolbar onCreatePage={vi.fn()} />)
 
@@ -69,13 +81,14 @@ describe('Toolbar dictation', () => {
     })
     rerender(<Toolbar onCreatePage={vi.fn()} />)
 
-    await waitFor(() => expect(replacePageLatex).toHaveBeenCalledTimes(1))
-    expect(replacePageLatex).toHaveBeenCalledWith('page-1', 'hola mundo. ')
+    await waitFor(() => expect(sendVoice).toHaveBeenCalledTimes(1))
+    expect(sendVoice).toHaveBeenCalledWith('page-1', 'hola mundo')
+    await waitFor(() => expect(getPage).toHaveBeenCalledWith('page-1'))
     await waitFor(() => expect(completeProcessing).toHaveBeenCalled())
 
-    // Same processing cycle must not double-append (processingRef).
+    // Same processing cycle must not double-send (processingRef).
     rerender(<Toolbar onCreatePage={vi.fn()} />)
-    expect(replacePageLatex).toHaveBeenCalledTimes(1)
+    expect(sendVoice).toHaveBeenCalledTimes(1)
   })
 
   it('ignores transcript while still listening', async () => {
@@ -93,6 +106,6 @@ describe('Toolbar dictation', () => {
     })
     render(<Toolbar onCreatePage={vi.fn()} />)
     await new Promise((r) => setTimeout(r, 50))
-    expect(replacePageLatex).not.toHaveBeenCalled()
+    expect(sendVoice).not.toHaveBeenCalled()
   })
 })

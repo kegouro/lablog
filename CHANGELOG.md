@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Scientific LaTeX maturity: ~190 symbols (greek, physics, sets, arrows, …).
+- Live preview classifies math envs (align/matrix/cases) vs PDF-only (tabular/tikz/feynman).
+- KaTeX macros for physics/braket (`\ket`, `\bra`, `\dv`, `\R`, …).
+- PDF preamble packages: booktabs, siunitx, physics, braket, tikz (+ Feynman-style drawings).
+- Stress fixtures `tests/fixtures/latex/` (characters, tables, matrices, Feynman, physics, full doc).
+- Docs: `docs/LATEX_PREVIEW.md`.
+
 ## [0.2.1] - 2026-07-10
 
 ### Fixed
