@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 import shutil
 from pathlib import Path
@@ -214,6 +215,91 @@ pre.output { background: #1f2a1f; border-color: #2d4a2d; color: #d3eed3; }
 img { max-width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--divider); }
 .katex-display { overflow-x: auto; overflow-y: hidden; }
 """
+
+
+def page_to_ipynb(
+    title: str,
+    latex: str,
+    cells: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Construye un notebook Jupyter (nbformat 4) a partir del LaTeX y celdas.
+
+    Estructura:
+    1. Markdown con título + extracto del LaTeX (fenced).
+    2. Una code cell por cada celda ejecutable de la página.
+    """
+    nb_cells: list[dict[str, Any]] = []
+    md_lines = [
+        f"# {title or 'lablog'}",
+        "",
+        "Exportado desde lablog. El bloque LaTeX original:",
+        "",
+        "```latex",
+        (latex or "").rstrip() or "% (vacío)",
+        "```",
+        "",
+    ]
+    nb_cells.append(
+        {
+            "cell_type": "markdown",
+            "metadata": {},
+            "source": [line + "\n" for line in md_lines],
+        }
+    )
+
+    for cell in cells or []:
+        lang = str(cell.get("language") or "python")
+        source = str(cell.get("source") or "")
+        # Jupyter: celdas de código son Python por defecto; Julia se anota.
+        header = f"# language: {lang}\n" if lang != "python" else ""
+        body = header + source
+        if body and not body.endswith("\n"):
+            body += "\n"
+        source_lines = body.splitlines(keepends=True) if body else []
+        code_cell: dict[str, Any] = {
+            "cell_type": "code",
+            "execution_count": None,
+            "metadata": {"lablog": {"cell_id": cell.get("cell_id"), "language": lang}},
+            "outputs": [],
+            "source": source_lines,
+        }
+        out_text = cell.get("output")
+        if out_text:
+            code_cell["outputs"].append(
+                {
+                    "output_type": "stream",
+                    "name": "stdout",
+                    "text": str(out_text).splitlines(keepends=True)
+                    if str(out_text).endswith("\n")
+                    else (str(out_text) + "\n").splitlines(keepends=True),
+                }
+            )
+        nb_cells.append(code_cell)
+
+    return {
+        "nbformat": 4,
+        "nbformat_minor": 5,
+        "metadata": {
+            "kernelspec": {
+                "display_name": "Python 3",
+                "language": "python",
+                "name": "python3",
+            },
+            "language_info": {"name": "python", "pygments_lexer": "ipython3"},
+            "lablog": {"generator": "lablog", "title": title},
+        },
+        "cells": nb_cells,
+    }
+
+
+def page_to_ipynb_bytes(
+    title: str,
+    latex: str,
+    cells: list[dict[str, Any]] | None = None,
+) -> bytes:
+    """Serializa el notebook a JSON UTF-8 con indentación legible."""
+    nb = page_to_ipynb(title, latex, cells)
+    return (json.dumps(nb, ensure_ascii=False, indent=1) + "\n").encode("utf-8")
 
 
 def export_site(out_dir: Path | None = None) -> Path:

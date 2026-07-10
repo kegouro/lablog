@@ -411,6 +411,29 @@ def test_export_tex_txt_canva() -> None:
         assert expected in res.text, fmt
 
 
+def test_export_ipynb_includes_cells() -> None:
+    import json
+
+    pid = client.post("/api/v1/pages", json={"title": "Notebook Lab"}).json()["page_id"]
+    client.post(f"/api/v1/pages/{pid}/text", json={"text": "Notas RC\n"})
+    client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "sim1", "language": "python", "source": "print(1+1)"},
+    )
+    res = client.get(f"/api/v1/pages/{pid}/export/ipynb")
+    assert res.status_code == 200
+    assert "ipynb" in res.headers["content-type"] or res.headers["content-type"].startswith(
+        "application/"
+    )
+    nb = json.loads(res.content.decode("utf-8"))
+    assert nb["nbformat"] == 4
+    assert any(c["cell_type"] == "markdown" for c in nb["cells"])
+    code = [c for c in nb["cells"] if c["cell_type"] == "code"]
+    assert len(code) >= 1
+    src = "".join(code[0]["source"])
+    assert "print(1+1)" in src
+
+
 def test_snippet_not_found() -> None:
     res = client.get("/api/v1/snippets/no_existe")
     assert res.status_code == 404

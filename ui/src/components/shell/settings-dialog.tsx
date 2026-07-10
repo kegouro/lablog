@@ -14,9 +14,11 @@ import {
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
 import {
+  PREFERENCE_PROFILES,
   useAppStore,
   type AppPreferences,
   type EditorFont,
+  type PreferenceProfileId,
   type UiDensity,
 } from '@/stores/app-store'
 
@@ -75,6 +77,7 @@ export function SettingsDialog() {
   const setLabMode = useAppStore((s) => s.setLabMode)
   const exportPreferences = useAppStore((s) => s.exportPreferences)
   const importPreferences = useAppStore((s) => s.importPreferences)
+  const applyPreferenceProfile = useAppStore((s) => s.applyPreferenceProfile)
   const [open, setOpen] = useState(false)
   const [draftColors, setDraftColors] = useState(customColors)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -173,6 +176,34 @@ export function SettingsDialog() {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Perfil rápido</label>
+            <p className="text-[10px] text-muted-foreground">
+              Un clic aplica densidad, fuente, acento y modo a la vez.
+            </p>
+            <div className="grid grid-cols-1 gap-2">
+              {(Object.keys(PREFERENCE_PROFILES) as PreferenceProfileId[]).map((id) => {
+                const p = PREFERENCE_PROFILES[id]
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      applyPreferenceProfile(id)
+                      toast.success(`Perfil «${p.label}» aplicado`)
+                    }}
+                    className="rounded-lg border p-2 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <span className="text-xs font-semibold">{p.label}</span>
+                    <span className="mt-0.5 block text-[10px] text-muted-foreground">
+                      {p.description}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Type className="size-4 text-muted-foreground" />

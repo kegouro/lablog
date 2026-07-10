@@ -29,6 +29,7 @@ export interface ParameterHint {
 
 export type UiDensity = 'comfortable' | 'compact'
 export type EditorFont = 'sans' | 'mono' | 'serif'
+export type PreferenceProfileId = 'lab' | 'paper' | 'teaching'
 
 /** Preferencias de apariencia exportables/importables. */
 export interface AppPreferences {
@@ -41,6 +42,52 @@ export interface AppPreferences {
   editorFont: EditorFont
   reducedMotion: boolean
   labMode: boolean
+}
+
+/** Perfiles listos: un clic cambia varios knobs a la vez. */
+export const PREFERENCE_PROFILES: Record<
+  PreferenceProfileId,
+  { label: string; description: string; prefs: Partial<AppPreferences> }
+> = {
+  lab: {
+    label: 'Laboratorio',
+    description: 'Denso, mono, listo para bancada y celdas.',
+    prefs: {
+      density: 'compact',
+      editorFont: 'mono',
+      fontScale: 95,
+      labMode: true,
+      reducedMotion: false,
+      accent: 'emerald',
+      palette: 'original',
+    },
+  },
+  paper: {
+    label: 'Paper',
+    description: 'Lectura cómoda, serif, menos distracción.',
+    prefs: {
+      density: 'comfortable',
+      editorFont: 'serif',
+      fontScale: 105,
+      labMode: false,
+      reducedMotion: true,
+      accent: 'zinc',
+      palette: 'moka',
+    },
+  },
+  teaching: {
+    label: 'Docencia',
+    description: 'Alto contraste y acento claro para proyector.',
+    prefs: {
+      density: 'comfortable',
+      editorFont: 'sans',
+      fontScale: 110,
+      labMode: false,
+      reducedMotion: true,
+      accent: 'blue',
+      palette: 'nord',
+    },
+  },
 }
 
 interface AppState {
@@ -102,6 +149,7 @@ interface AppState {
   setReducedMotion: (on: boolean) => void
   exportPreferences: () => AppPreferences
   importPreferences: (prefs: Partial<AppPreferences>) => void
+  applyPreferenceProfile: (id: PreferenceProfileId) => void
   setVaultFiles: (files: VaultFile[]) => void
   setSnippets: (snippets: Snippet[]) => void
   setSymbols: (symbols: LatexSymbol[]) => void
@@ -247,6 +295,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       persist('lablog-labMode', String(next.labMode))
       return next
     })
+  },
+  applyPreferenceProfile: (id) => {
+    const profile = PREFERENCE_PROFILES[id]
+    if (!profile) return
+    get().importPreferences(profile.prefs)
   },
   setVaultFiles: (vaultFiles) => set({ vaultFiles }),
   setSnippets: (snippets) => set({ snippets }),
