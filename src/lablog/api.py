@@ -801,7 +801,10 @@ def _latex_to_plain(latex: str, title: str) -> str:
 
 def _canva_html(latex: str, title: str) -> str:
     # Canva-friendly HTML: large sections, clean typography, copy-paste ready
-    escaped = latex.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    import html as html_mod
+
+    safe_title = html_mod.escape(title, quote=True)
+    escaped = html_mod.escape(latex, quote=False)
     paragraphs = [f"<p>{line}</p>" for line in escaped.split("\n") if line.strip()]
     style = "; ".join(
         [
@@ -825,7 +828,7 @@ def _canva_html(latex: str, title: str) -> str:
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>{title}</title>
+<title>{safe_title}</title>
 <style>
 body {{ {style} }}
 section {{ {section_style} }}
@@ -835,7 +838,7 @@ code {{ background: #e9ecef; padding: 2px 6px; border-radius: 4px; font-family: 
 </style>
 </head>
 <body>
-<section><h1>{title}</h1></section>
+<section><h1>{safe_title}</h1></section>
 <section>{"".join(paragraphs)}</section>
 </body>
 </html>"""
@@ -863,7 +866,9 @@ async def export_page_pdf(page_id: str) -> Response:
     except PageNotFoundError:
         _handle_projection_not_found(page_id)
     title = proj.title or "lablog_export"
-    figures_dir = settings.figures_dir / page_id
+    # figure_path se guarda relativo a figures_dir (p.ej. "{page_id}/fig_0.png").
+    # No pasar figures_dir/page_id o se duplica el segmento.
+    figures_dir = settings.figures_dir
     includes = _page_includes()
     async with _pdf_lock(page_id):
         result = await pdf_engine.compile_page(
