@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/banner.png" alt="lablog identity" width="280" />
+<img src="docs/assets/banner.png" alt="identidad lablog" width="280" />
 
 # lablog
 
@@ -10,18 +10,18 @@
 
 <br/>
 
-<img src="docs/assets/hero-academic.jpg" alt="lablog academic hero" width="920" />
+<img src="docs/assets/hero-academic.jpg" alt="hero académico lablog" width="920" />
 
 <br/>
 
 <p>
-  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="PyPI version" src="https://img.shields.io/pypi/v/jose-labarca-lablog?style=flat-square&label=PyPI&labelColor=1C1C1E&color=48484A" /></a>
-  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="Python versions" src="https://img.shields.io/pypi/pyversions/jose-labarca-lablog?style=flat-square&labelColor=1C1C1E&color=A1A1A6" /></a>
-  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="PyPI downloads" src="https://img.shields.io/pypi/dm/jose-labarca-lablog?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="versión PyPI" src="https://img.shields.io/pypi/v/jose-labarca-lablog?style=flat-square&label=PyPI&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="versiones de Python" src="https://img.shields.io/pypi/pyversions/jose-labarca-lablog?style=flat-square&labelColor=1C1C1E&color=A1A1A6" /></a>
+  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="descargas PyPI" src="https://img.shields.io/pypi/dm/jose-labarca-lablog?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/ci.yml?branch=main&style=flat-square&label=CI&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/pages.yml"><img alt="Pages" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/pages.yml?branch=main&style=flat-square&label=Pages&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/actions/workflows/release.yml"><img alt="Release" src="https://img.shields.io/github/actions/workflow/status/kegouro/lablog/release.yml?style=flat-square&label=release&labelColor=1C1C1E&color=48484A" /></a>
-  <a href="https://github.com/kegouro/lablog/commits/main"><img alt="last commit" src="https://img.shields.io/github/last-commit/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://github.com/kegouro/lablog/commits/main"><img alt="último commit" src="https://img.shields.io/github/last-commit/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/issues"><img alt="issues" src="https://img.shields.io/github/issues/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/pulls"><img alt="PRs" src="https://img.shields.io/github/issues-pr/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://github.com/kegouro/lablog/stargazers"><img alt="stars" src="https://img.shields.io/github/stars/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=A1A1A6" /></a>
@@ -29,15 +29,15 @@
   <a href="https://github.com/kegouro/lablog"><img alt="languages" src="https://img.shields.io/github/languages/top/kegouro/lablog?style=flat-square&labelColor=1C1C1E" /></a>
   <a href="https://github.com/kegouro/lablog"><img alt="code size" src="https://img.shields.io/github/languages/code-size/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=48484A" /></a>
   <a href="#pruebas-y-calidad"><img alt="coverage" src="https://img.shields.io/badge/coverage-%E2%89%A580%25-48484A?style=flat-square&labelColor=1C1C1E" /></a>
-  <a href="LICENSE"><img alt="license" src="https://img.shields.io/github/license/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=F2F2F7" /></a>
-  <a href="https://www.repostatus.org/#active"><img alt="Project status" src="https://www.repostatus.org/badges/latest/active.svg" /></a>
+  <a href="LICENSE"><img alt="licencia" src="https://img.shields.io/github/license/kegouro/lablog?style=flat-square&labelColor=1C1C1E&color=F2F2F7" /></a>
+  <a href="https://www.repostatus.org/#active"><img alt="estado del proyecto" src="https://www.repostatus.org/badges/latest/active.svg" /></a>
 </p>
 
 <p>
   <a href="README.md"><img alt="English" src="https://img.shields.io/badge/lang-English-A1A1A6?style=for-the-badge&labelColor=1C1C1E" /></a>
   <a href="README.es.md"><img alt="Español" src="https://img.shields.io/badge/lang-Espa%C3%B1ol-48484A?style=for-the-badge&labelColor=1C1C1E" /></a>
-  <a href="https://kegouro.github.io/lablog/"><img alt="Live preview" src="https://img.shields.io/badge/docs%20site-kegouro.github.io%2Flablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
-  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="Install from PyPI" src="https://img.shields.io/badge/install-pip%20install%20jose--labarca--lablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=A1A1A6" /></a>
+  <a href="https://kegouro.github.io/lablog/"><img alt="sitio de documentación" src="https://img.shields.io/badge/sitio%20docs-kegouro.github.io%2Flablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="instalar desde PyPI" src="https://img.shields.io/badge/instalar-pip%20install%20jose--labarca--lablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=A1A1A6" /></a>
   <a href="https://github.com/kegouro/lablog/releases/tag/v0.3.0"><img alt="v0.3.0" src="https://img.shields.io/badge/release-v0.3.0-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
 </p>
 
@@ -52,7 +52,7 @@
   · <a href="#referencia-cli">CLI</a>
   · <a href="#modelo-de-seguridad">Seguridad</a>
   · <a href="#cómo-citar">Citar</a>
-  · <a href="README.es.md">Español</a>
+  · <a href="README.es.md">English</a>
 </sub>
 
 </div>
@@ -76,27 +76,27 @@
   </tr>
   <tr>
     <td><a href="#referencia-cli"><strong>9. CLI</strong></a></td>
-    <td><a href="#http-api-surface"><strong>10. HTTP API</strong></a></td>
-    <td><a href="#diagram-workbench"><strong>11. Diagrams</strong></a></td>
+    <td><a href="#superficie-http"><strong>10. API HTTP</strong></a></td>
+    <td><a href="#banco-de-diagramas"><strong>11. Diagramas</strong></a></td>
     <td><a href="#atajos-de-teclado"><strong>12. Atajos</strong></a></td>
   </tr>
   <tr>
-    <td><a href="#laboratory-mode"><strong>13. Lab mode</strong></a></td>
-    <td><a href="#real-pdf-compilation"><strong>14. PDF</strong></a></td>
-    <td><a href="#vault--attachments"><strong>15. Vault</strong></a></td>
-    <td><a href="#export-formats"><strong>16. Export</strong></a></td>
+    <td><a href="#modo-laboratorio"><strong>13. Laboratorio</strong></a></td>
+    <td><a href="#compilación-pdf-real"><strong>14. PDF</strong></a></td>
+    <td><a href="#bóveda-y-adjuntos"><strong>15. Bóveda</strong></a></td>
+    <td><a href="#formatos-de-exportación"><strong>16. Exportar</strong></a></td>
   </tr>
   <tr>
-    <td><a href="#configuration"><strong>17. Config</strong></a></td>
-    <td><a href="#on-disk-layout"><strong>18. Data layout</strong></a></td>
-    <td><a href="#modelo-de-seguridad"><strong>19. Security</strong></a></td>
-    <td><a href="#pruebas-y-calidad"><strong>20. Testing</strong></a></td>
+    <td><a href="#configuración"><strong>17. Config</strong></a></td>
+    <td><a href="#diseño-en-disco"><strong>18. Datos</strong></a></td>
+    <td><a href="#modelo-de-seguridad"><strong>19. Seguridad</strong></a></td>
+    <td><a href="#pruebas-y-calidad"><strong>20. Pruebas</strong></a></td>
   </tr>
   <tr>
-    <td><a href="#publishing-to-github-pages"><strong>21. Pages</strong></a></td>
-    <td><a href="#roadmap"><strong>22. Roadmap</strong></a></td>
-    <td><a href="#cómo-citar"><strong>23. Citing</strong></a></td>
-    <td><a href="#license"><strong>24. License</strong></a></td>
+    <td><a href="#publicar-en-github-pages"><strong>21. Pages</strong></a></td>
+    <td><a href="#hoja-de-ruta"><strong>22. Roadmap</strong></a></td>
+    <td><a href="#cómo-citar"><strong>23. Citar</strong></a></td>
+    <td><a href="#licencia"><strong>24. Licencia</strong></a></td>
   </tr>
 </table>
 
@@ -109,12 +109,11 @@
 > ejecutables, diagramas parametrizados, dictado por voz e historial inmutable por event
 > sourcing, de modo que el registro de una investigación pueda reconstruirse tal como se produjo.
 
-A diferencia de un procesador usado *después* del experimento, lablog is designed to run **while
-the work is in progress** — instrument open, notes incomplete, values still moving. The
-guiding premise is simple: the act of writing the paper should not be separated from the
-act of producing the data.
+A diferencia de un procesador usado *después* del experimento, lablog está pensado para
+correr **mientras el trabajo avanza** — instrumento abierto, notas incompletas, valores
+aún en movimiento. Premisa: escribir el paper no debería separarse de producir los datos.
 
-| Tool | Cuándo se usa habitualmente |
+| Herramienta | Cuándo se usa habitualmente |
 | :--- | :--- |
 | Overleaf | Tras el experimento, al preparar el manuscrito. |
 | TeXstudio / TeXmacs | Autoría LaTeX clásica en escritorio. |
@@ -123,18 +122,18 @@ act of producing the data.
 
 ### Principios de diseño
 
-1. **Local-first.** Default bind address is loopback. Your notes stay under `LABLOG_DATA_DIR`.
-2. **Event sourcing, no mutación silenciosa.** Writes append immutable events; state is a pure projection.
-3. **Preview aproximada + PDF fiel.** KaTeX is for speed; Tectonic is for truth.
-4. **Peso opcional.** Core install is lean; voice, desktop, and PySpice are extras.
-5. **Seguridad como corrección.** Path traversal, shell-escape, size limits, and OCC are invariants, not afterthoughts.
+1. **Local-first.** Bind por defecto a loopback. Las notas viven en `LABLOG_DATA_DIR`.
+2. **Event sourcing, no mutación silenciosa.** Las escrituras anexan eventos inmutables; el estado es proyección pura.
+3. **Preview aproximada + PDF fiel.** KaTeX para velocidad; Tectonic para verdad tipográfica.
+4. **Peso opcional.** El núcleo es liviano; voz, escritorio y PySpice son extras.
+5. **Seguridad como corrección.** Path traversal, shell-escape, límites de tamaño y OCC son invariantes, no parches a posteriori.
 
 ### Estado
 
-| Item | Value |
+| Ítem | Valor |
 | :--- | :--- |
-| Distribución | [`jose-labarca-lablog`](https://pypi.org/project/jose-labarca-lablog/) on PyPI |
-| Versión actual | **v0.3.0** ([notes](docs/release-notes-v0.3.0.md)) |
+| Distribución | [`jose-labarca-lablog`](https://pypi.org/project/jose-labarca-lablog/) en PyPI |
+| Versión actual | **v0.3.0** ([notas](docs/release-notes-v0.3.0.md)) |
 | Licencia | MIT |
 | Lenguaje principal (motor) | Python 3.11+ |
 | Lenguaje principal (UI) | TypeScript / React 19 |
@@ -150,7 +149,7 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
 
 ### Mesa de trabajo
 
-<img src="docs/assets/screenshots/01-workbench.png" alt="Main workbench with editor and preview" width="920" />
+<img src="docs/assets/screenshots/01-workbench.png" alt="Mesa de trabajo principal con editor y preview" width="920" />
 
 <sub>Figure 1. Shell principal: grupos de proyecto, editor LaTeX estructural, vista previa (<code>\section</code>, equation, <code>% lablog-param</code>).</sub>
 
@@ -158,7 +157,7 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
 
 ### Presets de diagramas
 
-<img src="docs/assets/screenshots/02-diagrams-panel.png" alt="Diagrams panel with circuit presets" width="920" />
+<img src="docs/assets/screenshots/02-diagrams-panel.png" alt="Panel de diagramas con presets de circuitos" width="920" />
 
 <sub>Figure 2. Banco de diagramas: presets de circuitos / control / óptica con Insertar, +Sim y SPICE.</sub>
 
@@ -166,7 +165,7 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
 
 ### Parámetros
 
-<img src="docs/assets/screenshots/03-parameters-panel.png" alt="Parameters panel with sliders" width="920" />
+<img src="docs/assets/screenshots/03-parameters-panel.png" alt="Panel de parámetros con sliders" width="920" />
 
 <sub>Figure 3. Panel de parámetros: valores, resaltado dual, reaplicar diagrama / reaplicar + sim.</sub>
 
@@ -174,7 +173,7 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
 
 ### Modo laboratorio
 
-<img src="docs/assets/screenshots/07-lab-mode.png" alt="Laboratory mode with Python cell" width="920" />
+<img src="docs/assets/screenshots/07-lab-mode.png" alt="Modo laboratorio con celda Python" width="920" />
 
 <sub>Figure 4. Modo laboratorio: layout denso de celdas, fuente Python, controles de ejecución.</sub>
 
@@ -182,7 +181,7 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
 
 ### Preferencias y atajos de teclado
 
-<img src="docs/assets/screenshots/05-shortcuts.png" alt="Settings dialog showing keyboard shortcuts" width="920" />
+<img src="docs/assets/screenshots/05-shortcuts.png" alt="Preferencias con atajos de teclado" width="920" />
 
 <sub>Figure 5. Preferencias: fuente del editor, paletas, color de acento y chords globales editables (<code>mod+…</code>).</sub>
 
@@ -190,7 +189,7 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
 
 ### Vista de ajustes
 
-<img src="docs/assets/screenshots/04-settings.png" alt="Settings dialog overview" width="920" />
+<img src="docs/assets/screenshots/04-settings.png" alt="Vista general de preferencias" width="920" />
 
 <sub>Figure 6. Superficie completa de preferencias (densidad, movimiento, layout laboratorio, import/export JSON).</sub>
 
@@ -198,7 +197,7 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
 
 ### Panel de celdas
 
-<img src="docs/assets/screenshots/08-cells-panel.png" alt="Cells and document with python environment" width="920" />
+<img src="docs/assets/screenshots/08-cells-panel.png" alt="Documento con celda python y parámetros" width="920" />
 
 <sub>Figure 7. Documento con <code>\begin{python}</code> y parámetros abiertos para reaplicar.</sub>
 
@@ -227,44 +226,44 @@ Capturas reales de una instancia en ejecución (Vite + FastAPI, dark theme, v0.3
   </thead>
   <tbody>
     <tr>
-      <td><strong>Structural LaTeX renderer</strong></td>
-      <td>Sections, emphasis, lists, hyperlinks, and inline mathematics within prose. KaTeX for display environments (<code>align</code>, <code>equation</code>, <code>gather</code>, <code>cases</code>, <code>pmatrix</code>) with automatic equation numbering.</td>
+      <td><strong>Render LaTeX estructural</strong></td>
+      <td>Secciones, énfasis, listas, hipervínculos y matemática inline en la prosa. KaTeX para entornos de display (<code>align</code>, <code>equation</code>, <code>gather</code>, <code>cases</code>, <code>pmatrix</code>) con numeración automática de ecuaciones.</td>
     </tr>
     <tr>
       <td><strong>Editor</strong></td>
-      <td>Line gutter, parameter overlay, debounced auto-save with optimistic concurrency (OCC), find &amp; replace, undo / redo that survives programmatic inserts, smart delimiter wrapping, snippets and symbols at the cursor.</td>
+      <td>Gutter de líneas, overlay de parámetros, auto-guardado con OCC, buscar y reemplazar, undo/redo que sobrevive a inserts programáticos, wrap inteligente de delimitadores, snippets y símbolos en el cursor.</td>
     </tr>
     <tr>
-      <td><strong>Voice dictation</strong></td>
-      <td>Browser <code>SpeechRecognition</code> with intent parsing, plus optional local Whisper (<code>[voice]</code> extra). Session timeout prevents hung recognisers.</td>
+      <td><strong>Dictado por voz</strong></td>
+      <td><code>SpeechRecognition</code> del navegador con parseo de intent, más Whisper local opcional (extra <code>[voice]</code>). Timeout de sesión para evitar reconocedores colgados.</td>
     </tr>
     <tr>
-      <td><strong>Executable cells</strong></td>
-      <td><code>\begin{python}...\end{python}</code> (and lab-mode cells) run on a real Jupyter kernel. Stdout, results, and figures return into the document; kernels are interrupted on timeout.</td>
+      <td><strong>Celdas ejecutables</strong></td>
+      <td><code>\begin{python}...\end{python}</code> (y celdas de lab mode) corren en un kernel Jupyter real. Stdout, resultados y figuras vuelven al documento; el kernel se interrumpe con timeout.</td>
     </tr>
     <tr>
-      <td><strong>Vault</strong></td>
-      <td>Attach images, CSV, PDF, DOCX, audio, scripts; preview in place. Atomic metadata; basename-only filenames; 100&nbsp;MB ceiling; time-locked deletion.</td>
+      <td><strong>Bóveda</strong></td>
+      <td>Adjunta imágenes, CSV, PDF, DOCX, audio y scripts; preview in situ. Meta atómica; solo basename; techo de 100&nbsp;MB; borrado diferido.</td>
     </tr>
     <tr>
-      <td><strong>Event-sourced history</strong></td>
-      <td>Every edit, execution, and attachment is append-only JSONL. Time-travel UI scrubs and restores any event index with version-aware OCC on the client.</td>
+      <td><strong>Historial event-sourced</strong></td>
+      <td>Cada edición, ejecución y adjunto es JSONL append-only. El UI de time-travel recorre y restaura cualquier índice de evento con OCC consciente de versión en el cliente.</td>
     </tr>
     <tr>
-      <td><strong>Diagram workbench</strong></td>
-      <td>Twelve parameterised presets (circuits, control, mechanics, optics, Feynman). Re-apply without <code>{{placeholders}}</code> via <code>% lablog-param</code>. Dual highlight (editor line + Circuitikz colour). Optional PySpice cells with numpy fallback.</td>
+      <td><strong>Banco de diagramas</strong></td>
+      <td>Doce presets parametrizados (circuitos, control, mecánica, óptica, Feynman). Reaplicar sin <code>{{placeholders}}</code> vía <code>% lablog-param</code>. Highlight dual (línea del editor + color Circuitikz). Celdas PySpice opcionales con fallback numpy.</td>
     </tr>
     <tr>
-      <td><strong>Personalisation</strong></td>
+      <td><strong>Personalización</strong></td>
       <td>Density, editor font, Nord palette, reduced motion, profiles (Laboratory / Paper / Teaching), exportable preferences JSON, configurable keyboard shortcuts.</td>
     </tr>
     <tr>
-      <td><strong>Export</strong></td>
-      <td><code>.tex</code>, plain text, HTML, PDF, DOCX (pandoc), <strong>Jupyter <code>.ipynb</code></strong>, static site for GitHub Pages, Canva-ready HTML. Titles LaTeX-escaped.</td>
+      <td><strong>Exportación</strong></td>
+      <td><code>.tex</code>, texto plano, HTML, PDF, DOCX (pandoc), <strong>Jupyter <code>.ipynb</code></strong>, sitio estático para GitHub Pages, HTML listo para Canva. Títulos escapados para LaTeX.</td>
     </tr>
     <tr>
-      <td><strong>Desktop</strong></td>
-      <td>Native window via <code>pywebview</code> (<code>[desktop]</code>); portable PyInstaller bundle for offline distribution.</td>
+      <td><strong>Escritorio</strong></td>
+      <td>Ventana nativa vía <code>pywebview</code> (<code>[desktop]</code>); bundle portable PyInstaller para distribución offline.</td>
     </tr>
   </tbody>
 </table>
@@ -343,38 +342,38 @@ sequenceDiagram
     end
 ```
 
-**Rules enforced in code and CONTRIBUTING:**
+**Reglas aplicadas en el código y en CONTRIBUTING:**
 
-1. Never mutate the projected AST from the API; append an event and re-project.
-2. Paths only through `src/lablog/config.py`.
-3. Wire shapes mirrored in `ui/src/lib/api.ts`.
-4. Network I/O kept out of leaf components when possible (Zustand + hooks).
-5. Diagrams: presets in `catalog.py`, clamp/expand in `expand.py`, SPICE optional in `pyspice_sim.py`.
+1. Nunca mutar el AST proyectado desde la API; anexar un evento y re-proyectar.
+2. Rutas solo a través de `src/lablog/config.py`.
+3. Formas de respuesta reflejadas en `ui/src/lib/api.ts`.
+4. I/O de red fuera de componentes hoja cuando sea posible (Zustand + hooks).
+5. Diagramas: presets en `catalog.py`, clamp/expand en `expand.py`, SPICE opcional en `pyspice_sim.py`.
 
 <details>
 <summary><strong>Módulo map (source tree)</strong></summary>
 
 <br/>
 
-| Path | Responsibility |
+| Ruta | Responsabilidad |
 | :--- | :--- |
-| [`src/lablog/api.py`](src/lablog/api.py) | HTTP surface, OCC on replace, vault, diagrams, export. |
-| [`src/lablog/event_store.py`](src/lablog/event_store.py) | Append-only JSONL; per-page lock; conditional append (`expected_version`). |
-| [`src/lablog/events.py`](src/lablog/events.py) | Event types and constructors. |
-| [`src/lablog/projector.py`](src/lablog/projector.py) | Pure fold of events into page state. |
-| [`src/lablog/projections.py`](src/lablog/projections.py) | Read models: detail, summary, history, cells. |
-| [`src/lablog/commands.py`](src/lablog/commands.py) | Domain commands (create, replace, cells, restore). |
-| [`src/lablog/latex_ast.py`](src/lablog/latex_ast.py) | Parse / serialise document tree. |
-| [`src/lablog/code_engine.py`](src/lablog/code_engine.py) | Jupyter kernel with timeout interrupt. |
-| [`src/lablog/vault.py`](src/lablog/vault.py) | Attachments, atomic meta, deletion schedule. |
-| [`src/lablog/exporter.py`](src/lablog/exporter.py) | Static site and notebook export. |
-| [`src/lablog/pdf_engine.py`](src/lablog/pdf_engine.py) | Tectonic install, warm, compile, error mapping. |
+| [`src/lablog/api.py`](src/lablog/api.py) | Superficie HTTP, OCC en replace, bóveda, diagramas, export. |
+| [`src/lablog/event_store.py`](src/lablog/event_store.py) | JSONL append-only; lock por página; append condicional (`expected_version`). |
+| [`src/lablog/events.py`](src/lablog/events.py) | Tipos de evento y constructores. |
+| [`src/lablog/projector.py`](src/lablog/projector.py) | Fold puro de eventos al estado de página. |
+| [`src/lablog/projections.py`](src/lablog/projections.py) | Modelos de lectura: detail, summary, history, cells. |
+| [`src/lablog/commands.py`](src/lablog/commands.py) | Comandos de dominio (create, replace, cells, restore). |
+| [`src/lablog/latex_ast.py`](src/lablog/latex_ast.py) | Parse / serialización del árbol del documento. |
+| [`src/lablog/code_engine.py`](src/lablog/code_engine.py) | Kernel Jupyter con interrupt por timeout. |
+| [`src/lablog/vault.py`](src/lablog/vault.py) | Adjuntos, meta atómica, programación de borrado. |
+| [`src/lablog/exporter.py`](src/lablog/exporter.py) | Export de sitio estático y notebook. |
+| [`src/lablog/pdf_engine.py`](src/lablog/pdf_engine.py) | Install/warm/compile Tectonic y mapeo de errores. |
 | [`src/lablog/diagrams/`](src/lablog/diagrams/) | Presets, expand, highlight, PySpice / numpy. |
-| [`src/lablog/cli.py`](src/lablog/cli.py) | `lablog` entry point. |
-| [`ui/src/stores/app-store.ts`](ui/src/stores/app-store.ts) | Client state, preferences, flush hooks. |
-| [`ui/src/hooks/use-page-update.ts`](ui/src/hooks/use-page-update.ts) | Debounced autosave, serialised PUT, 409 retry. |
-| [`ui/src/components/editor/latex-editor.tsx`](ui/src/components/editor/latex-editor.tsx) | Editor surface. |
-| [`ui/src/components/lab/lab-canvas.tsx`](ui/src/components/lab/lab-canvas.tsx) | Lab mode; dirty-cell flush on exit. |
+| [`src/lablog/cli.py`](src/lablog/cli.py) | Punto de entrada `lablog`. |
+| [`ui/src/stores/app-store.ts`](ui/src/stores/app-store.ts) | Estado del cliente, preferencias, hooks de flush. |
+| [`ui/src/hooks/use-page-update.ts`](ui/src/hooks/use-page-update.ts) | Autosave con debounce, PUT serializado, reintento 409. |
+| [`ui/src/components/editor/latex-editor.tsx`](ui/src/components/editor/latex-editor.tsx) | Superficie del editor. |
+| [`ui/src/components/lab/lab-canvas.tsx`](ui/src/components/lab/lab-canvas.tsx) | Modo lab; flush de celdas dirty al salir. |
 
 </details>
 
@@ -401,20 +400,20 @@ pip install -U jose-labarca-lablog
 lablog serve
 ```
 
-Open the UI served by the engine (bundled wheel includes compiled `ui/dist`), or point a
-dev front-end at the API.
+Abre la UI servida por el motor (la rueda incluye `ui/dist` compilado), o apunta un
+front de desarrollo a la API.
 
-| Extra | Install | Purpose |
+| Extra | Instalación | Propósito |
 | :--- | :--- | :--- |
-| Desktop | `pip install "jose-labarca-lablog[desktop]"` | Native window (`lablog app`) |
-| Offline voice | `pip install "jose-labarca-lablog[voice]"` | Local Whisper (large download) |
-| SPICE | `pip install "jose-labarca-lablog[pyspice]"` | PySpice cells (needs `ngspice` on PATH) |
+| Escritorio | `pip install "jose-labarca-lablog[desktop]"` | Ventana nativa (`lablog app`) |
+| Voz offline | `pip install "jose-labarca-lablog[voice]"` | Whisper local (descarga grande) |
+| SPICE | `pip install "jose-labarca-lablog[pyspice]"` | Celdas PySpice (requiere `ngspice` en PATH) |
 | Dev | `pip install "jose-labarca-lablog[dev]"` | pytest, ruff, mypy, bandit, pre-commit |
 
 ### Desde el código fuente
 
-> **Prerequisites.** Python ≥ 3.11, Node 22, [uv](https://docs.astral.sh/uv/), `npm`.
-> Optional: `pandoc` (+ TeX) for DOCX/PDF via pandoc; Tectonic is managed by lablog for in-app PDF.
+> **Requisitos.** Python ≥ 3.11, Node 22, [uv](https://docs.astral.sh/uv/), `npm`.
+> Opcional: `pandoc` (+ TeX) para DOCX/PDF vía pandoc; Tectonic lo gestiona lablog para el PDF in-app.
 
 ```bash
 git clone https://github.com/kegouro/lablog.git
@@ -472,7 +471,7 @@ cd ui && npm run build && cd ..
 lablog app
 ```
 
-### One-liner smoke (API only)
+### Smoke de una línea (solo API)
 
 ```bash
 curl -s http://127.0.0.1:8000/api/v1/health | python -m json.tool
@@ -482,15 +481,15 @@ curl -s http://127.0.0.1:8000/api/v1/health | python -m json.tool
 
 ## Tutoriales
 
-### Tutorial 1 — First page from the CLI
+### Tutorial 1 — Primera página por CLI
 
 ```bash
 source .venv/bin/activate
 
-# Create an empty page
+# Crear una página vacía
 lablog create-page --title "RC lab session"
 
-# Or seed from a physics template
+# O sembrar desde una plantilla de física
 lablog new --title "Optics notes" --template article_physics
 
 lablog list-pages
@@ -498,26 +497,26 @@ lablog render <page_id>          # print projected LaTeX
 lablog events <page_id>          # inspect JSONL history
 ```
 
-### Tutorial 2 — Parameterised RC circuit in the UI
+### Tutorial 2 — Circuito RC parametrizado en la UI
 
-1. Start API + UI (Quick start).
-2. Create a page from the sidebar.
-3. Open **Diagrams** → **RC serie — carga**.
-4. Insert diagram (or insert + simulation cell).
-5. Open **Parameters**: adjust `R`, `C`, `V0`.
-6. Re-apply; confirm `% lablog-param` comments and TikZ update.
-7. Focus a parameter: dual highlight (gutter line + Circuitikz `color=`).
-8. Export **Notebook Jupyter (.ipynb)** or **Compilar PDF**.
+1. Arrancar API + UI (Inicio rápido).
+2. Crear una página desde la barra lateral.
+3. Abrir **Diagramas** → **RC serie — carga**.
+4. Insertar diagrama (o insertar + celda de simulación).
+5. Abrir **Parámetros**: ajustar `R`, `C`, `V0`.
+6. Reaplicar; confirmar comentarios `% lablog-param` y actualización TikZ.
+7. Enfocar un parámetro: resaltado dual (línea del gutter + `color=` en Circuitikz).
+8. Exportar **Notebook Jupyter (.ipynb)** o **Compilar PDF**.
 
 ```bash
-# Equivalent expand from CLI
+# Expansión equivalente por CLI
 lablog diagrams list
 lablog diagrams expand rc_series_charge --json
 ```
 
-### Tutorial 3 — Executable cell and figure
+### Tutorial 3 — Celda ejecutable y figura
 
-In the editor (or Lab mode):
+En el editor (o modo Laboratorio):
 
 ```latex
 \begin{python}[label=demo]
@@ -530,21 +529,21 @@ plt.ylabel("e^{-t}")
 \end{python}
 ```
 
-Run the cell from the **Cells** panel or Lab canvas. Output and figures are stored under
-`LABLOG_DATA_DIR/figures/<page_id>/` and projected into the AST.
+Ejecuta la celda desde el panel **Celdas** o el canvas de Lab. Salida y figuras se guardan en
+`LABLOG_DATA_DIR/figures/<page_id>/` y se proyectan en el AST.
 
-### Tutorial 4 — Time travel and OCC
+### Tutorial 4 — Time travel y OCC
 
-1. Edit the page several times (autosave every ~300&nbsp;ms of idle).
-2. Open history / time-travel; scrub the event index; restore a past version.
-3. Concurrent edits: client sends `version`; on conflict the API returns `409` with
-   `error_code: VERSION_CONFLICT` and `current`. The UI retries once or requeues the draft.
+1. Edita la página varias veces (autosave ~300&nbsp;ms de inactividad).
+2. Abre historial / time-travel; recorre el índice de eventos; restaura una versión pasada.
+3. Ediciones concurrentes: el cliente envía `version`; en conflicto la API responde `409` con
+   `error_code: VERSION_CONFLICT` y `current`. El UI reintenta una vez o reencola el draft.
 
-### Tutorial 5 — Static site for GitHub Pages
+### Tutorial 5 — Sitio estático para GitHub Pages
 
 ```bash
 source .venv/bin/activate
-# Prefer versioning data inside the repo for public notes:
+# Preferible versionar datos dentro del repo para notas públicas:
 # LABLOG_DATA_DIR=./data
 
 python - <<'PY'
@@ -564,20 +563,20 @@ publishes on push to `main`.
 lablog {create-page,new,list-pages,append-text,render,events,serve,app,diagrams}
 ```
 
-| Command | Purpose |
+| Comando | Propósito |
 | :--- | :--- |
-| `create-page` | Create a page (title / project). |
-| `new` | Create page; optional `--template`. |
-| `list-pages` | List page summaries. |
-| `append-text` | Append text event. |
-| `render` | Project and print LaTeX. |
-| `events` | Dump event log for a page. |
-| `serve` | Run uvicorn-backed API (serves UI if built). |
-| `app` | Desktop shell (`[desktop]`). |
-| `diagrams list` | Catalogue presets. |
-| `diagrams expand <id>` | Expand TikZ (+ params) to stdout / JSON. |
+| `create-page` | Crear una página (título / proyecto). |
+| `new` | Crear página; `--template` opcional. |
+| `list-pages` | Listar resúmenes de páginas. |
+| `append-text` | Anexar evento de texto. |
+| `render` | Proyectar e imprimir LaTeX. |
+| `events` | Volcar el log de eventos de una página. |
+| `serve` | API con uvicorn (sirve UI si está build). |
+| `app` | Shell de escritorio (`[desktop]`). |
+| `diagrams list` | Catálogo de presets. |
+| `diagrams expand <id>` | Expandir TikZ (+ params) a stdout / JSON. |
 
-Examples:
+Ejemplos:
 
 ```bash
 lablog serve --host 127.0.0.1 --port 8000
@@ -589,7 +588,7 @@ lablog diagrams expand thin_lens --set f=0.1 --set do=0.3
 
 ## Superficie HTTP
 
-Base path: **`/api/v1`**. Interactive schema: `/docs` (Swagger) when the server is running.
+Ruta base: **`/api/v1`**. Esquema interactivo: `/docs` (Swagger) con el servidor en marcha.
 
 <details>
 <summary><strong>Core resources (summary)</strong></summary>
@@ -598,21 +597,21 @@ Base path: **`/api/v1`**. Interactive schema: `/docs` (Swagger) when the server 
 
 | Method | Path | Notas |
 | :--- | :--- | :--- |
-| GET | `/health` | Liveness / engine flags. |
-| GET/POST | `/pages` | List / create (`title`, `project_id` bounded). |
-| GET/PUT/PATCH/DELETE | `/pages/{id}` | Detail (incl. `project_id`, `updated_at`, `version`); raw replace with OCC; metadata; soft-delete. |
-| POST | `/pages/{id}/text`, `/math`, `/voice`, `/replace` | Domain inserts / replace. |
+| GET | `/health` | Liveness / flags del motor. |
+| GET/POST | `/pages` | Listar / crear (`title`, `project_id` acotados). |
+| GET/PUT/PATCH/DELETE | `/pages/{id}` | Detail (incl. `project_id`, `updated_at`, `version`); replace raw con OCC; metadata; soft-delete. |
+| POST | `/pages/{id}/text`, `/math`, `/voice`, `/replace` | Inserciones de dominio / replace. |
 | GET | `/pages/{id}/history`, `/at/{i}`, POST `/restore/{i}` | Time travel. |
-| POST/GET | `/pages/{id}/cells...` | Insert, update (**returns `version`**), execute, move (**returns `version`**), figure. |
-| GET/POST | `/diagrams/presets...` | List, expand, simulate-source, apply. |
-| GET/POST | `/snippets...`, `/latex-symbols...` | Catalogues and favourites. |
-| GET/POST | `/vault...` | Upload, preview, download, delayed delete, purge. |
-| GET/POST | `/pdf/*`, `/pages/{id}/export/*` | Motor status, install, compile, multi-format export. |
-| POST | `/export` | Static site export. |
+| POST/GET | `/pages/{id}/cells...` | Insert, update (**devuelve `version`**), execute, move (**devuelve `version`**), figure. |
+| GET/POST | `/diagrams/presets...` | Listar, expand, simulate-source, apply. |
+| GET/POST | `/snippets...`, `/latex-symbols...` | Catálogos y favoritos. |
+| GET/POST | `/vault...` | Upload, preview, download, borrado diferido, purge. |
+| GET/POST | `/pdf/*`, `/pages/{id}/export/*` | Estado del motor, install, compile, export multi-formato. |
+| POST | `/export` | Export del sitio estático. |
 
 </details>
 
-**OCC contract (PUT raw / replace):**
+**Contrato OCC (PUT raw / replace):**
 
 ```json
 {
@@ -625,7 +624,7 @@ Base path: **`/api/v1`**. Interactive schema: `/docs` (Swagger) when the server 
 }
 ```
 
-Conditional append is atomic under the per-page file lock (`EventStore.append(..., expected_version=)`).
+El append condicional es atómico bajo el lock por página (`EventStore.append(..., expected_version=)`).
 
 ---
 
@@ -646,8 +645,8 @@ Conditional append is atomic under the per-page file lock (`EventStore.append(..
 | `thin_lens` | Lente delgada | optica |
 | `qed_moller` | QED e⁻e⁻ (árbol) | particulas |
 
-Presets with PySpice support degrade to pedagogical numpy code when PySpice / ngspice
-are absent. Headers in generated LaTeX:
+Los presets con soporte PySpice degradan a código numpy pedagógico si faltan PySpice / ngspice.
+Cabeceras en el LaTeX generado:
 
 ```latex
 % lablog-diagram: preset=rc_series_charge version=1
@@ -660,8 +659,8 @@ are absent. Headers in generated LaTeX:
 
 ## Atajos de teclado
 
-`mod` is **⌘** on macOS and **Ctrl** on Windows / Linux. Chords are editable under
-**Preferencias → Atajos** and exported with preferences JSON.
+`mod` es **⌘** en macOS y **Ctrl** en Windows / Linux. Los chords se editan en
+**Preferencias → Atajos** y se exportan con el JSON de preferencias.
 
 ### Globales (configurables)
 
@@ -691,7 +690,7 @@ Fuente de verdad: [`ui/src/lib/shortcuts.ts`](ui/src/lib/shortcuts.ts) (`DEFAULT
 El historial del editor sobrevive a inserciones programáticas (symbols, snippets, voice), donde el undo nativo del navegador suele fallar.
 
 <div align="center">
-<img src="docs/assets/screenshots/05-shortcuts.png" alt="Keyboard shortcuts in preferences" width="720" />
+<img src="docs/assets/screenshots/05-shortcuts.png" alt="Atajos de teclado en preferencias" width="720" />
 </div>
 
 ---
@@ -708,10 +707,10 @@ exportan / importan como JSON desde Preferencias.
 
 El modo laboratorio es un layout denso orientado a celdas (Python / markdown / LaTeX cells).
 
-- Source is local until blur or explicit save; **al salir del lab se hace flush de celdas dirty**
-  (toolbar, shortcuts, command palette, settings, and unmount) and resynchronises
-  `activeVersion` via `GET /pages/{id}`.
-- Keyboard profiles include a **Laboratory** preset (compact density, mono font, lab flag).
+- El source es local hasta blur o guardado explícito; **al salir del lab se hace flush de celdas dirty**
+  (toolbar, atajos, command palette, settings y unmount) y se resincroniza
+  `activeVersion` vía `GET /pages/{id}`.
+- Los perfiles de teclado incluyen **Laboratorio** (densidad compacta, fuente mono, flag lab).
 
 ---
 
@@ -720,55 +719,55 @@ El modo laboratorio es un layout denso orientado a celdas (Python / markdown / L
 La vista previa es **aproximada** (KaTeX + HTML). La salida fiel usa
 [Tectonic](https://tectonic-typesetting.github.io/) (self-contained XeTeX).
 
-- **Compilar PDF** in the preview header; preview labelled **Aproximada**.
-- Python cells render as code + output + figures (`fancyvrb`, `\includegraphics`).
-- Async compile, hard timeout (`504` on runaway); cache by document hash.
-- Errors map to source via `% lablog-src` markers (**Celda N · línea M**).
-- **No `--shell-escape`.** LaTeX cannot run OS commands.
-- Managed binary: checksum-pinned under `LABLOG_DATA_DIR/bin/`; never “latest” at runtime.
+- **Compilar PDF** en el encabezado de la preview; la preview se etiqueta **Aproximada**.
+- Las celdas Python se renderizan como código + salida + figuras (`fancyvrb`, `\includegraphics`).
+- Compilación asíncrona, timeout duro (`504` si se desborda); caché por hash del documento.
+- Errores mapeados a la fuente vía marcadores `% lablog-src` (**Celda N · línea M**).
+- **Sin `--shell-escape`.** LaTeX no puede ejecutar comandos del SO.
+- Binario gestionado: checksum fijado en `LABLOG_DATA_DIR/bin/`; nunca “latest” en runtime.
 
-> lablog is local and single-user. Do not expose the compile endpoint publicly without
-> rate limiting and isolation.
+> lablog es local y monousuario. No expongas el endpoint de compile públicamente sin
+> rate limiting y aislamiento.
 
 ---
 
 ## Bóveda y adjuntos
 
-| Property | Behaviour |
+| Propiedad | Comportamiento |
 | :--- | :--- |
-| Storage | `LABLOG_DATA_DIR/vault/` + atomic `meta.json` |
-| Filenames | Basename only (blocks `../`) |
-| Size | Max 100&nbsp;MB → HTTP 413 |
-| Lifecycle | Soft delete schedule; force delete with confirmation phrase; purge expired |
+| Almacenamiento | `LABLOG_DATA_DIR/vault/` + `meta.json` atómico |
+| Nombres de archivo | Solo basename (bloquea `../`) |
+| Tamaño | Máx. 100&nbsp;MB → HTTP 413 |
+| Ciclo de vida | Borrado programado; force delete con frase de confirmación; purge de expirados |
 
 ---
 
 ## Formatos de exportación
 
-| Format | How | Notas |
+| Formato | Cómo | Notas |
 | :--- | :--- | :--- |
-| `.tex` | Export menu | Full document serialisation |
-| `.txt` | Export menu | Plain reduction |
-| `.pdf` | In-app Tectonic or pandoc path | Prefer in-app for cells/figures |
-| `.docx` | pandoc | Requires pandoc + TeX for math-heavy docs |
-| `.ipynb` | Export menu | Jupyter notebook for cells + markdown |
-| Static site | Export / CI | GitHub Pages |
-| Canva HTML | Export menu | Presentation-oriented HTML |
+| `.tex` | Menú Exportar | Serialización completa del documento |
+| `.txt` | Menú Exportar | Reducción a texto plano |
+| `.pdf` | Tectonic in-app o ruta pandoc | Preferir in-app para celdas/figuras |
+| `.docx` | pandoc | Requiere pandoc + TeX en docs con mucha matemática |
+| `.ipynb` | Menú Exportar | Notebook Jupyter para celdas + markdown |
+| Sitio estático | Export / CI | GitHub Pages |
+| HTML Canva | Menú Exportar | HTML orientado a presentación |
 
 ---
 
 ## Configuración
 
-See [`.env.example`](.env.example).
+Ver [`.env.example`](.env.example).
 
-| Variable | Default | Purpose |
+| Variable | Default | Propósito |
 | :--- | :--- | :--- |
-| `LABLOG_DATA_DIR` | `~/.lablog` | Events, vault, figures, managed binaries |
-| `LABLOG_HOST` | `127.0.0.1` | API bind host (invalid port → 8000) |
-| `LABLOG_PORT` | `8000` | API bind port (1–65535) |
-| `LABLOG_CORS_ORIGINS` | Vite dev origins | Comma-separated |
-| `LABLOG_CORS_CREDENTIALS` | `true` | CORS credentials |
-| `LABLOG_SITE_DIR` | `${data_dir}/site` | Static export root |
+| `LABLOG_DATA_DIR` | `~/.lablog` | Eventos, bóveda, figuras, binarios gestionados |
+| `LABLOG_HOST` | `127.0.0.1` | Host de bind de la API |
+| `LABLOG_PORT` | `8000` | Puerto de bind de la API (1–65535) |
+| `LABLOG_CORS_ORIGINS` | orígenes Vite | Separados por comas |
+| `LABLOG_CORS_CREDENTIALS` | `true` | Credenciales CORS |
+| `LABLOG_SITE_DIR` | `${data_dir}/site` | Raíz del export estático |
 
 Nunca commitees secretos. Trata `LABLOG_DATA_DIR` como datos personales de investigación.
 
@@ -787,30 +786,29 @@ $LABLOG_DATA_DIR/
 └── site/                   # last static export (if configured)
 ```
 
-Page identifiers are constrained to a safe alphabet (`[A-Za-z0-9_-]{1,128}`) so
-filesystem paths cannot escape the events root.
+Los identificadores de página se limitan a un alfabeto seguro (`[A-Za-z0-9_-]{1,128}`) para que las rutas de filesystem no escapen de la raíz de eventos.
 
 ---
 
 ## Modelo de seguridad
 
-| Invariant | Mechanism |
+| Invariante | Mecanismo |
 | :--- | :--- |
-| Page IDs cannot traverse directories | Regex validation at `EventStore` |
-| Upload names cannot escape vault | Basename only |
-| Upload size bounded | 100&nbsp;MB → 413 |
-| User code cannot hang the kernel | Deadline + `interrupt_kernel()` |
-| Titles cannot inject LaTeX | Meta-character escape on export |
-| Figures cannot leave figure root | Resolve + containment check |
-| Vault meta concurrent-safe | Tempfile + atomic rename |
-| Corrupt events do not brick a page | Skip bad JSONL lines |
-| Soft-deleted pages reject writes | 409 on mutate |
-| OCC on document replace | Atomic `expected_version` under lock |
-| Title / project_id length bounded | Pydantic max_length (500 / 128) |
-| Tectonic isolation | No shell-escape |
+| page_id no hace traversal | Validación regex en `EventStore` |
+| Nombres de upload no escapan la bóveda | Solo basename |
+| Tamaño de upload acotado | 100&nbsp;MB → 413 |
+| El código de usuario no cuelga el kernel | Deadline + `interrupt_kernel()` |
+| Títulos sin inyección LaTeX | Escape de meta-caracteres al exportar |
+| Figuras no salen del root de figures | Resolve + check de contención |
+| Meta de bóveda concurrent-safe | Tempfile + rename atómico |
+| Eventos corruptos no rompen la página | Se omiten líneas JSONL inválidas |
+| Soft-delete rechaza escrituras | 409 al mutar |
+| OCC en replace de documento | `expected_version` atómico bajo lock |
+| Longitud de title / project_id acotada | Pydantic max_length (500 / 128) |
+| Aislamiento de Tectonic | Sin shell-escape |
 
-Report vulnerabilities privately via GitHub Security Advisories or the maintainer
-profile; see [SECURITY.md](SECURITY.md).
+Reporta vulnerabilidades en privado vía GitHub Security Advisories o el perfil del
+mantenedor; ver [SECURITY.md](SECURITY.md).
 
 ---
 
@@ -831,15 +829,15 @@ npm run lint
 npm test -- --run
 npm run build
 
-# Optional e2e
+# E2E opcional
 npm run test:e2e:install && npm run test:e2e
 ```
 
-| Gate | Threshold / tool |
+| Gate | Umbral / herramienta |
 | :--- | :--- |
-| Backend coverage | **≥ 80%** (`pytest-cov`) |
-| Typecheck | Mypy strict (package), `tsc --noEmit` |
-| Lint | Ruff, oxlint / ESLint pipeline |
+| Cobertura backend | **≥ 80%** (`pytest-cov`) |
+| Typecheck | Mypy strict (paquete), `tsc --noEmit` |
+| Lint | Ruff, oxlint / pipeline ESLint |
 | Pre-commit | whitespace, ruff, mypy, tsc, oxlint |
 | CI | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — backend + frontend |
 
@@ -847,8 +845,8 @@ npm run test:e2e:install && npm run test:e2e
 
 ## Publicar en GitHub Pages
 
-Interactive features (editor, cells, voice) remain local. The static exporter produces a
-KaTeX-rendered site for sharing.
+Las funciones interactivas (editor, celdas, voz) permanecen locales. El exportador estático
+produce un sitio renderizado con KaTeX para compartir.
 
 ```bash
 source .venv/bin/activate
@@ -862,7 +860,7 @@ PY
 2. Push to `main`
 3. Workflow [`.github/workflows/pages.yml`](.github/workflows/pages.yml) deploys
 
-Live instance: [kegouro.github.io/lablog](https://kegouro.github.io/lablog/)
+Instancia en vivo: [kegouro.github.io/lablog](https://kegouro.github.io/lablog/)
 
 ---
 
@@ -870,36 +868,36 @@ Live instance: [kegouro.github.io/lablog](https://kegouro.github.io/lablog/)
 
 ```bash
 ./scripts/package_desktop.sh
-# → dist/lablog/  (zip and distribute)
+# → dist/lablog/  (comprimir y distribuir)
 ```
 
-Spec: [`lablog.spec`](lablog.spec). Voice model excluded by default. Treat the bundle as
-a verified starting point for portable builds, not a universal one-click installer.
+Spec: [`lablog.spec`](lablog.spec). El modelo de voz se excluye por defecto. Trata el bundle
+como punto de partida verificado para builds portables, no como instalador universal de un clic.
 
 ---
 
 ## Hoja de ruta
 
-| Milestone | Estado |
+| Hito | Estado |
 | :--- | :---: |
-| Event-sourced engine + projection | Done |
-| Voice → intent → LaTeX | Done |
-| Structural renderer | Done |
-| Executable cells + timeout | Done |
-| Vault + delayed delete | Done |
-| Editor F&R, undo/redo, cursor insert | Done |
-| Static export + Pages | Done |
-| Desktop (pywebview) | Done |
-| Time-travel restore | Done |
-| In-app PDF + error mapping | Done |
-| Autocomplete + templates CLI | Done |
-| Diagram presets + re-apply + dual highlight | Done (0.3.0) |
-| Jupyter export + optional PySpice | Done (0.3.0) |
-| UI profiles + shortcuts | Done (0.3.0) |
-| OCC harden + lab dirty flush | Done (post-0.3.0) |
-| BibTeX / citeproc | Planned |
-| Section / equation cross-refs | Planned |
-| P2P collab / multi-device sync | Exploratory |
+| Motor event-sourced + proyección | Hecho |
+| Voz → intent → LaTeX | Hecho |
+| Render estructural | Hecho |
+| Celdas ejecutables + timeout | Hecho |
+| Bóveda + borrado diferido | Hecho |
+| Editor F&R, undo/redo, insert en cursor | Hecho |
+| Export estático + Pages | Hecho |
+| Escritorio (pywebview) | Hecho |
+| Time-travel restore | Hecho |
+| PDF in-app + mapeo de errores | Hecho |
+| Autocomplete + plantillas CLI | Hecho |
+| Presets de diagramas + reaplicar + highlight dual | Hecho (0.3.0) |
+| Export Jupyter + PySpice opcional | Hecho (0.3.0) |
+| Perfiles UI + atajos | Hecho (0.3.0) |
+| OCC endurecido + flush dirty del lab | Hecho (post-0.3.0) |
+| BibTeX / citeproc | Planificado |
+| Cross-refs de sección / ecuación | Planificado |
+| Colaboración P2P / sync multi-dispositivo | Exploratorio |
 
 ---
 
@@ -924,29 +922,29 @@ Metadatos legibles por máquina: [`CITATION.cff`](CITATION.cff).
 
 ## Contribuir
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). Security: [SECURITY.md](SECURITY.md).
-Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Changelog: [CHANGELOG.md](CHANGELOG.md).
+Ver [CONTRIBUTING.md](CONTRIBUTING.md). Seguridad: [SECURITY.md](SECURITY.md).
+Conducta: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md). Changelog: [CHANGELOG.md](CHANGELOG.md).
 
-Preferred contribution shape: small PR, tests for the behaviour you change, no drive-by
-refactors. Architecture rules in CONTRIBUTING are binding.
+Forma preferida de contribución: PR pequeño, tests del comportamiento que cambias, sin
+refactors colaterales. Las reglas de arquitectura en CONTRIBUTING son vinculantes.
 
 ---
 
 ## Licencia
 
-Publicado bajo la [MIT License](LICENSE).
+Publicado bajo la [licencia MIT](LICENSE).
 
 ---
 
 ## Agradecimientos
 
-lablog forma parte del **Proyecto Pharos** — infrastructure for scientific and educational
-work that should feel local, honest, and reconstructible. Identidad y gráficos por
-José Labarca Baeza. Idea original concebida con Vicente Muñoz Tolosa.
+lablog forma parte del **Proyecto Pharos** — infraestructura científica y educativa que
+debe sentirse local, honesta y reconstruible. Identidad y gráficos: José Labarca Baeza.
+Idea original concebida con Vicente Muñoz Tolosa.
 
 <div align="center">
 
-<img src="docs/assets/logo.png" alt="lablog logo" width="120" />
+<img src="docs/assets/logo.png" alt="logo lablog" width="120" />
 
 <br/>
 
