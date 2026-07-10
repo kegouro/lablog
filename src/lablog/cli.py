@@ -103,6 +103,35 @@ def cmd_app(_args: argparse.Namespace) -> None:
     run()
 
 
+def cmd_diagrams(args: argparse.Namespace) -> None:
+    """Lista o expande presets de diagramas."""
+    from lablog import diagrams
+
+    if args.expand:
+        preset = diagrams.get_preset(args.expand)
+        if preset is None:
+            print(f"Preset desconocido: {args.expand}", file=sys.stderr)
+            sys.exit(1)
+        out = diagrams.expand_preset(preset)
+        print(out["latex"])
+        return
+    if args.sim:
+        preset = diagrams.get_preset(args.sim)
+        if preset is None:
+            print(f"Preset desconocido: {args.sim}", file=sys.stderr)
+            sys.exit(1)
+        try:
+            out = diagrams.expand_simulation(preset)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        print(out["source"])
+        return
+    for p in diagrams.list_presets():
+        sim = "sim" if p.sim_template else "viz"
+        print(f"{p.preset_id:24} {p.kind:14} {sim:4}  {p.title}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="lablog", description="Engine CLI de lablog")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -157,6 +186,23 @@ def main(argv: list[str] | None = None) -> int:
         "app", help="Abre lablog como app de escritorio nativa (offline)"
     )
     app_parser.set_defaults(func=cmd_app)
+
+    diagrams_parser = subparsers.add_parser(
+        "diagrams", help="Lista o expande presets de diagramas (Circuitikz/TikZ)"
+    )
+    diagrams_parser.add_argument(
+        "--expand",
+        metavar="PRESET_ID",
+        default=None,
+        help="Imprime el LaTeX expandido del preset",
+    )
+    diagrams_parser.add_argument(
+        "--sim",
+        metavar="PRESET_ID",
+        default=None,
+        help="Imprime el source Python de simulación",
+    )
+    diagrams_parser.set_defaults(func=cmd_diagrams)
 
     args = parser.parse_args(argv)
     args.func(args)
