@@ -583,7 +583,7 @@ def restore_version(page_id: str, event_index: int) -> PageDetail:
 
 
 @router.post("/pages/{page_id}/cells", status_code=status.HTTP_201_CREATED)
-def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
+def insert_cell(page_id: str, payload: CellPayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
@@ -594,11 +594,11 @@ def insert_cell(page_id: str, payload: CellPayload) -> dict[str, str]:
         language=payload.language,
         source=payload.source,
     )
-    return {"status": "ok"}
+    return {"status": "ok", "version": len(store.get_events(page_id))}
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/update", status_code=status.HTTP_200_OK)
-def update_cell(page_id: str, cell_id: str, payload: UpdateCellPayload) -> dict[str, str]:
+def update_cell(page_id: str, cell_id: str, payload: UpdateCellPayload) -> dict[str, Any]:
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
@@ -609,7 +609,7 @@ def update_cell(page_id: str, cell_id: str, payload: UpdateCellPayload) -> dict[
         language=payload.language,
         source=payload.source,
     )
-    return {"status": "ok"}
+    return {"status": "ok", "version": len(store.get_events(page_id))}
 
 
 @router.post("/pages/{page_id}/cells/{cell_id}/execute", status_code=status.HTTP_200_OK)

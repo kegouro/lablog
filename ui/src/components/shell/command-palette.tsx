@@ -135,7 +135,15 @@ export function CommandPalette() {
             Modo laboratorio
           </CommandItem>
           <CommandItem
-            onSelect={() => {
+            onSelect={async () => {
+              const flushLab = useAppStore.getState().flushLabCells
+              if (flushLab) {
+                try {
+                  await flushLab()
+                } catch {
+                  /* best-effort */
+                }
+              }
               setLabMode(false)
               close()
             }}

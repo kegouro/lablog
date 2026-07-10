@@ -183,18 +183,30 @@ export async function listCells(pageId: string): Promise<Cell[]> {
   return fetchJson(`/pages/${pageId}/cells`)
 }
 
-export async function insertCell(pageId: string, cell: Omit<Cell, 'output' | 'figure_path'>): Promise<void> {
-  await fetchJson(`/pages/${pageId}/cells`, {
+export async function insertCell(
+  pageId: string,
+  cell: Omit<Cell, 'output' | 'figure_path'>,
+): Promise<{ version: number }> {
+  const res = await fetchJson<{ status: string; version?: number }>(`/pages/${pageId}/cells`, {
     method: 'POST',
     body: JSON.stringify(cell),
   })
+  return { version: res?.version ?? 0 }
 }
 
-export async function updateCell(pageId: string, cellId: string, cell: { language: string; source: string }): Promise<void> {
-  await fetchJson(`/pages/${pageId}/cells/${cellId}/update`, {
-    method: 'POST',
-    body: JSON.stringify(cell),
-  })
+export async function updateCell(
+  pageId: string,
+  cellId: string,
+  cell: { language: string; source: string },
+): Promise<{ version: number }> {
+  const res = await fetchJson<{ status: string; version?: number }>(
+    `/pages/${pageId}/cells/${cellId}/update`,
+    {
+      method: 'POST',
+      body: JSON.stringify(cell),
+    },
+  )
+  return { version: res?.version ?? 0 }
 }
 
 export async function executeCell(

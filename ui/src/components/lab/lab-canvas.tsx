@@ -9,7 +9,7 @@ import {
   RotateCcw,
   Trash2,
 } from 'lucide-react'
-import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -18,12 +18,17 @@ import {
   ApiError,
   deleteCell,
   executeCell,
+  getPage,
   insertCell,
   listCells,
   moveCell as moveCellApi,
   updateCell,
 } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
+
+function cellFingerprint(language: string, source: string): string {
+  return `${language}\0${source}`
+}
 
 type LabCell = {
   cell_id: string
@@ -94,13 +99,24 @@ function MarkdownPreview({ source }: { source: string }) {
 export function LabCanvas() {
   const activePageId = useAppStore((s) => s.activePageId)
   const setLabMode = useAppStore((s) => s.setLabMode)
+  const setFlushLabCells = useAppStore((s) => s.setFlushLabCells)
+  const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
   const [cells, setCells] = useState<LabCell[]>([])
   const [loading, setLoading] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
+  /** Snapshot language+source ya persistidos en el servidor. */
+  const savedRef = useRef<Record<string, string>>({})
+  const cellsRef = useRef(cells)
+  const pageIdRef = useRef(activePageId)
+  cellsRef.current = cells
+  pageIdRef.current = activePageId
 
   useEffect(() => {
     if (!activePageId) {
       setCells([])
+      savedRef.current = {}
       return
     }
     let cancelled = false
@@ -109,18 +125,23 @@ export function LabCanvas() {
     listCells(requestedId)
       .then((serverCells) => {
         if (cancelled || useAppStore.getState().activePageId !== requestedId) return
-        setCells(
-          serverCells.map((c) => ({
-            ...c,
-            status: (c.status as LabCell['status']) ?? 'idle',
-            collapsed: false,
-          })),
-        )
+        const mapped = serverCells.map((c) => ({
+          ...c,
+          status: (c.status as LabCell['status']) ?? 'idle',
+          collapsed: false,
+        }))
+        const snap: Record<string, string> = {}
+        for (const c of mapped) {
+          snap[c.cell_id] = cellFingerprint(c.language, c.source)
+        }
+        savedRef.current = snap
+        setCells(mapped)
       })
       .catch((err) => {
         if (cancelled) return
         console.error(err)
         setCells([])
+        savedRef.current = {}
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -129,6 +150,79 @@ export function LabCanvas() {
       cancelled = true
     }
   }, [activePageId])
+
+  const saveCell = useCallback(async (cellId: string, language: string, source: string) => {
+    const pageId = pageIdRef.current
+    if (!pageId) return
+    const res = await updateCell(pageId, cellId, { language, source })
+    savedRef.current[cellId] = cellFingerprint(language, source)
+    if (res?.version && res.version > 0) setActiveVersion(res.version)
+  }, [setActiveVersion])
+
+  const flushDirtyCells = useCallback(async () => {
+    const pageId = pageIdRef.current
+    if (!pageId) return
+    const dirty = cellsRef.current.filter(
+      (c) => savedRef.current[c.cell_id] !== cellFingerprint(c.language, c.source),
+    )
+    if (dirty.length === 0) {
+      // Aun sin dirty: resync versión por si se insertaron/ejecutaron celdas.
+      try {
+        const page = await getPage(pageId)
+        setActiveLatex(page.raw || page.latex)
+        setActiveAst(page.ast)
+        setActiveVersion(page.version)
+      } catch (err) {
+        console.error(err)
+      }
+      return
+    }
+    await Promise.all(
+      dirty.map((c) =>
+        updateCell(pageId, c.cell_id, { language: c.language, source: c.source }).then(() => {
+          savedRef.current[c.cell_id] = cellFingerprint(c.language, c.source)
+        }),
+      ),
+    )
+    try {
+      const page = await getPage(pageId)
+      setActiveLatex(page.raw || page.latex)
+      setActiveAst(page.ast)
+      setActiveVersion(page.version)
+    } catch (err) {
+      console.error(err)
+    }
+  }, [setActiveLatex, setActiveAst, setActiveVersion])
+
+  useEffect(() => {
+    setFlushLabCells(flushDirtyCells)
+    return () => setFlushLabCells(null)
+  }, [flushDirtyCells, setFlushLabCells])
+
+  // Al desmontar (cambio de página o salir del lab): best-effort persist.
+  useEffect(() => {
+    return () => {
+      const pageId = pageIdRef.current
+      if (!pageId) return
+      const dirty = cellsRef.current.filter(
+        (c) => savedRef.current[c.cell_id] !== cellFingerprint(c.language, c.source),
+      )
+      for (const c of dirty) {
+        void updateCell(pageId, c.cell_id, { language: c.language, source: c.source }).catch(
+          (err) => console.error(err),
+        )
+      }
+    }
+  }, [])
+
+  const leaveLab = async () => {
+    try {
+      await flushDirtyCells()
+    } catch (err) {
+      console.error(err)
+    }
+    setLabMode(false)
+  }
 
   const addCell = async (language: string) => {
     if (!activePageId) return
@@ -142,11 +236,13 @@ export function LabCanvas() {
       collapsed: false,
     }
     try {
-      await insertCell(activePageId, {
+      const res = await insertCell(activePageId, {
         cell_id: cell.cell_id,
         language: cell.language,
         source: cell.source,
       })
+      savedRef.current[cell.cell_id] = cellFingerprint(cell.language, cell.source)
+      if (res?.version && res.version > 0) setActiveVersion(res.version)
       setCells((prev) => [...prev, cell])
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
     } catch (err) {
@@ -156,11 +252,6 @@ export function LabCanvas() {
 
   const updateSource = (cellId: string, source: string) => {
     setCells((prev) => prev.map((c) => (c.cell_id === cellId ? { ...c, source } : c)))
-  }
-
-  const saveCell = async (cellId: string, language: string, source: string) => {
-    if (!activePageId) return
-    await updateCell(activePageId, cellId, { language, source })
   }
 
   const runCell = async (cellId: string) => {
@@ -242,7 +333,7 @@ export function LabCanvas() {
           <Button variant="outline" size="sm" onClick={() => addCell('markdown')}>
             <FileText className="mr-1 size-3.5" /> Texto
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setLabMode(false)}>
+          <Button variant="ghost" size="sm" onClick={() => void leaveLab()}>
             Volver al editor
           </Button>
         </div>

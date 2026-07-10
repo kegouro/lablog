@@ -52,6 +52,23 @@ def test_version_conflict_on_put() -> None:
     assert r.json()["detail"]["error_code"] == "VERSION_CONFLICT"
 
 
+def test_insert_and_update_cell_return_version() -> None:
+    pid = client.post("/api/v1/pages", json={"title": "Cells"}).json()["page_id"]
+    before = client.get(f"/api/v1/pages/{pid}").json()["version"]
+    r = client.post(
+        f"/api/v1/pages/{pid}/cells",
+        json={"cell_id": "c1", "language": "python", "source": "1"},
+    )
+    assert r.status_code == 201
+    assert r.json()["version"] == before + 1
+    r2 = client.post(
+        f"/api/v1/pages/{pid}/cells/c1/update",
+        json={"language": "python", "source": "2"},
+    )
+    assert r2.status_code == 200
+    assert r2.json()["version"] == before + 2
+
+
 def test_atomic_version_conflict_on_concurrent_replace(tmp_path: Path) -> None:
     """OCC debe fallar atómicamente bajo el lock del EventStore."""
     from lablog.commands import replace_document

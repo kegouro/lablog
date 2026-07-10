@@ -83,6 +83,8 @@ function ParameterField({
 function SnippetCard({ snippet }: { snippet: Snippet }) {
   const activeLatex = useAppStore((s) => s.activeLatex)
   const setActiveLatex = useAppStore((s) => s.setActiveLatex)
+  const setActiveAst = useAppStore((s) => s.setActiveAst)
+  const setActiveVersion = useAppStore((s) => s.setActiveVersion)
   const activePageId = useAppStore((s) => s.activePageId)
   const setPanel = useAppStore((s) => s.setPanel)
   const setParameterHints = useAppStore((s) => s.setParameterHints)
@@ -136,8 +138,24 @@ function SnippetCard({ snippet }: { snippet: Snippet }) {
       insertAtCursor(code)
     } else {
       const next = activeLatex ? `${activeLatex}\n${code}` : code
-      setActiveLatex(next)
-      if (activePageId) await replacePageLatex(activePageId, next)
+      if (activePageId) {
+        try {
+          const version = useAppStore.getState().activeVersion
+          const page = await replacePageLatex(
+            activePageId,
+            next,
+            typeof version === 'number' ? version : undefined,
+          )
+          setActiveLatex(page.latex)
+          setActiveAst(page.ast)
+          setActiveVersion(page.version)
+        } catch (err) {
+          console.error(err)
+          return
+        }
+      } else {
+        setActiveLatex(next)
+      }
     }
     setOpen(false)
     setPanel('snippets', false)
