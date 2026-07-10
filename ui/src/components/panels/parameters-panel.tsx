@@ -111,6 +111,8 @@ export function ParametersPanel() {
   const setParameterHints = useAppStore((s) => s.setParameterHints)
   const activeDiagramPresetId = useAppStore((s) => s.activeDiagramPresetId)
   const setActiveDiagramPresetId = useAppStore((s) => s.setActiveDiagramPresetId)
+  const activeHighlightParam = useAppStore((s) => s.activeHighlightParam)
+  const setActiveHighlightParam = useAppStore((s) => s.setActiveHighlightParam)
   const discardPendingSave = useAppStore((s) => s.discardPendingSave)
   const setActiveVersion = useAppStore((s) => s.setActiveVersion)
   const setActiveAst = useAppStore((s) => s.setActiveAst)
@@ -218,7 +220,7 @@ export function ParametersPanel() {
     }
   }
 
-  const reapplyDiagram = async (withSim: boolean) => {
+  const reapplyDiagram = async (withSim: boolean, highlight?: string | null) => {
     if (!activePageId) {
       toast.info('Selecciona una página primero')
       return
@@ -231,6 +233,7 @@ export function ParametersPanel() {
         activeLatex,
         params,
         activeDiagramPresetId ?? undefined,
+        { highlightParam: highlight ?? activeHighlightParam },
       )
       setActiveLatex(applied.document_latex)
       const version = useAppStore.getState().activeVersion || undefined
@@ -312,6 +315,7 @@ export function ParametersPanel() {
                   hint?.min != null && hint?.max != null && !Number.isNaN(numVal)
                 const legend = highlightLegend(hint)
                 const focusEditor = () => {
+                  setActiveHighlightParam(name)
                   const line = findParamLine(activeLatex, name, hint)
                   if (line != null) {
                     goToLine?.(line)
@@ -321,7 +325,9 @@ export function ParametersPanel() {
                 return (
                   <div
                     key={name}
-                    className="rounded-lg border bg-card p-2 transition-shadow focus-within:ring-1 focus-within:ring-primary/40"
+                    className={`rounded-lg border bg-card p-2 transition-shadow focus-within:ring-1 focus-within:ring-primary/40 ${
+                      activeHighlightParam === name ? 'border-primary/50 bg-primary/5' : ''
+                    }`}
                     onFocus={focusEditor}
                   >
                     <div className="mb-1.5 flex items-center gap-2">
@@ -429,7 +435,7 @@ export function ParametersPanel() {
             </div>
             <p className="text-[10px] text-muted-foreground">
               {isDiagramMode
-                ? 'Reaplica regenera el TikZ con los sliders y actualiza % lablog-param. “+ sim” inserta una celda Jupyter nueva.'
+                ? 'Reaplica regenera el TikZ (colorea el param enfocado para el PDF), actualiza % lablog-param. “+ sim” inserta celda Jupyter.'
                 : '"Congelar" reemplaza los placeholders por los valores actuales en el editor y en el guardado.'}
             </p>
           </>

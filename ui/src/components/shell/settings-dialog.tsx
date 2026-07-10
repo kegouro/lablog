@@ -1,5 +1,6 @@
-import { Paintbrush, Palette, Type } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { Download, Paintbrush, Palette, Type, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -12,7 +13,12 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Slider } from '@/components/ui/slider'
-import { useAppStore } from '@/stores/app-store'
+import {
+  useAppStore,
+  type AppPreferences,
+  type EditorFont,
+  type UiDensity,
+} from '@/stores/app-store'
 
 const ACCENTS = [
   { id: 'zinc', label: 'Zinc', value: '#6b7280' },
@@ -27,6 +33,7 @@ const PALETTES = [
   { id: 'original', label: 'Original', preview: 'bg-zinc-200 dark:bg-zinc-800' },
   { id: 'dracula', label: 'Dracula', preview: 'bg-[#282a36]' },
   { id: 'moka', label: 'Moka', preview: 'bg-[#f5f0e8] dark:bg-[#251e1b]' },
+  { id: 'nord', label: 'Nord', preview: 'bg-[#5e81ac]' },
   { id: 'custom', label: 'Personalizado', preview: 'bg-gradient-to-br from-rose-300 via-sky-300 to-emerald-300' },
 ]
 
@@ -58,10 +65,20 @@ export function SettingsDialog() {
   const setPalette = useAppStore((s) => s.setPalette)
   const customColors = useAppStore((s) => s.customColors)
   const setCustomColors = useAppStore((s) => s.setCustomColors)
+  const density = useAppStore((s) => s.density)
+  const setDensity = useAppStore((s) => s.setDensity)
+  const editorFont = useAppStore((s) => s.editorFont)
+  const setEditorFont = useAppStore((s) => s.setEditorFont)
+  const reducedMotion = useAppStore((s) => s.reducedMotion)
+  const setReducedMotion = useAppStore((s) => s.setReducedMotion)
+  const labMode = useAppStore((s) => s.labMode)
+  const setLabMode = useAppStore((s) => s.setLabMode)
+  const exportPreferences = useAppStore((s) => s.exportPreferences)
+  const importPreferences = useAppStore((s) => s.importPreferences)
   const [open, setOpen] = useState(false)
   const [draftColors, setDraftColors] = useState(customColors)
+  const fileRef = useRef<HTMLInputElement>(null)
 
-  // Sincroniza el borrador cuando los colores llegan desde localStorage (async).
   useEffect(() => {
     setDraftColors(customColors)
   }, [customColors])
@@ -103,24 +120,56 @@ export function SettingsDialog() {
 
   const updateColor = (key: string, value: string) => {
     const next = { ...draftColors, [key]: value }
-    setDraftColors(next) // refleja lo que escribe el usuario
-    // Solo persiste/aplica si es hex válido o vacío (no romper el CSS con basura).
+    setDraftColors(next)
     if (value === '' || /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(value)) {
       setCustomColors(next)
+    }
+  }
+
+  const downloadPrefs = () => {
+    const blob = new Blob([JSON.stringify(exportPreferences(), null, 2)], {
+      type: 'application/json',
+    })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'lablog-preferences.json'
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('Preferencias exportadas')
+  }
+
+  const onImportFile = async (file: File) => {
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text) as Partial<AppPreferences>
+      importPreferences(data)
+      toast.success('Preferencias importadas')
+    } catch {
+      toast.error('JSON de preferencias inválido')
     }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-8" title="Preferencias">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="size-8"
+          title="Preferencias"
+          data-testid="settings-trigger"
+          aria-label="Preferencias"
+        >
           <Paintbrush className="size-4" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md" data-testid="settings-dialog">
         <DialogHeader>
           <DialogTitle>Preferencias</DialogTitle>
-          <DialogDescription>Personaliza la apariencia y comodidad de lablog.</DialogDescription>
+          <DialogDescription>
+            Apariencia, densidad, tipografía del editor y export/import.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -138,6 +187,74 @@ export function SettingsDialog() {
             />
           </div>
 
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Densidad de UI</label>
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  { id: 'comfortable' as UiDensity, label: 'Cómoda' },
+                  { id: 'compact' as UiDensity, label: 'Compacta' },
+                ] as const
+              ).map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setDensity(d.id)}
+                  className={`rounded-lg border p-2 text-xs font-medium transition-all ${
+                    density === d.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Fuente del editor LaTeX</label>
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  { id: 'mono' as EditorFont, label: 'Mono' },
+                  { id: 'sans' as EditorFont, label: 'Sans' },
+                  { id: 'serif' as EditorFont, label: 'Serif' },
+                ] as const
+              ).map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => setEditorFont(f.id)}
+                  className={`rounded-lg border p-2 text-xs font-medium transition-all ${
+                    editorFont === f.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={reducedMotion}
+                onChange={(e) => setReducedMotion(e.target.checked)}
+                className="size-3.5 accent-primary"
+              />
+              Reducir animaciones
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={labMode}
+                onChange={(e) => setLabMode(e.target.checked)}
+                className="size-3.5 accent-primary"
+              />
+              Modo laboratorio (layout denso)
+            </label>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <Palette className="size-4 text-muted-foreground" />
@@ -147,6 +264,7 @@ export function SettingsDialog() {
               {PALETTES.map((p) => (
                 <button
                   key={p.id}
+                  type="button"
                   onClick={() => setPalette(p.id)}
                   className={`flex items-center gap-2 rounded-lg border p-2 text-left text-xs transition-all ${
                     palette === p.id ? 'border-primary bg-primary/10' : 'hover:bg-muted/50'
@@ -195,6 +313,7 @@ export function SettingsDialog() {
               {ACCENTS.map((a) => (
                 <button
                   key={a.id}
+                  type="button"
                   onClick={() => setAccent(a.id)}
                   className={`flex size-9 items-center justify-center rounded-full border-2 transition-all ${
                     accent === a.id ? 'border-foreground scale-110' : 'border-transparent hover:scale-105'
@@ -202,10 +321,40 @@ export function SettingsDialog() {
                   style={{ backgroundColor: a.value }}
                   title={a.label}
                 >
-                  {accent === a.id && <span className="text-xs font-bold text-white drop-shadow">✓</span>}
+                  {accent === a.id && (
+                    <span className="text-xs font-bold text-white drop-shadow">✓</span>
+                  )}
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button type="button" size="sm" variant="outline" className="gap-1.5 text-xs" onClick={downloadPrefs}>
+              <Download className="size-3.5" />
+              Exportar
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="gap-1.5 text-xs"
+              onClick={() => fileRef.current?.click()}
+            >
+              <Upload className="size-3.5" />
+              Importar
+            </Button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json,.json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void onImportFile(f)
+                e.target.value = ''
+              }}
+            />
           </div>
         </div>
       </DialogContent>

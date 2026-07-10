@@ -41,3 +41,9 @@ jobs:
       - run: npm run build
       - run: npm run lint
       - run: npm test
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: E2E smoke
+        run: npm run test:e2e
+        env:
+          CI: true

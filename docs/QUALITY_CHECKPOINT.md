@@ -18,10 +18,11 @@
 | Diagram presets → Jupyter | ✅ | **12 presets**, expand/apply API, Insert/+Sim, re-apply sliders |
 | Re-apply sin `{{}}` | ✅ | `% lablog-param` + `POST /diagrams/apply` |
 | Dual highlight (editor) | ✅ | `resolve_highlight_lines` + focus gutter + leyenda nodo |
-| Dual highlight (canvas TikZ PDF) | 🔜 | recolor `name=` en recompilación |
+| Dual highlight (canvas TikZ PDF) | ✅ | `color=` en `name=` + `highlight_param` en expand/apply |
 | Catálogo UI | ✅ | categorías + búsqueda |
-| PySpice / netlist mágico | 🔜 | docs only |
-| E2E browser | 🔜 | sin Playwright en CI |
+| Personalización UI | ✅ | densidad, fuente editor, Nord, reduce motion, export/import JSON |
+| PySpice | 🟡 | extra opcional + celda SPICE con fallback numpy |
+| E2E browser | ✅ | Playwright smoke (settings) en CI frontend |
 | PyPI trusted publish | ⚠️ | config usuario |
 
 ## Catálogo de presets (12)

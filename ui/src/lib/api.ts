@@ -263,6 +263,8 @@ export interface DiagramExpandResult {
     highlight: { tikz?: string | null; latex?: string | null; line?: number | null; color?: string }
   }>
   has_simulation: boolean
+  highlight_param?: string | null
+  supports_pyspice?: boolean
 }
 
 export async function listDiagramPresets(): Promise<DiagramPresetSummary[]> {
@@ -272,25 +274,35 @@ export async function listDiagramPresets(): Promise<DiagramPresetSummary[]> {
 export async function expandDiagramPreset(
   presetId: string,
   params?: Record<string, number>,
+  opts?: { highlightParam?: string | null },
 ): Promise<DiagramExpandResult> {
   return fetchJson(`/diagrams/presets/${presetId}/expand`, {
     method: 'POST',
-    body: JSON.stringify({ params: params ?? null }),
+    body: JSON.stringify({
+      params: params ?? null,
+      highlight_param: opts?.highlightParam ?? null,
+    }),
   })
 }
 
 export async function diagramSimulateSource(
   presetId: string,
   params?: Record<string, number>,
+  opts?: { preferPyspice?: boolean },
 ): Promise<{ source: string; language: string; backend: string; params: Record<string, number> }> {
   return fetchJson(`/diagrams/presets/${presetId}/simulate-source`, {
     method: 'POST',
-    body: JSON.stringify({ params: params ?? null }),
+    body: JSON.stringify({
+      params: params ?? null,
+      prefer_pyspice: opts?.preferPyspice ?? false,
+    }),
   })
 }
 
 export interface DiagramApplyResult extends DiagramExpandResult {
   document_latex: string
+  highlight_param?: string | null
+  supports_pyspice?: boolean
 }
 
 /** Reexpande un preset embebido (o forzado) y devuelve el LaTeX completo de la página. */
@@ -298,6 +310,7 @@ export async function applyDiagramParams(
   latex: string,
   params?: Record<string, number>,
   presetId?: string | null,
+  opts?: { highlightParam?: string | null },
 ): Promise<DiagramApplyResult> {
   return fetchJson('/diagrams/apply', {
     method: 'POST',
@@ -305,6 +318,7 @@ export async function applyDiagramParams(
       latex,
       params: params ?? null,
       preset_id: presetId ?? null,
+      highlight_param: opts?.highlightParam ?? null,
     }),
   })
 }

@@ -17,7 +17,8 @@ async function loadTemplates(): Promise<LatexTemplate[]> {
   try {
     const res = await fetch('/api/v1/templates')
     if (!res.ok) throw new Error('fail')
-    return (await res.json()) as LatexTemplate[]
+    const data: unknown = await res.json()
+    return Array.isArray(data) ? (data as LatexTemplate[]) : LATEX_TEMPLATES
   } catch {
     return LATEX_TEMPLATES
   }
