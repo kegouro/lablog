@@ -27,6 +27,10 @@ def test_catalog_has_core_presets() -> None:
     assert "qed_moller" in ids
     assert "rlc_series_step" in ids
     assert "second_order_step" in ids
+    assert "wheatstone" in ids
+    assert "pi_controller" in ids
+    assert "half_wave_rectifier" in ids
+    assert "thin_lens" in ids
 
 
 def test_expand_rc_defaults() -> None:
@@ -95,8 +99,48 @@ def test_health_reports_presets() -> None:
     r = client.get("/api/v1/health")
     assert r.status_code == 200
     body = r.json()
-    assert body["diagram_presets"] >= 6
+    assert body["diagram_presets"] >= 10
     assert "version" in body
+
+
+def test_wheatstone_balance_and_highlight_lines() -> None:
+    preset = get_preset("wheatstone")
+    assert preset is not None
+    out = expand_preset(preset, {"R1": 1000, "R2": 1000, "R3": 1000, "R4": 1000, "Vex": 5})
+    assert "circuitikz" in out["latex"]
+    # lablog-param lines deben tener highlight.line resuelto
+    by_id = {p["id"]: p for p in out["param_specs"]}
+    assert by_id["R1"]["highlight"]["line"] is not None
+    assert by_id["R1"]["highlight"]["line"] >= 1
+    sim = expand_simulation(preset, out["params"])
+    assert "equilibrio" in sim["source"] or "Vg" in sim["source"]
+
+    pi = get_preset("pi_controller")
+    assert pi is not None
+    pi_out = expand_preset(pi, {"Kp": 2, "Ki": 1, "K": 1, "tau": 0.5})
+    assert "tikzpicture" in pi_out["latex"]
+    assert pi_out["has_simulation"] is True
+
+
+def test_half_wave_and_thin_lens() -> None:
+    hwr = get_preset("half_wave_rectifier")
+    assert hwr is not None
+    out = expand_preset(hwr, {"Vpeak": 12, "f": 60, "Rload": 2200, "C": 47e-6})
+    assert "circuitikz" in out["latex"]
+    assert "D*" in out["latex"] or "D" in out["latex"]
+    sim = expand_simulation(hwr, out["params"])
+    assert "ripple" in sim["source"] or "vo" in sim["source"]
+
+    lens = get_preset("thin_lens")
+    assert lens is not None
+    # do = 0.3, f = 0.1 → di = 0.15, m = -0.5
+    lout = expand_preset(lens, {"f": 0.1, "do": 0.3})
+    assert "tikzpicture" in lout["latex"]
+    assert abs(lout["params"]["di"] - 0.15) < 1e-9
+    assert abs(lout["params"]["m"] - (-0.5)) < 1e-9
+    assert "0.15" in lout["latex"] or "di" in lout["latex"]
+    lsim = expand_simulation(lens, {"f": 0.1, "do": 0.3})
+    assert "di=" in lsim["source"] or "1.0 / f" in lsim["source"]
 
 
 def test_rlc_and_second_order_expand() -> None:

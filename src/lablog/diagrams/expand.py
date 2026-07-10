@@ -62,25 +62,98 @@ def expand_template(template: str, preset: DiagramPreset, values: dict[str, floa
     return _PLACEHOLDER.sub(repl, template)
 
 
+def resolve_highlight_lines(
+    full_latex: str,
+    param_specs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Rellena ``highlight.line`` con la línea real en el LaTeX generado.
+
+    Orden de búsqueda por parámetro:
+    1. comentario ``% lablog-param: id=``
+    2. ``name=<tikz>`` del highlight
+    3. fragmento ``highlight.latex``
+    """
+    lines = full_latex.splitlines()
+    resolved: list[dict[str, Any]] = []
+    for raw in param_specs:
+        p = dict(raw)
+        hl = dict(p.get("highlight") or {})
+        pid = str(p.get("id", ""))
+        line_no: int | None = None
+        if pid:
+            pat = re.compile(rf"%\s*lablog-param:\s*{re.escape(pid)}\s*=")
+            for i, line in enumerate(lines, start=1):
+                if pat.search(line):
+                    line_no = i
+                    break
+        tikz_name = hl.get("tikz")
+        if line_no is None and tikz_name:
+            needle = f"name={tikz_name}"
+            for i, line in enumerate(lines, start=1):
+                if needle in line.replace(" ", ""):
+                    # también acepta name = R1
+                    line_no = i
+                    break
+            if line_no is None:
+                loose = re.compile(rf"name\s*=\s*{re.escape(str(tikz_name))}\b")
+                for i, line in enumerate(lines, start=1):
+                    if loose.search(line):
+                        line_no = i
+                        break
+        frag = hl.get("latex")
+        if line_no is None and frag:
+            for i, line in enumerate(lines, start=1):
+                if str(frag) in line:
+                    line_no = i
+                    break
+        if line_no is not None:
+            hl["line"] = line_no
+        p["highlight"] = hl
+        resolved.append(p)
+    return resolved
+
+
+def augment_derived_params(preset: DiagramPreset, values: dict[str, float]) -> dict[str, float]:
+    """Añade magnitudes derivadas usadas en plantillas (no son sliders)."""
+    out = dict(values)
+    if preset.preset_id == "thin_lens":
+        f = out.get("f", 0.1)
+        do = out.get("do", 0.3)
+        # 1/f = 1/do + 1/di  →  di = 1/(1/f - 1/do)
+        if abs(do) < 1e-15 or abs(f) < 1e-15:
+            di = 1e6
+        else:
+            denom = 1.0 / f - 1.0 / do
+            di = 1.0 / denom if abs(denom) > 1e-15 else 1e6
+        m = (-di / do) if abs(do) > 1e-15 else 0.0
+        out["di"] = di
+        out["m"] = m
+        # Altura del rayo en el esquema (evita flechas enormes si |m|≫1)
+        out["m_draw"] = max(-1.5, min(1.5, m)) if abs(m) < 1e5 else 0.0
+    return out
+
+
 def expand_preset(
     preset: DiagramPreset,
     values: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Devuelve latex (tikz) + params efectivos + metadatos de highlight."""
-    clamped = clamp_params(preset, values)
+    clamped = augment_derived_params(preset, clamp_params(preset, values))
     latex = expand_template(preset.tikz_template, preset, clamped)
     header = (
         f"% lablog-diagram: preset={preset.preset_id} version={preset.version}\n"
         + "".join(f"% lablog-param: {k}={v}\n" for k, v in sorted(clamped.items()))
     )
+    full = header + latex
+    specs = resolve_highlight_lines(full, [p.model_dump() for p in preset.params])
     return {
         "preset_id": preset.preset_id,
         "version": preset.version,
         "kind": preset.kind,
         "title": preset.title,
-        "latex": header + latex,
+        "latex": full,
         "params": clamped,
-        "param_specs": [p.model_dump() for p in preset.params],
+        "param_specs": specs,
         "has_simulation": bool(preset.sim_template and preset.sim_backend != "none"),
     }
 

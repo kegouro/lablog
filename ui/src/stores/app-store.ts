@@ -19,7 +19,12 @@ export interface ParameterHint {
   min?: number
   max?: number
   scale?: 'linear' | 'log'
+  /** Línea 1-based en el editor LaTeX. */
   highlightLine?: number
+  /** Nodo TikZ (`name=`) o etiqueta de esquema. */
+  highlightTikz?: string
+  /** Fragmento LaTeX a buscar al enfocar. */
+  highlightLatex?: string
 }
 
 interface AppState {

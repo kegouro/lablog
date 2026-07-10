@@ -55,9 +55,49 @@ function hintsFromExpand(
       max: p.max ?? undefined,
       scale: p.scale,
       highlightLine: p.highlight?.line ?? undefined,
+      highlightTikz: p.highlight?.tikz ?? undefined,
+      highlightLatex: p.highlight?.latex ?? undefined,
     }
   }
   return hints
+}
+
+/** Localiza la línea del parámetro en el LaTeX (editor + gutter). */
+function findParamLine(
+  latex: string,
+  name: string,
+  hint?: ParameterHint,
+): number | null {
+  if (hint?.highlightLine != null && hint.highlightLine > 0) {
+    return hint.highlightLine
+  }
+  const lines = latex.split('\n')
+  const paramRe = new RegExp(`%\\s*lablog-param:\\s*${name}\\s*=`)
+  for (let i = 0; i < lines.length; i++) {
+    if (paramRe.test(lines[i])) return i + 1
+  }
+  if (hint?.highlightTikz) {
+    const nameRe = new RegExp(`name\\s*=\\s*${hint.highlightTikz}\\b`)
+    for (let i = 0; i < lines.length; i++) {
+      if (nameRe.test(lines[i])) return i + 1
+    }
+  }
+  if (hint?.highlightLatex) {
+    for (let i = 0; i < lines.length; i++) {
+      if (lines[i].includes(hint.highlightLatex)) return i + 1
+    }
+  }
+  return null
+}
+
+function highlightLegend(hint?: ParameterHint): string | null {
+  if (!hint) return null
+  const parts: string[] = []
+  if (hint.highlightTikz) parts.push(`nodo ${hint.highlightTikz}`)
+  if (hint.highlightLine != null) parts.push(`L${hint.highlightLine}`)
+  else if (hint.highlightLatex) parts.push(`“${hint.highlightLatex}”`)
+  if (parts.length === 0) return null
+  return `Resalta: ${parts.join(' · ')}`
 }
 
 export function ParametersPanel() {
@@ -270,8 +310,20 @@ export function ParametersPanel() {
                 const numVal = Number(parameterValues[name] ?? hint?.default ?? '')
                 const showRange =
                   hint?.min != null && hint?.max != null && !Number.isNaN(numVal)
+                const legend = highlightLegend(hint)
+                const focusEditor = () => {
+                  const line = findParamLine(activeLatex, name, hint)
+                  if (line != null) {
+                    goToLine?.(line)
+                    setHighlightLine(line)
+                  }
+                }
                 return (
-                  <div key={name} className="rounded-lg border bg-card p-2">
+                  <div
+                    key={name}
+                    className="rounded-lg border bg-card p-2 transition-shadow focus-within:ring-1 focus-within:ring-primary/40"
+                    onFocus={focusEditor}
+                  >
                     <div className="mb-1.5 flex items-center gap-2">
                       <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${badge}`}>
                         {name}
@@ -280,28 +332,33 @@ export function ParametersPanel() {
                       <span className="text-[10px] text-muted-foreground">
                         {source === 'placeholder' ? `×${count}` : 'diagrama'}
                       </span>
-                      {hint?.highlightLine != null && (
-                        <button
-                          type="button"
-                          className="ml-auto text-[10px] underline decoration-dotted text-muted-foreground"
-                          onClick={() => {
-                            goToLine?.(hint.highlightLine!)
-                            setHighlightLine(hint.highlightLine!)
-                          }}
-                        >
-                          L{hint.highlightLine}
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="ml-auto text-[10px] underline decoration-dotted text-muted-foreground"
+                        onClick={focusEditor}
+                      >
+                        {hint?.highlightLine != null
+                          ? `L${hint.highlightLine}`
+                          : hint?.highlightTikz
+                            ? hint.highlightTikz
+                            : 'ir'}
+                      </button>
                     </div>
                     {hint?.description ? (
-                      <p className="mb-1.5 text-[10px] leading-tight text-muted-foreground">
+                      <p className="mb-1 text-[10px] leading-tight text-muted-foreground">
                         {hint.description}
+                      </p>
+                    ) : null}
+                    {legend ? (
+                      <p className="mb-1.5 text-[10px] font-medium text-muted-foreground/90">
+                        {legend}
                       </p>
                     ) : null}
                     <Input
                       type="text"
                       value={parameterValues[name] ?? hint?.default ?? ''}
                       onChange={(e) => updateValue(name, e.target.value)}
+                      onFocus={focusEditor}
                       className="h-8 text-xs"
                       placeholder={`Valor para ${name}`}
                     />
@@ -326,6 +383,7 @@ export function ParametersPanel() {
                                 : raw
                             updateValue(name, String(v))
                           }}
+                          onPointerDown={focusEditor}
                         />
                         <p className="mt-0.5 text-[10px] text-muted-foreground">
                           Rango {hint.min} … {hint.max}

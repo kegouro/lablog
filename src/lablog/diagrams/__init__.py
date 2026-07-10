@@ -2,18 +2,21 @@
 
 from lablog.diagrams.catalog import get_preset, list_presets
 from lablog.diagrams.expand import (
+    augment_derived_params,
     clamp_params,
     expand_preset,
     expand_simulation,
     parse_lablog_params,
     parse_lablog_preset_id,
     replace_or_append_diagram,
+    resolve_highlight_lines,
 )
 from lablog.diagrams.models import DiagramPreset, ParamSpec
 
 __all__ = [
     "DiagramPreset",
     "ParamSpec",
+    "augment_derived_params",
     "clamp_params",
     "expand_preset",
     "expand_simulation",
@@ -22,4 +25,5 @@ __all__ = [
     "parse_lablog_params",
     "parse_lablog_preset_id",
     "replace_or_append_diagram",
+    "resolve_highlight_lines",
 ]
