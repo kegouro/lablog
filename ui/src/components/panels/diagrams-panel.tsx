@@ -12,7 +12,7 @@ import {
   replacePageLatex,
   type DiagramPresetSummary,
 } from '@/lib/api'
-import { useAppStore } from '@/stores/app-store'
+import { useAppStore, type ParameterHint } from '@/stores/app-store'
 
 export function DiagramsPanel() {
   const togglePanel = useAppStore((s) => s.togglePanel)
@@ -43,19 +43,7 @@ export function DiagramsPanel() {
 
   const applyHints = useCallback(
     (result: Awaited<ReturnType<typeof expandDiagramPreset>>) => {
-      const hints: Record<
-        string,
-        {
-          description: string
-          default: string
-          color: string
-          unit?: string
-          min?: number
-          max?: number
-          scale?: 'linear' | 'log'
-          highlightLine?: number
-        }
-      > = {}
+      const hints: Record<string, ParameterHint> = {}
       for (const p of result.param_specs) {
         hints[p.id] = {
           description: p.description,
