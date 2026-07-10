@@ -13,15 +13,7 @@
 
 ## PyPI publishing
 
-Two options (first match wins in the workflow):
-
-### A. API token (simplest)
-
-1. Create a PyPI API token scoped to `jose-labarca-lablog`.
-2. Add GitHub repo secret **`PYPI_API_TOKEN`**.
-3. Re-run the Release workflow (tag push or `workflow_dispatch`).
-
-### B. Trusted publishing (OIDC)
+### Trusted publishing (OIDC) — default
 
 On PyPI → project **jose-labarca-lablog** → Publishing → Trusted publishers:
 
@@ -30,9 +22,16 @@ On PyPI → project **jose-labarca-lablog** → Publishing → Trusted publisher
 | Owner | `kegouro` |
 | Repository | `lablog` |
 | Workflow | `release.yml` |
-| Environment | *(leave empty — workflow no longer scopes to env `pypi`)* |
+| Environment | *(leave empty)* |
 
-If a previous publisher was registered with environment `pypi`, either update it to match or delete and recreate without environment.
+v0.2.0 failed with `invalid-publisher` because the workflow used GitHub Environment `pypi` while the publisher was (likely) registered without that claim. The workflow no longer sets an environment.
+
+### API token alternative
+
+1. Create a PyPI API token scoped to `jose-labarca-lablog`.
+2. Add GitHub secret **`PYPI_API_TOKEN`**.
+3. Uncomment the `password:` line in `.github/workflows/release.yml` under Publish to PyPI.
+4. Re-run the Release workflow.
 
 ## Re-publish after a failed PyPI job
 
