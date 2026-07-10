@@ -592,7 +592,7 @@ export function LatexEditor() {
         {/* Overlay de parámetros resaltados */}
         <div
           ref={overlayRef}
-          className="absolute inset-0 z-20 overflow-hidden whitespace-pre-wrap break-words py-3 pl-12 pr-4 font-mono text-sm leading-6"
+          className="lablog-editor-surface absolute inset-0 z-20 overflow-hidden whitespace-pre-wrap break-words py-3 pl-12 pr-4 text-sm leading-6"
           aria-hidden="true"
         >
           <div className="pointer-events-none text-transparent">{overlayNodes}</div>
@@ -604,7 +604,7 @@ export function LatexEditor() {
           onChange={(e) => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
           onScroll={syncScroll}
-          className="relative z-30 h-full flex-1 resize-none overflow-auto rounded-none border-0 bg-transparent py-3 pl-12 pr-4 font-mono text-sm leading-6 text-foreground shadow-none focus-visible:ring-0"
+          className="lablog-editor-surface relative z-30 h-full flex-1 resize-none overflow-auto rounded-none border-0 bg-transparent py-3 pl-12 pr-4 text-sm leading-6 text-foreground shadow-none focus-visible:ring-0"
           placeholder="Escribe tu bitácora en LaTeX...\n\\section{Introducción}\nLa energía se conserva: $E = mc^2$."
           spellCheck={false}
           autoComplete="off"

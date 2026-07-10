@@ -123,6 +123,8 @@ def suggest_latex(q: str = "", limit: int = 40) -> list[dict[str, str]]:
 
 class DiagramExpandRequest(BaseModel):
     params: dict[str, float] | None = None
+    highlight_param: str | None = None
+    prefer_pyspice: bool = False
 
 
 @router.get("/diagrams/presets")
@@ -143,7 +145,7 @@ def expand_diagram_preset(preset_id: str, body: DiagramExpandRequest) -> dict[st
     preset = diagrams.get_preset(preset_id)
     if preset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Preset no encontrado: {preset_id}")
-    return diagrams.expand_preset(preset, body.params)
+    return diagrams.expand_preset(preset, body.params, highlight_param=body.highlight_param)
 
 
 @router.post("/diagrams/presets/{preset_id}/simulate-source")
@@ -152,7 +154,11 @@ def diagram_simulate_source(preset_id: str, body: DiagramExpandRequest) -> dict[
     if preset is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, f"Preset no encontrado: {preset_id}")
     try:
-        return diagrams.expand_simulation(preset, body.params)
+        return diagrams.expand_simulation(
+            preset,
+            body.params,
+            prefer_pyspice=body.prefer_pyspice,
+        )
     except ValueError as exc:
         raise HTTPException(_HTTP_422, str(exc)) from exc
 
@@ -163,6 +169,7 @@ class DiagramApplyRequest(BaseModel):
     latex: str = Field(max_length=_MAX_LATEX_CHARS)
     params: dict[str, float] | None = None
     preset_id: str | None = None
+    highlight_param: str | None = None
 
 
 @router.post("/diagrams/apply")
@@ -180,7 +187,11 @@ def apply_diagram_params(body: DiagramApplyRequest) -> dict[str, Any]:
     # Params del body > comentarios del doc > defaults
     from_doc = diagrams.parse_lablog_params(body.latex)
     merged = {**from_doc, **(body.params or {})}
-    expanded = diagrams.expand_preset(preset, merged)
+    expanded = diagrams.expand_preset(
+        preset,
+        merged,
+        highlight_param=body.highlight_param,
+    )
     new_latex = diagrams.replace_or_append_diagram(body.latex, expanded["latex"])
     return {
         **expanded,

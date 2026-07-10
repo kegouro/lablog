@@ -133,17 +133,70 @@ def augment_derived_params(preset: DiagramPreset, values: dict[str, float]) -> d
     return out
 
 
+# Colores semánticos UI → nombres xcolor/TikZ seguros.
+_HIGHLIGHT_LATEX_COLORS: dict[str, str] = {
+    "amber": "orange",
+    "sky": "cyan",
+    "rose": "red",
+    "emerald": "green!70!black",
+    "violet": "violet",
+}
+
+# Presets con celda PySpice opcional (sin dependencia hard).
+_PYSPICE_PRESETS = frozenset({"rc_series_charge", "rlc_series_step", "half_wave_rectifier"})
+
+
+def colorize_named_component(latex: str, tikz_name: str, latex_color: str) -> str:
+    """Inyecta ``color=...`` junto a ``name=<tikz_name>`` (Circuitikz/TikZ)."""
+    if not tikz_name or not latex_color:
+        return latex
+    # Evita re-inyectar si ya hay color en el mismo token name=
+    name_pat = re.compile(
+        rf"(?P<pre>[\[,;\s])name\s*=\s*{re.escape(tikz_name)}\b",
+    )
+
+    def repl(m: re.Match[str]) -> str:
+        # Busca hacia atrás en el mismo [...] si ya hay color=
+        start = max(0, m.start() - 80)
+        window = latex[start : m.end()]
+        if re.search(r"\bcolor\s*=", window):
+            return m.group(0)
+        return f"{m.group('pre')}color={latex_color},name={tikz_name}"
+
+    return name_pat.sub(repl, latex, count=1)
+
+
+def apply_param_highlight(
+    latex: str,
+    preset: DiagramPreset,
+    highlight_param: str | None,
+) -> str:
+    """Colorea el componente TikZ del parámetro activo (si tiene highlight.tikz)."""
+    if not highlight_param:
+        return latex
+    spec = preset.param_map().get(highlight_param)
+    if spec is None or not spec.highlight.tikz:
+        return latex
+    color = _HIGHLIGHT_LATEX_COLORS.get(spec.highlight.color, "orange")
+    return colorize_named_component(latex, spec.highlight.tikz, color)
+
+
 def expand_preset(
     preset: DiagramPreset,
     values: dict[str, Any] | None = None,
+    *,
+    highlight_param: str | None = None,
 ) -> dict[str, Any]:
     """Devuelve latex (tikz) + params efectivos + metadatos de highlight."""
     clamped = augment_derived_params(preset, clamp_params(preset, values))
     latex = expand_template(preset.tikz_template, preset, clamped)
+    latex = apply_param_highlight(latex, preset, highlight_param)
     header = (
         f"% lablog-diagram: preset={preset.preset_id} version={preset.version}\n"
         + "".join(f"% lablog-param: {k}={v}\n" for k, v in sorted(clamped.items()))
     )
+    if highlight_param:
+        header += f"% lablog-highlight: {highlight_param}\n"
     full = header + latex
     specs = resolve_highlight_lines(full, [p.model_dump() for p in preset.params])
     return {
@@ -155,21 +208,91 @@ def expand_preset(
         "params": clamped,
         "param_specs": specs,
         "has_simulation": bool(preset.sim_template and preset.sim_backend != "none"),
+        "highlight_param": highlight_param,
+        "supports_pyspice": preset.preset_id in _PYSPICE_PRESETS,
     }
+
+
+def _pyspice_source(preset_id: str, params: dict[str, float]) -> str | None:
+    """Fuente Jupyter que intenta PySpice y cae a numpy analítico."""
+    if preset_id == "rc_series_charge":
+        r = params.get("R", 1000.0)
+        c = params.get("C", 1e-6)
+        v0 = params.get("V0", 5.0)
+        return f'''# lablog-sim: preset=rc_series_charge backend=pyspice
+# LABLOG_PARAMS_START
+R = {r}  # ohm
+C = {c}  # F
+V0 = {v0}  # V
+# LABLOG_PARAMS_END
+
+import numpy as np
+import matplotlib.pyplot as plt
+
+def _numpy_rc(R, C, V0):
+    tau = R * C
+    t = np.linspace(0, 5 * tau, 400)
+    v_c = V0 * (1.0 - np.exp(-t / tau))
+    return t, v_c, tau
+
+try:
+    from PySpice.Spice.Netlist import Circuit
+    from PySpice.Unit import u_Ohm, u_F, u_V, u_s  # type: ignore
+
+    circuit = Circuit("RC charge")
+    circuit.V("in", "n_in", circuit.gnd, V0 @ u_V)
+    circuit.R(1, "n_in", "n_out", R @ u_Ohm)
+    circuit.C(1, "n_out", circuit.gnd, C @ u_F)
+    simulator = circuit.simulator(temperature=25, nominal_temperature=25)
+    tau = R * C
+    analysis = simulator.transient(step_time=tau / 80, end_time=5 * tau)
+    t = np.array(analysis.time)
+    v_c = np.array(analysis["n_out"])
+    backend = "pyspice"
+except Exception as exc:  # noqa: BLE001 — fallback pedagógico
+    print(f"PySpice no disponible ({{type(exc).__name__}}: {{exc}})")
+    print("Instala: pip install 'jose-labarca-lablog[pyspice]'  (requiere ngspice)")
+    t, v_c, tau = _numpy_rc(R, C, V0)
+    backend = "numpy_fallback"
+
+plt.figure(figsize=(6, 3))
+plt.plot(t * 1e3, v_c)
+plt.xlabel("t [ms]")
+plt.ylabel("v_C [V]")
+plt.title(f"RC carga · {{backend}} · τ={{tau * 1e3:.3g}} ms")
+plt.grid(True, alpha=0.3)
+plt.tight_layout()
+plt.show()
+print(f"backend={{backend}}  τ={{tau:.6e}} s")
+'''
+    return None
 
 
 def expand_simulation(
     preset: DiagramPreset,
     values: dict[str, Any] | None = None,
+    *,
+    prefer_pyspice: bool = False,
 ) -> dict[str, Any]:
     """Genera source de celda Python a partir del preset."""
     if not preset.sim_template or preset.sim_backend == "none":
         raise ValueError(f"Preset sin simulación: {preset.preset_id}")
     clamped = clamp_params(preset, values)
+    backend = preset.sim_backend
+    if prefer_pyspice and preset.preset_id in _PYSPICE_PRESETS:
+        pys = _pyspice_source(preset.preset_id, clamped)
+        if pys is not None:
+            return {
+                "preset_id": preset.preset_id,
+                "backend": "pyspice",
+                "source": pys,
+                "params": clamped,
+                "language": "python",
+            }
     source = expand_template(preset.sim_template, preset, clamped)
     return {
         "preset_id": preset.preset_id,
-        "backend": preset.sim_backend,
+        "backend": backend,
         "source": source,
         "params": clamped,
         "language": "python",

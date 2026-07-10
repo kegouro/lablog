@@ -161,6 +161,46 @@ export function DiagramsPanel() {
     }
   }
 
+  const insertPyspice = async (presetId: string) => {
+    if (!activePageId) {
+      toast.info('Selecciona una página primero')
+      return
+    }
+    setBusyId(presetId)
+    try {
+      if (flushSave) await flushSave()
+      discardPendingSave?.()
+      const result = await expandDiagramPreset(presetId)
+      const current = useAppStore.getState().activeLatex
+      const next = current.trim()
+        ? `${current.trimEnd()}\n\n${result.latex}`
+        : result.latex
+      setActiveLatex(next)
+      const version = useAppStore.getState().activeVersion || undefined
+      const page = await replacePageLatex(activePageId, next, version)
+      setActiveAst(page.ast)
+      setActiveVersion(page.version)
+      clearParameters()
+      setActiveDiagramPresetId(presetId)
+      applyHints(result)
+      const sim = await diagramSimulateSource(presetId, result.params, { preferPyspice: true })
+      await insertCell(activePageId, {
+        cell_id: crypto.randomUUID(),
+        language: 'python',
+        source: sim.source,
+      })
+      setPanel('cells', true)
+      toast.success(`${result.title}: diagrama + sim PySpice (fallback numpy)`)
+    } catch (err) {
+      console.error(err)
+      toast.error('No se pudo generar PySpice')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const PYSPICE_IDS = new Set(['rc_series_charge', 'rlc_series_step', 'half_wave_rectifier'])
+
   const categoryLabel: Record<string, string> = {
     circuitos: 'Circuitos',
     control: 'Control',
@@ -265,6 +305,18 @@ export function DiagramsPanel() {
                     >
                       <Play className="size-3" />
                       + Sim
+                    </Button>
+                  )}
+                  {p.has_simulation && PYSPICE_IDS.has(p.preset_id) && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 flex-1 gap-1 text-[10px]"
+                      disabled={busyId === p.preset_id}
+                      onClick={() => insertPyspice(p.preset_id)}
+                      title="Celda con PySpice si está instalado; si no, numpy"
+                    >
+                      SPICE
                     </Button>
                   )}
                 </div>

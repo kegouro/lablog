@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from lablog.api import app
 from lablog.diagrams import (
     clamp_params,
+    colorize_named_component,
     expand_preset,
     expand_simulation,
     get_preset,
@@ -152,6 +153,30 @@ def test_half_wave_and_thin_lens() -> None:
     assert "0.15" in lout["latex"] or "di" in lout["latex"]
     lsim = expand_simulation(lens, {"f": 0.1, "do": 0.3})
     assert "di=" in lsim["source"] or "1.0 / f" in lsim["source"]
+
+
+def test_tikz_color_highlight_and_pyspice_source() -> None:
+    raw = r"\draw (0,0) to[R, R=$1k$, name=R1] (1,0);"
+    colored = colorize_named_component(raw, "R1", "orange")
+    assert "color=orange,name=R1" in colored.replace(" ", "")
+
+    preset = get_preset("rc_series_charge")
+    assert preset is not None
+    out = expand_preset(preset, highlight_param="R")
+    assert "color=orange" in out["latex"] or "color=orange" in out["latex"].replace(" ", "")
+    assert "lablog-highlight: R" in out["latex"]
+    assert out.get("supports_pyspice") is True
+
+    sim = expand_simulation(preset, prefer_pyspice=True)
+    assert sim["backend"] == "pyspice"
+    assert "PySpice" in sim["source"] or "numpy_fallback" in sim["source"]
+
+    r = client.post(
+        "/api/v1/diagrams/presets/rc_series_charge/expand",
+        json={"highlight_param": "C"},
+    )
+    assert r.status_code == 200
+    assert "lablog-highlight: C" in r.json()["latex"]
 
 
 def test_rc_lowpass_and_opamp() -> None:

@@ -14,6 +14,12 @@ function AppInitializer() {
   const setCustomColors = useAppStore((s) => s.setCustomColors)
   const setLabMode = useAppStore((s) => s.setLabMode)
   const setPanel = useAppStore((s) => s.setPanel)
+  const setDensity = useAppStore((s) => s.setDensity)
+  const setEditorFont = useAppStore((s) => s.setEditorFont)
+  const setReducedMotion = useAppStore((s) => s.setReducedMotion)
+  const density = useAppStore((s) => s.density)
+  const editorFont = useAppStore((s) => s.editorFont)
+  const reducedMotion = useAppStore((s) => s.reducedMotion)
 
   useEffect(() => {
     let savedScale: string | null = null
@@ -22,6 +28,9 @@ function AppInitializer() {
     let savedCustom: string | null = null
     let savedLabMode: string | null = null
     let savedPanels: string | null = null
+    let savedDensity: string | null = null
+    let savedEditorFont: string | null = null
+    let savedMotion: string | null = null
     try {
       savedScale = localStorage.getItem('lablog-fontScale')
       savedAccent = localStorage.getItem('lablog-accent')
@@ -29,6 +38,9 @@ function AppInitializer() {
       savedCustom = localStorage.getItem('lablog-custom-colors')
       savedLabMode = localStorage.getItem('lablog-labMode')
       savedPanels = localStorage.getItem('lablog-panels')
+      savedDensity = localStorage.getItem('lablog-density')
+      savedEditorFont = localStorage.getItem('lablog-editorFont')
+      savedMotion = localStorage.getItem('lablog-reducedMotion')
     } catch {
       // localStorage no disponible
     }
@@ -50,6 +62,13 @@ function AppInitializer() {
       }
     }
     if (savedLabMode === 'true') setLabMode(true)
+    if (savedDensity === 'comfortable' || savedDensity === 'compact') {
+      setDensity(savedDensity)
+    }
+    if (savedEditorFont === 'sans' || savedEditorFont === 'mono' || savedEditorFont === 'serif') {
+      setEditorFont(savedEditorFont)
+    }
+    if (savedMotion === 'true') setReducedMotion(true)
     if (savedPanels) {
       try {
         const panels = JSON.parse(savedPanels) as Record<string, boolean>
@@ -60,7 +79,29 @@ function AppInitializer() {
         // ignore
       }
     }
-  }, [setFontScale, setAccent, setPalette, setCustomColors, setLabMode, setPanel])
+  }, [
+    setFontScale,
+    setAccent,
+    setPalette,
+    setCustomColors,
+    setLabMode,
+    setPanel,
+    setDensity,
+    setEditorFont,
+    setReducedMotion,
+  ])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', density)
+  }, [density])
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-editor-font', editorFont)
+  }, [editorFont])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('reduce-motion', reducedMotion)
+  }, [reducedMotion])
 
   return null
 }

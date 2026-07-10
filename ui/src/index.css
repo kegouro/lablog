@@ -267,6 +267,103 @@ body {
   --primary-foreground: oklch(0.15 0.05 286);
 }
 
+/* Nord */
+[data-palette="nord"] {
+  --background: #eceff4;
+  --foreground: #2e3440;
+  --card: #e5e9f0;
+  --card-foreground: #2e3440;
+  --popover: #e5e9f0;
+  --popover-foreground: #2e3440;
+  --primary: #5e81ac;
+  --primary-foreground: #eceff4;
+  --secondary: #d8dee9;
+  --secondary-foreground: #2e3440;
+  --muted: #e5e9f0;
+  --muted-foreground: #4c566a;
+  --accent: #88c0d0;
+  --accent-foreground: #2e3440;
+  --destructive: #bf616a;
+  --border: rgba(46, 52, 64, 0.12);
+  --input: rgba(46, 52, 64, 0.15);
+  --ring: #5e81ac;
+  --sidebar: #e5e9f0;
+  --sidebar-foreground: #2e3440;
+  --sidebar-primary: #5e81ac;
+  --sidebar-primary-foreground: #eceff4;
+  --sidebar-accent: #d8dee9;
+  --sidebar-accent-foreground: #2e3440;
+  --sidebar-border: rgba(46, 52, 64, 0.12);
+  --sidebar-ring: #5e81ac;
+}
+
+.dark[data-palette="nord"] {
+  --background: #2e3440;
+  --foreground: #eceff4;
+  --card: #3b4252;
+  --card-foreground: #eceff4;
+  --popover: #3b4252;
+  --popover-foreground: #eceff4;
+  --primary: #88c0d0;
+  --primary-foreground: #2e3440;
+  --secondary: #434c5e;
+  --secondary-foreground: #eceff4;
+  --muted: #3b4252;
+  --muted-foreground: #d8dee9;
+  --accent: #81a1c1;
+  --accent-foreground: #2e3440;
+  --destructive: #bf616a;
+  --border: rgba(236, 239, 244, 0.12);
+  --input: rgba(236, 239, 244, 0.15);
+  --ring: #88c0d0;
+  --sidebar: #3b4252;
+  --sidebar-foreground: #eceff4;
+  --sidebar-primary: #88c0d0;
+  --sidebar-primary-foreground: #2e3440;
+  --sidebar-accent: #434c5e;
+  --sidebar-accent-foreground: #eceff4;
+  --sidebar-border: rgba(236, 239, 244, 0.12);
+  --sidebar-ring: #88c0d0;
+}
+
+/* Density */
+[data-density="compact"] {
+  --radius: 0.4rem;
+}
+[data-density="compact"] .m-2 {
+  margin: 0.35rem;
+}
+[data-density="compact"] button.h-8 {
+  height: 1.75rem;
+}
+[data-density="compact"] .text-sm {
+  font-size: 0.8125rem;
+}
+
+/* Editor font (LaTeX surface) */
+.lablog-editor-surface {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+[data-editor-font="sans"] .lablog-editor-surface {
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+[data-editor-font="serif"] .lablog-editor-surface {
+  font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+}
+[data-editor-font="mono"] .lablog-editor-surface {
+  font-family: var(--font-mono), ui-monospace, monospace;
+}
+
+/* Reduced motion */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
 [data-accent="amber"] {
   --brand: oklch(0.769 0.188 70.08);
   --primary: oklch(0.769 0.188 70.08);
