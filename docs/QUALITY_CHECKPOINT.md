@@ -1,43 +1,27 @@
-# Quality checkpoint — lablog
+# Quality checkpoint — lablog v0.3.0
 
 **Fecha:** 2026-07-10
-**Tag estable:** `v0.2.1`
-**Main:** PRs #12–#16 (diagramas, personalización, e2e, PySpice)
+**Release:** `v0.3.0` (`jose-labarca-lablog`)
 
-## Barra “premium senior” (estado)
+## Barra “obra maestra OSS”
 
-| Área | Estado | Evidencia |
-|------|--------|-----------|
-| Event sourcing / soft-delete | ✅ | Writes guardan `409` si deleted |
-| Autosave / races | ✅ | flush + inflight + discardPending + version PUT |
-| Vault safety | ✅ | tokens aleatorios, force solo pending |
-| Live preview + PDF científico | ✅ | KaTeX + circuitikz/tikz/physics |
-| Diagram presets (12) | ✅ | expand / apply / re-sim / SPICE opcional |
-| Highlight editor + TikZ color | ✅ | gutter + `color=` en `name=` |
-| Personalización | ✅ | densidad, fuente editor, Nord, perfiles lab/paper/teaching, export JSON |
-| Export notebook | ✅ | `GET …/export/ipynb` (markdown + code cells) |
-| E2E Playwright | ✅ | smoke preferencias en CI |
-| PySpice | 🟡 | extra opcional + fallback numpy |
-| PyPI trusted publish | ⚠️ | config usuario |
+| Área | Estado |
+|------|--------|
+| Event sourcing + soft-delete | ✅ |
+| Autosave / version conflicts | ✅ |
+| Vault path safety | ✅ |
+| Scientific LaTeX live + PDF | ✅ |
+| Diagram workbench (12 presets) | ✅ |
+| Re-apply + dual highlight | ✅ |
+| Optional PySpice + numpy fallback | ✅ |
+| Personalization + profiles + shortcuts | ✅ |
+| Export tex/pdf/docx/site/**ipynb** | ✅ |
+| Playwright e2e smoke in CI | ✅ |
+| CONTRIBUTING / SECURITY / CoC | ✅ |
+| CITATION.cff + Keep a Changelog | ✅ |
+| PyPI trusted publish | ⚠️ maintainer PyPI config |
 
-## Perfiles de UI
-
-| Perfil | Uso |
-|--------|-----|
-| Laboratorio | compacto, mono, lab mode, acento esmeralda |
-| Paper | serif, moka, menos motion |
-| Docencia | sans grande, Nord, azul |
-
-Atajo: **⌘/Ctrl+K** → «Perfil: …»
-
-## Export
-
-| Formato | Ruta |
-|--------|------|
-| tex / txt / pdf / docx / canva / site | menú Exportar |
-| **ipynb** | menú Exportar → Notebook Jupyter |
-
-## Comandos
+## Verification
 
 ```bash
 pytest -q
@@ -45,11 +29,5 @@ ruff check src tests
 mypy -p lablog
 cd ui && npm run build && npm test && npm run test:e2e
 lablog diagrams
+python -c "import lablog; print(lablog.__version__)"
 ```
-
-## Siguiente nivel (no bloqueante)
-
-- Más backends PySpice (RLC, half-wave netlist real)
-- Perfiles de layout de paneles
-- Atajos de teclado configurables
-- PyPI OIDC verde

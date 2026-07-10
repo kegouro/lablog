@@ -7,16 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-10
+
 ### Added
 
-- Scientific LaTeX maturity: ~190 symbols (greek, physics, sets, arrows, …).
-- Live preview classifies math envs (align/matrix/cases) vs PDF-only (tabular/tikz/feynman).
-- KaTeX macros for physics/braket (`\ket`, `\bra`, `\dv`, `\R`, …).
-- PDF preamble packages: booktabs, siunitx, physics, braket, tikz (+ Feynman-style drawings).
-- Stress fixtures `tests/fixtures/latex/` (characters, tables, matrices, Feynman, physics, full doc).
-- Docs: `docs/LATEX_PREVIEW.md`.
-- Future features design: `docs/future-features/` (Circuitikz→Jupyter sim, diagram presets, param ranges/highlights, catalog + example JSON).
-- **Diagram presets (MVP)**: `src/lablog/diagrams/` catalog (RC, divisor, masa-resorte, Feynman); API `/diagrams/presets`; UI panel Diagramas; param sliders with ranges + jump-to-line; generate Jupyter sim cell; `circuitikz` in PDF preamble.
+- **Diagram catalog (12 presets)**: RC, voltage divider, RLC, Wheatstone, half-wave rectifier, RC low-pass, noninverting op-amp, mass-spring-damper, second-order plant, PI controller, thin lens, Feynman Møller.
+- **Re-apply diagrams** from Parameters (`POST /diagrams/apply`, `% lablog-param` markers).
+- **Dual highlight**: editor line jump + TikZ/Circuitikz `color=` on focused `name=` components.
+- **Optional PySpice** extra (`jose-labarca-lablog[pyspice]`) with RC / RLC / half-wave cells and numpy fallback.
+- **Personalization**: density, editor font, Nord palette, reduced motion, lab/paper/teaching profiles, export/import JSON.
+- **Configurable shortcuts** (mod+s save, panel toggles, lab mode, new page).
+- **Export Jupyter notebook** (`GET …/export/ipynb`).
+- Playwright smoke e2e in CI; quality checkpoint docs.
+
+### Changed
+
+- Diagram presets expand/simulate API accepts `highlight_param` and `prefer_pyspice`.
+- Command palette opens panels, preference profiles, and preference export.
+
+### Fixed
+
+- Templates menu no longer crashes when `/templates` returns a non-array payload.
 
 ## [0.2.1] - 2026-07-10
 
@@ -88,7 +99,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved live preview: renders AST directly where possible and shows per-block KaTeX errors.
 - Raised backend test coverage threshold to 80%.
 
-[Unreleased]: https://github.com/kegouro/lablog/compare/v0.2.1...HEAD
-[0.2.1]: https://github.com/kegouro/lablog/releases/tag/v0.2.1
-[0.2.0]: https://github.com/kegouro/lablog/releases/tag/v0.2.0
+[Unreleased]: https://github.com/kegouro/lablog/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/kegouro/lablog/compare/v0.2.1...v0.3.0
+[0.2.1]: https://github.com/kegouro/lablog/compare/v0.2.0...v0.2.1
+[0.2.0]: https://github.com/kegouro/lablog/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/kegouro/lablog/releases/tag/v0.1.0
