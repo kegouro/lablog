@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { useSpeechRecognition } from '@/hooks/use-speech'
+import { dedupeSpeechText, useSpeechRecognition } from '@/hooks/use-speech'
 import { getPage, sendVoice } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
@@ -16,6 +16,9 @@ import { ThemeToggle } from './theme-toggle'
 interface ToolbarProps {
   onCreatePage: () => void
 }
+
+/** Mínimo de caracteres útiles tras limpieza (evita insertar "eh", "a", …). */
+const MIN_DICTATION_CHARS = 2
 
 export function Toolbar({ onCreatePage }: ToolbarProps) {
   const labMode = useAppStore((s) => s.labMode)
@@ -30,6 +33,7 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
     listening,
     supported,
     transcript,
+    interimTranscript,
     error,
     start,
     stop,
@@ -44,8 +48,9 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
   // Solo en phase === processing se consume el transcript (FSM).
   useEffect(() => {
     if (phase !== 'processing' || !activePageId || processingRef.current) return
-    const text = transcript.trim()
-    if (!text) {
+    const text = dedupeSpeechText(transcript).trim()
+    if (!text || text.length < MIN_DICTATION_CHARS) {
+      if (text) toast.message('Dictado demasiado corto; no se insertó')
       completeProcessing()
       return
     }
@@ -54,12 +59,18 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
     ;(async () => {
       try {
         if (flushSave) await flushSave()
-        // Pipeline de voz del backend (intents → math/texto).
-        await sendVoice(activePageId, text)
+        // Pipeline de voz del backend (intents → math/texto limpio).
+        const res = await sendVoice(activePageId, text)
         const page = await getPage(activePageId)
         setActiveLatex(page.raw || page.latex)
         setActiveAst(page.ast)
         setActiveVersion(page.version)
+        const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text
+        toast.success(
+          res.intent && res.intent !== 'text'
+            ? `Dictado (${res.intent}): ${preview}`
+            : `Dictado: ${preview}`,
+        )
       } catch {
         toast.error('No se pudo guardar el dictado')
       } finally {
@@ -80,7 +91,7 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
 
   const handleDictate = () => {
     if (!supported) {
-      toast.error('Tu navegador no soporta dictado por voz')
+      toast.error('Tu navegador no soporta dictado por voz (usa Chrome o Edge)')
       return
     }
     if (listening) {
@@ -91,8 +102,11 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
         return
       }
       start()
+      toast.message('Escuchando… habla con claridad y pulsa Detener al terminar')
     }
   }
+
+  const livePreview = [transcript, interimTranscript].filter(Boolean).join(' ').trim()
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b bg-card/80 px-3 backdrop-blur">
@@ -109,16 +123,26 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 rounded-xl border bg-muted/40 p-1 shadow-sm">
+      <div className="flex max-w-[min(100%,42rem)] items-center gap-1 rounded-xl border bg-muted/40 p-1 shadow-sm">
         <Button
           variant={listening ? 'default' : 'ghost'}
           size="sm"
           onClick={handleDictate}
-          className="gap-2 rounded-lg"
+          className="gap-2 rounded-lg shrink-0"
+          title={listening ? 'Detener y insertar dictado' : 'Iniciar dictado por voz'}
         >
           {listening ? <MicOff className="size-4 animate-pulse" /> : <Mic className="size-4" />}
           <span className="hidden sm:inline">{listening ? 'Detener' : 'Dictar'}</span>
         </Button>
+        {(listening || phase === 'processing') && livePreview ? (
+          <span
+            className="hidden max-w-[18rem] truncate px-2 text-xs text-muted-foreground md:inline"
+            title={livePreview}
+          >
+            {phase === 'processing' ? 'Insertando… ' : '● '}
+            {livePreview}
+          </span>
+        ) : null}
         <TemplatesMenu />
         <ExportMenu />
         <Button

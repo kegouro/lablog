@@ -238,15 +238,30 @@ def restore_version(store: EventStore, page_id: str, event_index: int) -> None:
 
 
 def voice_insert(store: EventStore, page_id: str, text: str) -> str:
-    """Inserta texto o math según el intent de voz. Devuelve el intent como string."""
-    intent = parse_intent(text)
-    result = translate(text, intent.type)
+    """Inserta texto o math según el intent de voz. Devuelve el intent como string.
+
+    Descarta dictados vacíos/ruido tras limpieza. El texto narrativo se inserta
+    limpio (sin reemplazos matemáticos agresivos); la math sí se traduce.
+    """
+    from lablog.voice.parser import clean_dictation_text
+
+    cleaned = clean_dictation_text(text)
+    if not cleaned:
+        return IntentType.TEXT.value
+
+    intent = parse_intent(cleaned)
+    result = translate(cleaned, intent.type)
     math_intents = (IntentType.MATH, IntentType.INTEGRAL, IntentType.EQUATION, IntentType.MATRIX)
-    if intent.type in math_intents:
+    if intent.type in math_intents and result.latex:
         body, mode = _extract_math_body(result.latex)
-        store.append(math_inserted(page_id=page_id, ast_path="/document", latex=body, mode=mode))
+        if body:
+            store.append(
+                math_inserted(page_id=page_id, ast_path="/document", latex=body, mode=mode)
+            )
     else:
-        store.append(text_inserted(page_id=page_id, position=-1, text=text))
+        # Preferir el texto limpio de translate (TEXT) o el cleaned original.
+        payload = result.latex if result.latex else cleaned
+        store.append(text_inserted(page_id=page_id, position=-1, text=payload))
     return intent.type.value
 
 

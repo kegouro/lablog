@@ -20,19 +20,24 @@ const { sendVoice, getPage, completeProcessing } = vi.hoisted(() => ({
   completeProcessing: vi.fn(),
 }))
 
-vi.mock('@/hooks/use-speech', () => ({
-  useSpeechRecognition: vi.fn(() => ({
-    phase: 'idle',
-    listening: false,
-    supported: true,
-    transcript: '',
-    error: null,
-    start: vi.fn(),
-    stop: vi.fn(),
-    completeProcessing,
-    resetTranscript: vi.fn(),
-  })),
-}))
+vi.mock('@/hooks/use-speech', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/hooks/use-speech')>()
+  return {
+    ...actual,
+    useSpeechRecognition: vi.fn(() => ({
+      phase: 'idle',
+      listening: false,
+      supported: true,
+      transcript: '',
+      interimTranscript: '',
+      error: null,
+      start: vi.fn(),
+      stop: vi.fn(),
+      completeProcessing,
+      resetTranscript: vi.fn(),
+    })),
+  }
+})
 
 vi.mock('@/lib/api', () => ({
   sendVoice,
@@ -55,6 +60,7 @@ describe('Toolbar dictation', () => {
       listening: false,
       supported: true,
       transcript: '',
+      interimTranscript: '',
       error: null,
       start: vi.fn(),
       stop: vi.fn(),
@@ -73,6 +79,7 @@ describe('Toolbar dictation', () => {
       listening: false,
       supported: true,
       transcript: 'hola mundo',
+      interimTranscript: '',
       error: null,
       start: vi.fn(),
       stop: vi.fn(),
@@ -98,6 +105,7 @@ describe('Toolbar dictation', () => {
       listening: true,
       supported: true,
       transcript: 'parcial',
+      interimTranscript: 'par',
       error: null,
       start: vi.fn(),
       stop: vi.fn(),
@@ -106,6 +114,25 @@ describe('Toolbar dictation', () => {
     })
     render(<Toolbar onCreatePage={vi.fn()} />)
     await new Promise((r) => setTimeout(r, 50))
+    expect(sendVoice).not.toHaveBeenCalled()
+  })
+
+  it('skips empty or noise-only transcripts', async () => {
+    useAppStore.setState({ activePageId: 'page-1', activeLatex: '' })
+    mockUseSpeech.mockReturnValue({
+      phase: 'processing',
+      listening: false,
+      supported: true,
+      transcript: '  ',
+      interimTranscript: '',
+      error: null,
+      start: vi.fn(),
+      stop: vi.fn(),
+      completeProcessing,
+      resetTranscript: vi.fn(),
+    })
+    render(<Toolbar onCreatePage={vi.fn()} />)
+    await waitFor(() => expect(completeProcessing).toHaveBeenCalled())
     expect(sendVoice).not.toHaveBeenCalled()
   })
 })

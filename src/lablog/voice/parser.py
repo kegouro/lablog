@@ -37,6 +37,47 @@ KEYWORDS = {
     "matriz": IntentType.MATRIX,
 }
 
+# Rellenos típicos del STT en español — no merecen insertarse solos.
+_FILLER_ONLY = re.compile(
+    r"^(eh|ehm|mm+|hmm+|este|esta|esto|ah|ay|ok|okay|vale|bueno|pues|entonces)\.?$",
+    re.IGNORECASE,
+)
+
+
+def clean_dictation_text(text: str) -> str:
+    """Limpia basura típica del reconocimiento de voz antes de insertar.
+
+    - Normaliza espacios
+    - Colapsa palabras/frases repetidas (stutter del motor)
+    - Quita rellenos solo-ruido
+    """
+    t = re.sub(r"\s+", " ", (text or "")).strip()
+    if not t:
+        return ""
+
+    # Misma palabra 2+ veces: "la la la energía" → "la energía"
+    t = re.sub(r"\b(\w+(?:'\w+)?)(?:\s+\1)+\b", r"\1", t, flags=re.IGNORECASE)
+
+    # Mismo n-grama (2–5 palabras) repetido: "hola mundo hola mundo"
+    for n in range(5, 1, -1):
+        parts = r"\s+".join([r"\w+(?:'\w+)?" for _ in range(n)])
+        t = re.sub(rf"\b({parts})(?:\s+\1)+\b", r"\1", t, flags=re.IGNORECASE)
+
+    t = re.sub(r"\s+", " ", t).strip()
+
+    # Puntuación duplicada del STT
+    t = re.sub(r"([.!?])\1+", r"\1", t)
+    t = re.sub(r"\s+([,.;:!?])", r"\1", t)
+
+    if _FILLER_ONLY.match(t):
+        return ""
+
+    # Muy corto o sin alfanuméricos → ruido del motor
+    if len(t) < 2 or not re.search(r"[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9]", t):
+        return ""
+
+    return t
+
 
 def parse_intent(text: str) -> Intent:
     lower = text.lower()
@@ -50,13 +91,19 @@ def parse_intent(text: str) -> Intent:
 
 
 def translate(text: str, intent: IntentType) -> Translation:
-    latex = _normalize(text)
+    cleaned = clean_dictation_text(text)
+    if intent == IntentType.TEXT:
+        # Texto narrativo: NO aplicar reemplazos matemáticos agresivos
+        # ("por" → · , "más" → +) que destrozan prosa científica.
+        return Translation(latex=cleaned, mode="inline")
+
+    latex = _normalize(cleaned)
     for pattern, repl in REPLACEMENTS:
         latex = re.sub(pattern, repl, latex, flags=re.IGNORECASE)
     latex = _balance_braces(latex)
     latex = re.sub(r"\s+", " ", latex).strip()
-    mode: Literal["inline", "display"] = "display" if intent != IntentType.TEXT else "inline"
-    if intent != IntentType.TEXT and not latex.startswith(("$", "\\[")):
+    mode: Literal["inline", "display"] = "display"
+    if latex and not latex.startswith(("$", "\\[")):
         latex = f"\\[{latex}\\]"
     return Translation(latex=latex, mode=mode)
 
