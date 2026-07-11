@@ -133,7 +133,7 @@ aún en movimiento. Premisa: escribir el paper no debería separarse de producir
 | Ítem | Valor |
 | :--- | :--- |
 | Distribución | [`jose-labarca-lablog`](https://pypi.org/project/jose-labarca-lablog/) en PyPI |
-| Versión actual | **v0.3.0** ([notas](docs/release-notes-v0.3.0.md)) |
+| Versión actual | **v0.3.1** ([notas](docs/release-notes-v0.3.0.md)) |
 | Licencia | MIT |
 | Lenguaje principal (motor) | Python 3.11+ |
 | Lenguaje principal (UI) | TypeScript / React 19 |
@@ -910,7 +910,7 @@ Si lablog apoya trabajo que derive en publicación, cita:
   author  = {Labarca Baeza, José},
   title   = {{lablog}: a live LaTeX laboratory notebook for working scientists},
   year    = {2026},
-  version = {0.3.0},
+  version = {0.3.1},
   url     = {https://github.com/kegouro/lablog},
   note    = {Part of the Pharos Project}
 }

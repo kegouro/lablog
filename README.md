@@ -134,7 +134,7 @@ act of producing the data.
 | Item | Value |
 | :--- | :--- |
 | Distribution | [`jose-labarca-lablog`](https://pypi.org/project/jose-labarca-lablog/) on PyPI |
-| Current release | **v0.3.0** ([notes](docs/release-notes-v0.3.0.md)) |
+| Current release | **v0.3.1** ([notes](docs/release-notes-v0.3.0.md)) |
 | Licence | MIT |
 | Primary language (engine) | Python 3.11+ |
 | Primary language (UI) | TypeScript / React 19 |
@@ -913,7 +913,7 @@ If lablog supports work that leads to a publication, please cite:
   author  = {Labarca Baeza, José},
   title   = {{lablog}: a live LaTeX laboratory notebook for working scientists},
   year    = {2026},
-  version = {0.3.0},
+  version = {0.3.1},
   url     = {https://github.com/kegouro/lablog},
   note    = {Part of the Pharos Project}
 }
