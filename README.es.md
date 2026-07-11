@@ -38,7 +38,7 @@
   <a href="README.es.md"><img alt="Español" src="https://img.shields.io/badge/lang-Espa%C3%B1ol-48484A?style=for-the-badge&labelColor=1C1C1E" /></a>
   <a href="https://kegouro.github.io/lablog/"><img alt="sitio de documentación" src="https://img.shields.io/badge/sitio%20docs-kegouro.github.io%2Flablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="instalar desde PyPI" src="https://img.shields.io/badge/instalar-pip%20install%20jose--labarca--lablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=A1A1A6" /></a>
-  <a href="https://github.com/kegouro/lablog/releases/tag/v0.3.1"><img alt="v0.3.0" src="https://img.shields.io/badge/release-v0.3.1-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://github.com/kegouro/lablog/releases/tag/v0.3.1"><img alt="v0.3.1" src="https://img.shields.io/badge/release-v0.3.1-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
 </p>
 
 <sub>
