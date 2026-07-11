@@ -31,6 +31,8 @@ export interface ParameterHint {
 export type UiDensity = 'comfortable' | 'compact'
 export type EditorFont = 'sans' | 'mono' | 'serif'
 export type PreferenceProfileId = 'lab' | 'paper' | 'teaching'
+/** Motor de dictado: browser (Web Speech) o whisper (local, extra [voice]). */
+export type VoiceEngineId = 'browser' | 'whisper'
 
 /** Preferencias de apariencia exportables/importables. */
 export interface AppPreferences {
@@ -45,6 +47,8 @@ export interface AppPreferences {
   labMode: boolean
   /** Chord overrides (mod+k, …). */
   shortcuts?: Partial<Record<ShortcutAction, string>>
+  /** Motor de dictado preferido. */
+  voiceEngine?: VoiceEngineId
 }
 
 /** Perfiles listos: un clic cambia varios knobs a la vez. */
@@ -111,6 +115,8 @@ interface AppState {
   density: UiDensity
   editorFont: EditorFont
   reducedMotion: boolean
+  /** Motor de dictado: browser | whisper. */
+  voiceEngine: VoiceEngineId
   /** Chord por acción; ausentes → DEFAULT_SHORTCUTS. */
   shortcuts: Partial<Record<ShortcutAction, string>>
   vaultFiles: VaultFile[]
@@ -157,6 +163,7 @@ interface AppState {
   setDensity: (density: UiDensity) => void
   setEditorFont: (font: EditorFont) => void
   setReducedMotion: (on: boolean) => void
+  setVoiceEngine: (engine: VoiceEngineId) => void
   setShortcut: (action: ShortcutAction, chord: string) => void
   resetShortcuts: () => void
   exportPreferences: () => AppPreferences
@@ -215,6 +222,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   density: 'comfortable',
   editorFont: 'mono',
   reducedMotion: false,
+  voiceEngine: ((): VoiceEngineId => {
+    try {
+      const v = localStorage.getItem('lablog-voiceEngine')
+      if (v === 'whisper' || v === 'browser') return v
+    } catch {
+      /* ignore */
+    }
+    return 'browser'
+  })(),
   shortcuts: { ...DEFAULT_SHORTCUTS },
   vaultFiles: [],
   snippets: [],
@@ -277,6 +293,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     persist('lablog-reducedMotion', String(reducedMotion))
     set({ reducedMotion })
   },
+  setVoiceEngine: (voiceEngine) => {
+    const id: VoiceEngineId = voiceEngine === 'whisper' ? 'whisper' : 'browser'
+    persist('lablog-voiceEngine', id)
+    set({ voiceEngine: id })
+  },
   setShortcut: (action, chord) =>
     set((state) => {
       const shortcuts = { ...state.shortcuts, [action]: chord }
@@ -301,6 +322,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       reducedMotion: s.reducedMotion,
       labMode: s.labMode,
       shortcuts: { ...s.shortcuts },
+      voiceEngine: s.voiceEngine,
     }
   },
   importPreferences: (prefs) => {
@@ -320,6 +342,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       if (typeof prefs.reducedMotion === 'boolean') next.reducedMotion = prefs.reducedMotion
       if (typeof prefs.labMode === 'boolean') next.labMode = prefs.labMode
+      if (prefs.voiceEngine === 'browser' || prefs.voiceEngine === 'whisper') {
+        next.voiceEngine = prefs.voiceEngine
+      }
       if (prefs.shortcuts && typeof prefs.shortcuts === 'object') {
         next.shortcuts = { ...DEFAULT_SHORTCUTS, ...prefs.shortcuts }
         persist('lablog-shortcuts', JSON.stringify(next.shortcuts))
@@ -332,6 +357,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       persist('lablog-editorFont', next.editorFont)
       persist('lablog-reducedMotion', String(next.reducedMotion))
       persist('lablog-labMode', String(next.labMode))
+      persist('lablog-voiceEngine', next.voiceEngine)
       return next
     })
   },

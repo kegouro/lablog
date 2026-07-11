@@ -26,11 +26,11 @@ dependencies = [
 desktop = [
     "pywebview>=5.0",
 ]
-# Dictado por voz totalmente offline (modelo local Whisper). Pesa varios
-# cientos de MB; instálalo solo si quieres voz sin conexión.
+# Dictado offline con Whisper local (faster-whisper). El modelo se descarga
+# la primera vez (~75–150 MB para "base"). sounddevice es opcional (CLI mic).
 voice = [
     "faster-whisper>=1.0",
-    "sounddevice>=0.5",
+    "sounddevice>=0.5; platform_system != 'Emscripten'",
 ]
 # Simulación SPICE vía PySpice (requiere ngspice en el sistema).
 pyspice = [

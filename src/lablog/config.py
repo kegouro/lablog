@@ -62,6 +62,18 @@ class Settings:
             os.getenv("LABLOG_SITE_DIR", self.data_dir / "site")
         ).expanduser().resolve()
 
+        # STT local (extra [voice] / faster-whisper)
+        self.whisper_model = os.getenv("LABLOG_WHISPER_MODEL", "base").strip() or "base"
+        self.whisper_device = os.getenv("LABLOG_WHISPER_DEVICE", "cpu").strip() or "cpu"
+        self.whisper_compute = os.getenv("LABLOG_WHISPER_COMPUTE", "int8").strip() or "int8"
+        self.whisper_language = os.getenv("LABLOG_WHISPER_LANGUAGE", "es").strip() or "es"
+        try:
+            self.voice_max_upload_mb = int(os.getenv("LABLOG_VOICE_MAX_UPLOAD_MB", "25"))
+        except ValueError:
+            self.voice_max_upload_mb = 25
+        if self.voice_max_upload_mb < 1:
+            self.voice_max_upload_mb = 25
+
     @property
     def event_dir(self) -> Path:
         return self.data_dir / "events"

@@ -254,6 +254,94 @@ export async function sendVoice(pageId: string, text: string): Promise<{ status:
   })
 }
 
+export interface VoiceEngineInfo {
+  id: string
+  label: string
+  kind: string
+  available: boolean
+  description?: string
+  requires_extra?: string | null
+}
+
+export async function listVoiceEngines(): Promise<{
+  engines: VoiceEngineInfo[]
+  default_server: string
+}> {
+  return fetchJson('/voice/engines')
+}
+
+export async function transcribeVoiceAudio(
+  blob: Blob,
+  opts?: { engine?: string; language?: string; filename?: string },
+): Promise<{
+  status: string
+  text: string
+  engine: string
+  language?: string | null
+  meta?: Record<string, unknown>
+}> {
+  const form = new FormData()
+  form.append('file', blob, opts?.filename ?? 'dictation.wav')
+  const q = new URLSearchParams()
+  if (opts?.engine) q.set('engine', opts.engine)
+  if (opts?.language) q.set('language', opts.language)
+  const qs = q.toString()
+  const res = await fetch(`${API_BASE}/voice/transcribe${qs ? `?${qs}` : ''}`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'Unknown error')
+    const parsed = parseErrorBody(text)
+    throw new ApiError(res.status, parsed.message, parsed.errorCode, parsed.detail)
+  }
+  return res.json() as Promise<{
+    status: string
+    text: string
+    engine: string
+    language?: string | null
+    meta?: Record<string, unknown>
+  }>
+}
+
+/** Transcribe con motor local e inserta en la página. */
+export async function sendVoiceAudio(
+  pageId: string,
+  blob: Blob,
+  opts?: { engine?: string; language?: string; filename?: string },
+): Promise<{
+  status: string
+  intent: string
+  text: string
+  engine?: string
+  inserted: boolean
+  language?: string | null
+}> {
+  const form = new FormData()
+  form.append('file', blob, opts?.filename ?? 'dictation.wav')
+  const q = new URLSearchParams()
+  if (opts?.engine) q.set('engine', opts.engine)
+  if (opts?.language) q.set('language', opts.language)
+  const qs = q.toString()
+  const res = await fetch(`${API_BASE}/pages/${pageId}/voice/audio${qs ? `?${qs}` : ''}`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => 'Unknown error')
+    const parsed = parseErrorBody(text)
+    throw new ApiError(res.status, parsed.message, parsed.errorCode, parsed.detail)
+  }
+  return res.json() as Promise<{
+    status: string
+    intent: string
+    text: string
+    engine?: string
+    inserted: boolean
+    language?: string | null
+  }>
+}
+
 export interface DiagramPresetSummary {
   preset_id: string
   version: number

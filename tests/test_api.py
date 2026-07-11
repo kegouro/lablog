@@ -467,6 +467,26 @@ def test_voice_text_non_math() -> None:
     assert "hola mundo" in client.get(f"/api/v1/pages/{pid}/latex").json()["latex"]
 
 
+def test_voice_engines_endpoint() -> None:
+    res = client.get("/api/v1/voice/engines")
+    assert res.status_code == 200
+    body = res.json()
+    ids = {e["id"] for e in body["engines"]}
+    assert "browser" in ids
+    assert "whisper" in ids
+    assert "default_server" in body
+
+
+def test_voice_transcribe_rejects_empty() -> None:
+    from io import BytesIO
+
+    res = client.post(
+        "/api/v1/voice/transcribe",
+        files={"file": ("empty.wav", BytesIO(b""), "audio/wav")},
+    )
+    assert res.status_code == 400
+
+
 def test_restore_preserves_cell_outputs() -> None:
     pid = client.post("/api/v1/pages", json={"title": "RestoreOut"}).json()["page_id"]
     client.post(

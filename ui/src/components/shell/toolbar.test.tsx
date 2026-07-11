@@ -20,22 +20,30 @@ const { sendVoice, getPage, completeProcessing } = vi.hoisted(() => ({
   completeProcessing: vi.fn(),
 }))
 
+vi.mock('@/hooks/use-dictation', () => ({
+  useDictation: vi.fn(() => ({
+    phase: 'idle',
+    listening: false,
+    supported: true,
+    transcript: '',
+    interimTranscript: '',
+    error: null,
+    engineId: 'browser',
+    engines: [],
+    enginesLoading: false,
+    start: vi.fn(),
+    stop: vi.fn(),
+    completeProcessing,
+    pendingText: '',
+    clearPending: vi.fn(),
+    isServerEngine: false,
+  })),
+}))
+
 vi.mock('@/hooks/use-speech', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/hooks/use-speech')>()
   return {
     ...actual,
-    useSpeechRecognition: vi.fn(() => ({
-      phase: 'idle',
-      listening: false,
-      supported: true,
-      transcript: '',
-      interimTranscript: '',
-      error: null,
-      start: vi.fn(),
-      stop: vi.fn(),
-      completeProcessing,
-      resetTranscript: vi.fn(),
-    })),
   }
 })
 
@@ -44,28 +52,33 @@ vi.mock('@/lib/api', () => ({
   getPage,
 }))
 
-import { useSpeechRecognition } from '@/hooks/use-speech'
+import { useDictation } from '@/hooks/use-dictation'
 
 import { Toolbar } from './toolbar'
 
-const mockUseSpeech = vi.mocked(useSpeechRecognition)
+const mockUseDictation = vi.mocked(useDictation)
 
 describe('Toolbar dictation', () => {
   beforeEach(() => {
     sendVoice.mockClear()
     getPage.mockClear()
     completeProcessing.mockClear()
-    mockUseSpeech.mockReturnValue({
+    mockUseDictation.mockReturnValue({
       phase: 'idle',
       listening: false,
       supported: true,
       transcript: '',
       interimTranscript: '',
       error: null,
+      engineId: 'browser',
+      engines: [],
+      enginesLoading: false,
       start: vi.fn(),
       stop: vi.fn(),
       completeProcessing,
-      resetTranscript: vi.fn(),
+      pendingText: '',
+      clearPending: vi.fn(),
+      isServerEngine: false,
     })
   })
 
@@ -74,17 +87,22 @@ describe('Toolbar dictation', () => {
 
     const { rerender } = render(<Toolbar onCreatePage={vi.fn()} />)
 
-    mockUseSpeech.mockReturnValue({
+    mockUseDictation.mockReturnValue({
       phase: 'processing',
       listening: false,
       supported: true,
       transcript: 'hola mundo',
       interimTranscript: '',
       error: null,
+      engineId: 'browser',
+      engines: [],
+      enginesLoading: false,
       start: vi.fn(),
       stop: vi.fn(),
       completeProcessing,
-      resetTranscript: vi.fn(),
+      pendingText: 'hola mundo',
+      clearPending: vi.fn(),
+      isServerEngine: false,
     })
     rerender(<Toolbar onCreatePage={vi.fn()} />)
 
@@ -93,46 +111,80 @@ describe('Toolbar dictation', () => {
     await waitFor(() => expect(getPage).toHaveBeenCalledWith('page-1'))
     await waitFor(() => expect(completeProcessing).toHaveBeenCalled())
 
-    // Same processing cycle must not double-send (processingRef).
     rerender(<Toolbar onCreatePage={vi.fn()} />)
     expect(sendVoice).toHaveBeenCalledTimes(1)
   })
 
   it('ignores transcript while still listening', async () => {
     useAppStore.setState({ activePageId: 'page-1', activeLatex: '' })
-    mockUseSpeech.mockReturnValue({
+    mockUseDictation.mockReturnValue({
       phase: 'listening',
       listening: true,
       supported: true,
       transcript: 'parcial',
       interimTranscript: 'par',
       error: null,
+      engineId: 'browser',
+      engines: [],
+      enginesLoading: false,
       start: vi.fn(),
       stop: vi.fn(),
       completeProcessing,
-      resetTranscript: vi.fn(),
+      pendingText: '',
+      clearPending: vi.fn(),
+      isServerEngine: false,
     })
     render(<Toolbar onCreatePage={vi.fn()} />)
     await new Promise((r) => setTimeout(r, 50))
     expect(sendVoice).not.toHaveBeenCalled()
   })
 
-  it('skips empty or noise-only transcripts', async () => {
+  it('skips empty or noise-only transcripts for browser engine', async () => {
     useAppStore.setState({ activePageId: 'page-1', activeLatex: '' })
-    mockUseSpeech.mockReturnValue({
+    mockUseDictation.mockReturnValue({
       phase: 'processing',
       listening: false,
       supported: true,
       transcript: '  ',
       interimTranscript: '',
       error: null,
+      engineId: 'browser',
+      engines: [],
+      enginesLoading: false,
       start: vi.fn(),
       stop: vi.fn(),
       completeProcessing,
-      resetTranscript: vi.fn(),
+      pendingText: '',
+      clearPending: vi.fn(),
+      isServerEngine: false,
     })
     render(<Toolbar onCreatePage={vi.fn()} />)
     await waitFor(() => expect(completeProcessing).toHaveBeenCalled())
     expect(sendVoice).not.toHaveBeenCalled()
+  })
+
+  it('whisper path only resyncs page (already inserted server-side)', async () => {
+    useAppStore.setState({ activePageId: 'page-1', activeLatex: '', flushSave: null })
+    mockUseDictation.mockReturnValue({
+      phase: 'processing',
+      listening: false,
+      supported: true,
+      transcript: 'energía total',
+      interimTranscript: '',
+      error: null,
+      engineId: 'whisper',
+      engines: [],
+      enginesLoading: false,
+      start: vi.fn(),
+      stop: vi.fn(),
+      completeProcessing,
+      pendingText: 'energía total',
+      clearPending: vi.fn(),
+      isServerEngine: true,
+    })
+    render(<Toolbar onCreatePage={vi.fn()} />)
+    await waitFor(() => expect(getPage).toHaveBeenCalledWith('page-1'))
+    expect(sendVoice).not.toHaveBeenCalled()
+    await waitFor(() => expect(completeProcessing).toHaveBeenCalled())
   })
 })

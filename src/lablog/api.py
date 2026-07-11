@@ -68,12 +68,15 @@ def _engine_ready() -> bool:
 @router.get("/health")
 def health() -> dict[str, Any]:
     from lablog import __version__
+    from lablog.voice.engines import list_engines
 
+    voice_engines = {e.id: e.available for e in list_engines()}
     return {
         "status": "ok",
         "version": __version__,
         "engine_ready": _engine_ready(),
         "diagram_presets": len(diagrams.list_presets()),
+        "voice": voice_engines,
         "tools": {
             "pandoc": which("pandoc") is not None,
             "xelatex": which("xelatex") is not None,
@@ -267,7 +270,7 @@ class MathPayload(BaseModel):
 
 
 class VoicePayload(BaseModel):
-    text: str
+    text: str = Field(max_length=50_000)
 
 
 class PageSummary(BaseModel):
@@ -543,6 +546,102 @@ def voice_text(page_id: str, payload: VoicePayload) -> dict[str, str]:
     _require_active_page(page_id)
     intent = commands.voice_insert(store, page_id=page_id, text=payload.text)
     return {"status": "ok", "intent": intent}
+
+
+@router.get("/voice/engines")
+def voice_engines() -> dict[str, Any]:
+    """Lista motores STT (cliente + locales). Expandible vía register_engine()."""
+    from lablog.voice.engines import default_server_engine_id, list_engines
+
+    engines = [e.to_dict() for e in list_engines()]
+    return {
+        "engines": engines,
+        "default_server": default_server_engine_id(),
+    }
+
+
+@router.post("/voice/transcribe")
+async def voice_transcribe(
+    file: Annotated[UploadFile, File(description="Audio WAV/WebM/OGG/MP3")],
+    engine: str | None = None,
+    language: str | None = None,
+) -> dict[str, Any]:
+    """Transcribe audio con un motor local (p.ej. Whisper). No inserta en la página."""
+    from lablog.voice.engines import transcribe_audio
+    from lablog.voice.parser import clean_dictation_text
+
+    data = await file.read()
+    max_bytes = settings.voice_max_upload_mb * 1024 * 1024
+    if len(data) > max_bytes:
+        raise HTTPException(
+            getattr(status, "HTTP_413_REQUEST_ENTITY_TOO_LARGE", 413),
+            f"Audio supera {settings.voice_max_upload_mb} MB",
+        )
+    if not data:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "audio vacío")
+
+    filename = file.filename or "audio.wav"
+    try:
+        result = await asyncio.to_thread(
+            transcribe_audio,
+            data,
+            engine_id=engine,
+            filename=filename,
+            language=language,
+        )
+    except KeyError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001 — error de decode/ffmpeg del motor
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT
+            if hasattr(status, "HTTP_422_UNPROCESSABLE_CONTENT")
+            else _HTTP_422,
+            f"No se pudo transcribir: {exc}",
+        ) from exc
+
+    text = clean_dictation_text(result.text)
+    payload = result.to_dict()
+    payload["text"] = text
+    payload["status"] = "ok"
+    return payload
+
+
+@router.post("/pages/{page_id}/voice/audio", status_code=status.HTTP_201_CREATED)
+async def voice_audio_insert(
+    page_id: str,
+    file: Annotated[UploadFile, File(description="Audio a dictar e insertar")],
+    engine: str | None = None,
+    language: str | None = None,
+) -> dict[str, Any]:
+    """Transcribe con motor local e inserta en la página (mismo pipeline de intents)."""
+    if not _is_valid_page_id(page_id):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
+    _require_active_page(page_id)
+
+    # Reutiliza el endpoint de transcripción internamente.
+    tr = await voice_transcribe(file=file, engine=engine, language=language)
+    text = str(tr.get("text") or "").strip()
+    if not text:
+        return {
+            "status": "ok",
+            "intent": "text",
+            "text": "",
+            "engine": tr.get("engine"),
+            "inserted": False,
+        }
+    intent = commands.voice_insert(store, page_id=page_id, text=text)
+    return {
+        "status": "ok",
+        "intent": intent,
+        "text": text,
+        "engine": tr.get("engine"),
+        "inserted": True,
+        "language": tr.get("language"),
+    }
 
 
 @router.get("/pages/{page_id}/events", response_model=list[Event])

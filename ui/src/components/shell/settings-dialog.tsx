@@ -1,4 +1,4 @@
-import { Download, Keyboard, Paintbrush, Palette, Type, Upload } from 'lucide-react'
+import { Download, Keyboard, Mic, Paintbrush, Palette, Type, Upload } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -27,7 +27,9 @@ import {
   type EditorFont,
   type PreferenceProfileId,
   type UiDensity,
+  type VoiceEngineId,
 } from '@/stores/app-store'
+import { listVoiceEngines, type VoiceEngineInfo } from '@/lib/api'
 
 const ACCENTS = [
   { id: 'zinc', label: 'Zinc', value: '#6b7280' },
@@ -88,9 +90,35 @@ export function SettingsDialog() {
   const shortcuts = useAppStore((s) => s.shortcuts)
   const setShortcut = useAppStore((s) => s.setShortcut)
   const resetShortcuts = useAppStore((s) => s.resetShortcuts)
+  const voiceEngine = useAppStore((s) => s.voiceEngine)
+  const setVoiceEngine = useAppStore((s) => s.setVoiceEngine)
   const [open, setOpen] = useState(false)
   const [draftColors, setDraftColors] = useState(customColors)
+  const [voiceEngines, setVoiceEngines] = useState<VoiceEngineInfo[]>([])
   const fileRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    listVoiceEngines()
+      .then((r) => setVoiceEngines(r.engines))
+      .catch(() =>
+        setVoiceEngines([
+          {
+            id: 'browser',
+            label: 'Navegador (Web Speech)',
+            kind: 'client',
+            available: true,
+          },
+          {
+            id: 'whisper',
+            label: 'Whisper local',
+            kind: 'local',
+            available: false,
+            requires_extra: 'voice',
+          },
+        ]),
+      )
+  }, [open])
 
   useEffect(() => {
     setDraftColors(customColors)
@@ -186,6 +214,65 @@ export function SettingsDialog() {
         </DialogHeader>
 
         <div className="space-y-6 py-4">
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Mic className="size-3.5" />
+              Dictado por voz
+            </label>
+            <p className="text-[10px] text-muted-foreground">
+              Whisper es gratis y local (pip install &quot;jose-labarca-lablog[voice]&quot;). El navegador
+              no instala nada pero es menos preciso.
+            </p>
+            <div className="grid gap-2">
+              {(voiceEngines.length
+                ? voiceEngines
+                : [
+                    {
+                      id: 'browser',
+                      label: 'Navegador (Web Speech)',
+                      kind: 'client',
+                      available: true,
+                      description: '',
+                    },
+                    {
+                      id: 'whisper',
+                      label: 'Whisper local',
+                      kind: 'local',
+                      available: false,
+                      description: '',
+                      requires_extra: 'voice',
+                    },
+                  ]
+              ).map((eng) => {
+                const id = (eng.id === 'whisper' ? 'whisper' : 'browser') as VoiceEngineId
+                const selected = voiceEngine === id
+                return (
+                  <button
+                    key={eng.id}
+                    type="button"
+                    onClick={() => setVoiceEngine(id)}
+                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                      selected
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border hover:bg-muted/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{eng.label}</span>
+                      <span className="text-[10px] text-muted-foreground">
+                        {eng.kind === 'local' ? 'local' : 'cliente'}
+                        {eng.available ? ' · listo' : eng.requires_extra ? ` · extra [${eng.requires_extra}]` : ' · no disponible'}
+                      </span>
+                    </div>
+                    {eng.description ? (
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">{eng.description}</p>
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-sm font-medium">Perfil rápido</label>
             <p className="text-[10px] text-muted-foreground">

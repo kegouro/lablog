@@ -4,7 +4,8 @@ import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { dedupeSpeechText, useSpeechRecognition } from '@/hooks/use-speech'
+import { useDictation } from '@/hooks/use-dictation'
+import { dedupeSpeechText } from '@/hooks/use-speech'
 import { getPage, sendVoice } from '@/lib/api'
 import { useAppStore } from '@/stores/app-store'
 
@@ -35,10 +36,12 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
     transcript,
     interimTranscript,
     error,
+    engineId,
+    isServerEngine,
     start,
     stop,
     completeProcessing,
-  } = useSpeechRecognition()
+  } = useDictation()
   const processingRef = useRef(false)
 
   useEffect(() => {
@@ -49,6 +52,30 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
   useEffect(() => {
     if (phase !== 'processing' || !activePageId || processingRef.current) return
     const text = dedupeSpeechText(transcript).trim()
+
+    // Whisper ya insertó en el backend al parar; solo resync.
+    if (isServerEngine) {
+      processingRef.current = true
+      ;(async () => {
+        try {
+          if (text) {
+            const page = await getPage(activePageId)
+            setActiveLatex(page.raw || page.latex)
+            setActiveAst(page.ast)
+            setActiveVersion(page.version)
+            const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text
+            toast.success(`Whisper: ${preview}`)
+          }
+        } catch {
+          toast.error('No se pudo actualizar tras el dictado')
+        } finally {
+          completeProcessing()
+          processingRef.current = false
+        }
+      })()
+      return
+    }
+
     if (!text || text.length < MIN_DICTATION_CHARS) {
       if (text) toast.message('Dictado demasiado corto; no se insertó')
       completeProcessing()
@@ -59,7 +86,6 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
     ;(async () => {
       try {
         if (flushSave) await flushSave()
-        // Pipeline de voz del backend (intents → math/texto limpio).
         const res = await sendVoice(activePageId, text)
         const page = await getPage(activePageId)
         setActiveLatex(page.raw || page.latex)
@@ -82,6 +108,7 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
     phase,
     transcript,
     activePageId,
+    isServerEngine,
     setActiveLatex,
     setActiveAst,
     setActiveVersion,
@@ -91,7 +118,11 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
 
   const handleDictate = () => {
     if (!supported) {
-      toast.error('Tu navegador no soporta dictado por voz (usa Chrome o Edge)')
+      toast.error(
+        engineId === 'whisper'
+          ? 'Micrófono no disponible en este navegador'
+          : 'Tu navegador no soporta dictado Web Speech (usa Chrome/Edge o cambia a Whisper en Preferencias)',
+      )
       return
     }
     if (listening) {
@@ -102,11 +133,16 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
         return
       }
       start()
-      toast.message('Escuchando… habla con claridad y pulsa Detener al terminar')
+      toast.message(
+        engineId === 'whisper'
+          ? 'Grabando… pulsa Detener para transcribir con Whisper'
+          : 'Escuchando… habla con claridad y pulsa Detener al terminar',
+      )
     }
   }
 
   const livePreview = [transcript, interimTranscript].filter(Boolean).join(' ').trim()
+  const engineLabel = engineId === 'whisper' ? 'Whisper' : 'Browser'
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b bg-card/80 px-3 backdrop-blur">
@@ -129,20 +165,28 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
           size="sm"
           onClick={handleDictate}
           className="gap-2 rounded-lg shrink-0"
-          title={listening ? 'Detener y insertar dictado' : 'Iniciar dictado por voz'}
+          title={
+            listening
+              ? 'Detener dictado'
+              : `Dictar (${engineLabel}) — cambia el motor en Preferencias`
+          }
         >
           {listening ? <MicOff className="size-4 animate-pulse" /> : <Mic className="size-4" />}
           <span className="hidden sm:inline">{listening ? 'Detener' : 'Dictar'}</span>
         </Button>
-        {(listening || phase === 'processing') && livePreview ? (
+        {(listening || phase === 'processing') && (
           <span
             className="hidden max-w-[18rem] truncate px-2 text-xs text-muted-foreground md:inline"
-            title={livePreview}
+            title={livePreview || engineLabel}
           >
-            {phase === 'processing' ? 'Insertando… ' : '● '}
+            {phase === 'processing'
+              ? engineId === 'whisper'
+                ? 'Transcribiendo…'
+                : 'Insertando… '
+              : `● ${engineLabel} `}
             {livePreview}
           </span>
-        ) : null}
+        )}
         <TemplatesMenu />
         <ExportMenu />
         <Button
@@ -150,7 +194,6 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
           size="sm"
           onClick={async () => {
             if (!labMode) {
-              // Persiste el buffer del editor antes de desmontarlo (modo lab).
               if (flushSave) {
                 try {
                   await flushSave()
@@ -159,7 +202,6 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
                 }
               }
             } else {
-              // Al salir: celdas dirty del lab + resync de versión.
               const flushLab = useAppStore.getState().flushLabCells
               if (flushLab) {
                 try {
