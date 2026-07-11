@@ -103,6 +103,28 @@ def cmd_app(_args: argparse.Namespace) -> None:
     run()
 
 
+def cmd_voice_setup_vosk(args: argparse.Namespace) -> None:
+    """Descarga el modelo Vosk small-es si falta."""
+    from lablog.voice.engines.vosk_engine import setup_vosk_model
+
+    try:
+        result = setup_vosk_model(force=bool(args.force))
+    except RuntimeError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
+    print(result.get("message") or result)
+
+
+def cmd_voice_engines(_args: argparse.Namespace) -> None:
+    """Lista motores STT disponibles."""
+    from lablog.voice.engines import list_engines
+
+    for eng in list_engines():
+        flag = "OK" if eng.available else "—"
+        extra = f"  (extra: {eng.requires_extra})" if eng.requires_extra else ""
+        print(f"[{flag}] {eng.id:10} {eng.kind:8}  {eng.label}{extra}")
+
+
 def cmd_diagrams(args: argparse.Namespace) -> None:
     """Lista o expande presets de diagramas."""
     from lablog import diagrams
@@ -205,6 +227,20 @@ def main(argv: list[str] | None = None) -> int:
         help="Imprime el source Python de simulación",
     )
     diagrams_parser.set_defaults(func=cmd_diagrams)
+
+    voice_parser = subparsers.add_parser(
+        "voice", help="Utilidades de dictado (motores STT locales)"
+    )
+    voice_sub = voice_parser.add_subparsers(dest="voice_cmd", required=True)
+    vosk_setup = voice_sub.add_parser(
+        "setup-vosk", help="Descarga el modelo Vosk español small (~40 MB)"
+    )
+    vosk_setup.add_argument(
+        "--force", action="store_true", help="Re-descarga aunque ya exista"
+    )
+    vosk_setup.set_defaults(func=cmd_voice_setup_vosk)
+    voice_list = voice_sub.add_parser("engines", help="Lista motores STT y su estado")
+    voice_list.set_defaults(func=cmd_voice_engines)
 
     args = parser.parse_args(argv)
     args.func(args)

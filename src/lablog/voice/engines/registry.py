@@ -10,10 +10,12 @@ Los engines se descubren por id. ``browser`` es solo informativo (corre en el cl
 from __future__ import annotations
 
 from lablog.voice.engines.base import EngineInfo, SttEngine, TranscriptResult
+from lablog.voice.engines.vosk_engine import VoskSttEngine
 from lablog.voice.engines.whisper import WhisperSttEngine
 
 _ENGINES: dict[str, SttEngine] = {}
-_DEFAULT_SERVER = "whisper"
+# Preferir Whisper si está; si no, Vosk; si no, el primero disponible.
+_DEFAULT_ORDER = ("whisper", "vosk")
 
 
 def _browser_info() -> EngineInfo:
@@ -27,6 +29,7 @@ def _browser_info() -> EngineInfo:
             "menos preciso. Corre 100% en el cliente."
         ),
         requires_extra=None,
+        options={},
     )
 
 
@@ -46,6 +49,8 @@ def unregister_engine(engine_id: str) -> None:
 def _ensure_builtins() -> None:
     if "whisper" not in _ENGINES:
         register_engine(WhisperSttEngine())
+    if "vosk" not in _ENGINES:
+        register_engine(VoskSttEngine())
 
 
 def list_engines() -> list[EngineInfo]:
@@ -72,13 +77,14 @@ def get_engine(engine_id: str) -> SttEngine:
 
 def default_server_engine_id() -> str:
     _ensure_builtins()
-    eng = _ENGINES.get(_DEFAULT_SERVER)
-    if eng is not None and eng.available():
-        return _DEFAULT_SERVER
+    for eid in _DEFAULT_ORDER:
+        eng = _ENGINES.get(eid)
+        if eng is not None and eng.available():
+            return eid
     for eid, e in _ENGINES.items():
         if e.available():
             return eid
-    return _DEFAULT_SERVER
+    return _DEFAULT_ORDER[0]
 
 
 def transcribe_audio(
@@ -87,6 +93,7 @@ def transcribe_audio(
     engine_id: str | None = None,
     filename: str = "audio.wav",
     language: str | None = None,
+    model: str | None = None,
 ) -> TranscriptResult:
     """Atajo: resuelve motor y transcribe."""
     eid = engine_id or default_server_engine_id()
@@ -97,4 +104,6 @@ def transcribe_audio(
             f"Motor '{eid}' no disponible. "
             f'Instala: pip install "jose-labarca-lablog[{extra}]"'
         )
-    return engine.transcribe(audio, filename=filename, language=language)
+    return engine.transcribe(
+        audio, filename=filename, language=language, model=model
+    )

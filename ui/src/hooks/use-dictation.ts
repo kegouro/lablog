@@ -3,7 +3,8 @@
  * expone la misma FSM que el toolbar ya consume.
  *
  * - browser: Web Speech API (cliente, gratis, impreciso)
- * - whisper: graba WAV → POST /voice (local, gratis, preciso)
+ * - whisper: graba WAV → POST /voice (local, gratis, preciso; elige modelo)
+ * - vosk: graba WAV → POST /voice (local, gratis, ligero)
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -43,6 +44,7 @@ export interface DictationHook {
 
 export function useDictation(): DictationHook {
   const engineId = useAppStore((s) => s.voiceEngine)
+  const whisperModel = useAppStore((s) => s.whisperModel)
   const [engines, setEngines] = useState<VoiceEngineInfo[]>([])
   const [enginesLoading, setEnginesLoading] = useState(true)
   const [serverPhase, setServerPhase] = useState<DictationPhase>('idle')
@@ -123,20 +125,19 @@ export function useDictation(): DictationHook {
       const res = await sendVoiceAudio(pageId, blob, {
         engine: engineId === 'browser' ? undefined : engineId,
         filename: 'dictation.wav',
+        model: engineId === 'whisper' ? whisperModel : undefined,
       })
       const text = dedupeSpeechText(res.text || '')
       setPendingText(text)
       // processing se mantiene hasta que el toolbar complete (resync página).
-      // Si no insertó nada, volvemos a idle.
       if (!res.inserted || !text) {
         setServerPhase('idle')
       }
-      // Si insertó, el toolbar verá phase=processing + pending y hará getPage.
     } catch (err) {
       setServerError(err instanceof Error ? err.message : 'Error al transcribir')
       setServerPhase('idle')
     }
-  }, [engineId])
+  }, [engineId, whisperModel])
 
   const start = useCallback(() => {
     pageIdRef.current = useAppStore.getState().activePageId
@@ -172,7 +173,12 @@ export function useDictation(): DictationHook {
       listening: serverPhase === 'listening',
       supported: typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getUserMedia,
       transcript: pendingText,
-      interimTranscript: serverPhase === 'listening' ? 'Grabando… (Whisper al soltar)' : '',
+      interimTranscript:
+        serverPhase === 'listening'
+          ? engineId === 'vosk'
+            ? 'Grabando… (Vosk al soltar)'
+            : `Grabando… (Whisper ${whisperModel} al soltar)`
+          : '',
       error: serverError,
       engineId,
       engines,

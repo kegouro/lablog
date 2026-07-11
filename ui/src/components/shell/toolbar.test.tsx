@@ -163,28 +163,34 @@ describe('Toolbar dictation', () => {
     expect(sendVoice).not.toHaveBeenCalled()
   })
 
-  it('whisper path only resyncs page (already inserted server-side)', async () => {
+  it('server engines (whisper/vosk) only resync page (already inserted)', async () => {
     useAppStore.setState({ activePageId: 'page-1', activeLatex: '', flushSave: null })
-    mockUseDictation.mockReturnValue({
-      phase: 'processing',
-      listening: false,
-      supported: true,
-      transcript: 'energía total',
-      interimTranscript: '',
-      error: null,
-      engineId: 'whisper',
-      engines: [],
-      enginesLoading: false,
-      start: vi.fn(),
-      stop: vi.fn(),
-      completeProcessing,
-      pendingText: 'energía total',
-      clearPending: vi.fn(),
-      isServerEngine: true,
-    })
-    render(<Toolbar onCreatePage={vi.fn()} />)
-    await waitFor(() => expect(getPage).toHaveBeenCalledWith('page-1'))
-    expect(sendVoice).not.toHaveBeenCalled()
-    await waitFor(() => expect(completeProcessing).toHaveBeenCalled())
+    for (const engineId of ['whisper', 'vosk'] as const) {
+      sendVoice.mockClear()
+      getPage.mockClear()
+      completeProcessing.mockClear()
+      mockUseDictation.mockReturnValue({
+        phase: 'processing',
+        listening: false,
+        supported: true,
+        transcript: 'energía total',
+        interimTranscript: '',
+        error: null,
+        engineId,
+        engines: [],
+        enginesLoading: false,
+        start: vi.fn(),
+        stop: vi.fn(),
+        completeProcessing,
+        pendingText: 'energía total',
+        clearPending: vi.fn(),
+        isServerEngine: true,
+      })
+      const { unmount } = render(<Toolbar onCreatePage={vi.fn()} />)
+      await waitFor(() => expect(getPage).toHaveBeenCalledWith('page-1'))
+      expect(sendVoice).not.toHaveBeenCalled()
+      await waitFor(() => expect(completeProcessing).toHaveBeenCalled())
+      unmount()
+    }
   })
 })

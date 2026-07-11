@@ -261,6 +261,7 @@ export interface VoiceEngineInfo {
   available: boolean
   description?: string
   requires_extra?: string | null
+  options?: Record<string, unknown>
 }
 
 export async function listVoiceEngines(): Promise<{
@@ -270,9 +271,19 @@ export async function listVoiceEngines(): Promise<{
   return fetchJson('/voice/engines')
 }
 
+export async function setupVoskModel(force = false): Promise<{
+  status: string
+  path: string
+  downloaded: boolean
+  message: string
+}> {
+  const q = force ? '?force=true' : ''
+  return fetchJson(`/voice/engines/vosk/setup${q}`, { method: 'POST' })
+}
+
 export async function transcribeVoiceAudio(
   blob: Blob,
-  opts?: { engine?: string; language?: string; filename?: string },
+  opts?: { engine?: string; language?: string; filename?: string; model?: string },
 ): Promise<{
   status: string
   text: string
@@ -285,6 +296,7 @@ export async function transcribeVoiceAudio(
   const q = new URLSearchParams()
   if (opts?.engine) q.set('engine', opts.engine)
   if (opts?.language) q.set('language', opts.language)
+  if (opts?.model) q.set('model', opts.model)
   const qs = q.toString()
   const res = await fetch(`${API_BASE}/voice/transcribe${qs ? `?${qs}` : ''}`, {
     method: 'POST',
@@ -308,7 +320,7 @@ export async function transcribeVoiceAudio(
 export async function sendVoiceAudio(
   pageId: string,
   blob: Blob,
-  opts?: { engine?: string; language?: string; filename?: string },
+  opts?: { engine?: string; language?: string; filename?: string; model?: string },
 ): Promise<{
   status: string
   intent: string
@@ -316,12 +328,14 @@ export async function sendVoiceAudio(
   engine?: string
   inserted: boolean
   language?: string | null
+  meta?: Record<string, unknown>
 }> {
   const form = new FormData()
   form.append('file', blob, opts?.filename ?? 'dictation.wav')
   const q = new URLSearchParams()
   if (opts?.engine) q.set('engine', opts.engine)
   if (opts?.language) q.set('language', opts.language)
+  if (opts?.model) q.set('model', opts.model)
   const qs = q.toString()
   const res = await fetch(`${API_BASE}/pages/${pageId}/voice/audio${qs ? `?${qs}` : ''}`, {
     method: 'POST',
@@ -339,6 +353,7 @@ export async function sendVoiceAudio(
     engine?: string
     inserted: boolean
     language?: string | null
+    meta?: Record<string, unknown>
   }>
 }
 

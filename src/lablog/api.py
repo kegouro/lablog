@@ -565,8 +565,12 @@ async def voice_transcribe(
     file: Annotated[UploadFile, File(description="Audio WAV/WebM/OGG/MP3")],
     engine: str | None = None,
     language: str | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
-    """Transcribe audio con un motor local (p.ej. Whisper). No inserta en la página."""
+    """Transcribe audio con un motor local (Whisper/Vosk). No inserta en la página.
+
+    ``model`` solo aplica a Whisper (tiny|base|small|medium|large-v3).
+    """
     from lablog.voice.engines import transcribe_audio
     from lablog.voice.parser import clean_dictation_text
 
@@ -588,6 +592,7 @@ async def voice_transcribe(
             engine_id=engine,
             filename=filename,
             language=language,
+            model=model,
         )
     except KeyError as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
@@ -616,14 +621,14 @@ async def voice_audio_insert(
     file: Annotated[UploadFile, File(description="Audio a dictar e insertar")],
     engine: str | None = None,
     language: str | None = None,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Transcribe con motor local e inserta en la página (mismo pipeline de intents)."""
     if not _is_valid_page_id(page_id):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"page_id inválido: {page_id}")
     _require_active_page(page_id)
 
-    # Reutiliza el endpoint de transcripción internamente.
-    tr = await voice_transcribe(file=file, engine=engine, language=language)
+    tr = await voice_transcribe(file=file, engine=engine, language=language, model=model)
     text = str(tr.get("text") or "").strip()
     if not text:
         return {
@@ -632,6 +637,7 @@ async def voice_audio_insert(
             "text": "",
             "engine": tr.get("engine"),
             "inserted": False,
+            "meta": tr.get("meta"),
         }
     intent = commands.voice_insert(store, page_id=page_id, text=text)
     return {
@@ -641,7 +647,25 @@ async def voice_audio_insert(
         "engine": tr.get("engine"),
         "inserted": True,
         "language": tr.get("language"),
+        "meta": tr.get("meta"),
     }
+
+
+@router.post("/voice/engines/vosk/setup")
+async def voice_vosk_setup(force: bool = False) -> dict[str, Any]:
+    """Descarga el modelo Vosk español small (~40 MB) si falta."""
+    from lablog.voice.engines.vosk_engine import setup_vosk_model
+
+    try:
+        result = await asyncio.to_thread(setup_vosk_model, force=force)
+    except RuntimeError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            f"No se pudo descargar el modelo Vosk: {exc}",
+        ) from exc
+    return result
 
 
 @router.get("/pages/{page_id}/events", response_model=list[Event])

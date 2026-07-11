@@ -119,9 +119,9 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
   const handleDictate = () => {
     if (!supported) {
       toast.error(
-        engineId === 'whisper'
+        isServerEngine
           ? 'Micrófono no disponible en este navegador'
-          : 'Tu navegador no soporta dictado Web Speech (usa Chrome/Edge o cambia a Whisper en Preferencias)',
+          : 'Tu navegador no soporta Web Speech (usa Chrome/Edge o Whisper/Vosk en Preferencias)',
       )
       return
     }
@@ -135,14 +135,17 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
       start()
       toast.message(
         engineId === 'whisper'
-          ? 'Grabando… pulsa Detener para transcribir con Whisper'
-          : 'Escuchando… habla con claridad y pulsa Detener al terminar',
+          ? 'Grabando… Detener → Whisper'
+          : engineId === 'vosk'
+            ? 'Grabando… Detener → Vosk'
+            : 'Escuchando… habla con claridad y pulsa Detener al terminar',
       )
     }
   }
 
   const livePreview = [transcript, interimTranscript].filter(Boolean).join(' ').trim()
-  const engineLabel = engineId === 'whisper' ? 'Whisper' : 'Browser'
+  const engineLabel =
+    engineId === 'whisper' ? 'Whisper' : engineId === 'vosk' ? 'Vosk' : 'Browser'
 
   return (
     <header className="flex h-12 shrink-0 items-center justify-between border-b bg-card/80 px-3 backdrop-blur">
@@ -180,7 +183,7 @@ export function Toolbar({ onCreatePage }: ToolbarProps) {
             title={livePreview || engineLabel}
           >
             {phase === 'processing'
-              ? engineId === 'whisper'
+              ? isServerEngine
                 ? 'Transcribiendo…'
                 : 'Insertando… '
               : `● ${engineLabel} `}

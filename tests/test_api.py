@@ -474,7 +474,10 @@ def test_voice_engines_endpoint() -> None:
     ids = {e["id"] for e in body["engines"]}
     assert "browser" in ids
     assert "whisper" in ids
+    assert "vosk" in ids
     assert "default_server" in body
+    whisper = next(e for e in body["engines"] if e["id"] == "whisper")
+    assert "models" in whisper.get("options", {})
 
 
 def test_voice_transcribe_rejects_empty() -> None:

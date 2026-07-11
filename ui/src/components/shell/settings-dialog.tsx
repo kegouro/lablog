@@ -29,7 +29,9 @@ import {
   type UiDensity,
   type VoiceEngineId,
 } from '@/stores/app-store'
-import { listVoiceEngines, type VoiceEngineInfo } from '@/lib/api'
+import { listVoiceEngines, setupVoskModel, type VoiceEngineInfo } from '@/lib/api'
+import { WHISPER_MODEL_SIZES } from '@/lib/voice/types'
+import type { WhisperModelSize } from '@/stores/app-store'
 
 const ACCENTS = [
   { id: 'zinc', label: 'Zinc', value: '#6b7280' },
@@ -92,13 +94,15 @@ export function SettingsDialog() {
   const resetShortcuts = useAppStore((s) => s.resetShortcuts)
   const voiceEngine = useAppStore((s) => s.voiceEngine)
   const setVoiceEngine = useAppStore((s) => s.setVoiceEngine)
+  const whisperModel = useAppStore((s) => s.whisperModel)
+  const setWhisperModel = useAppStore((s) => s.setWhisperModel)
   const [open, setOpen] = useState(false)
   const [draftColors, setDraftColors] = useState(customColors)
   const [voiceEngines, setVoiceEngines] = useState<VoiceEngineInfo[]>([])
+  const [voskSetupBusy, setVoskSetupBusy] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    if (!open) return
+  const refreshVoiceEngines = () =>
     listVoiceEngines()
       .then((r) => setVoiceEngines(r.engines))
       .catch(() =>
@@ -116,8 +120,19 @@ export function SettingsDialog() {
             available: false,
             requires_extra: 'voice',
           },
+          {
+            id: 'vosk',
+            label: 'Vosk local (ligero)',
+            kind: 'local',
+            available: false,
+            requires_extra: 'voice',
+          },
         ]),
       )
+
+  useEffect(() => {
+    if (!open) return
+    void refreshVoiceEngines()
   }, [open])
 
   useEffect(() => {
@@ -220,8 +235,8 @@ export function SettingsDialog() {
               Dictado por voz
             </label>
             <p className="text-[10px] text-muted-foreground">
-              Whisper es gratis y local (pip install &quot;jose-labarca-lablog[voice]&quot;). El navegador
-              no instala nada pero es menos preciso.
+              Todo gratis y local. Extra:{' '}
+              <code className="text-[10px]">pip install &quot;jose-labarca-lablog[voice]&quot;</code>
             </p>
             <div className="grid gap-2">
               {(voiceEngines.length
@@ -242,9 +257,19 @@ export function SettingsDialog() {
                       description: '',
                       requires_extra: 'voice',
                     },
+                    {
+                      id: 'vosk',
+                      label: 'Vosk local (ligero)',
+                      kind: 'local',
+                      available: false,
+                      description: '',
+                      requires_extra: 'voice',
+                    },
                   ]
               ).map((eng) => {
-                const id = (eng.id === 'whisper' ? 'whisper' : 'browser') as VoiceEngineId
+                const id = (
+                  eng.id === 'whisper' || eng.id === 'vosk' ? eng.id : 'browser'
+                ) as VoiceEngineId
                 const selected = voiceEngine === id
                 return (
                   <button
@@ -261,7 +286,11 @@ export function SettingsDialog() {
                       <span className="font-medium">{eng.label}</span>
                       <span className="text-[10px] text-muted-foreground">
                         {eng.kind === 'local' ? 'local' : 'cliente'}
-                        {eng.available ? ' · listo' : eng.requires_extra ? ` · extra [${eng.requires_extra}]` : ' · no disponible'}
+                        {eng.available
+                          ? ' · listo'
+                          : eng.requires_extra
+                            ? ` · extra [${eng.requires_extra}]`
+                            : ' · no disponible'}
                       </span>
                     </div>
                     {eng.description ? (
@@ -271,6 +300,61 @@ export function SettingsDialog() {
                 )
               })}
             </div>
+
+            {voiceEngine === 'whisper' ? (
+              <div className="space-y-1.5 rounded-lg border border-dashed p-2">
+                <label className="text-xs font-medium">Modelo Whisper</label>
+                <p className="text-[10px] text-muted-foreground">
+                  Más grande = más preciso y más lento. Se descarga la primera vez.
+                </p>
+                <div className="grid grid-cols-1 gap-1">
+                  {WHISPER_MODEL_SIZES.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => setWhisperModel(m.id as WhisperModelSize)}
+                      className={`flex items-center justify-between rounded-md border px-2 py-1.5 text-left text-xs ${
+                        whisperModel === m.id
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border hover:bg-muted/40'
+                      }`}
+                    >
+                      <span className="font-mono font-medium">{m.label}</span>
+                      <span className="text-[10px] text-muted-foreground">{m.hint}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {voiceEngine === 'vosk' ? (
+              <div className="space-y-1.5 rounded-lg border border-dashed p-2">
+                <p className="text-[10px] text-muted-foreground">
+                  Modelo español small (~40 MB). Una sola descarga.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="w-full"
+                  disabled={voskSetupBusy}
+                  onClick={async () => {
+                    setVoskSetupBusy(true)
+                    try {
+                      const r = await setupVoskModel(false)
+                      toast.success(r.message || 'Modelo Vosk listo')
+                      await refreshVoiceEngines()
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : 'No se pudo descargar Vosk')
+                    } finally {
+                      setVoskSetupBusy(false)
+                    }
+                  }}
+                >
+                  {voskSetupBusy ? 'Descargando modelo…' : 'Descargar / verificar modelo Vosk'}
+                </Button>
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-2">

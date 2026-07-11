@@ -62,11 +62,19 @@ class Settings:
             os.getenv("LABLOG_SITE_DIR", self.data_dir / "site")
         ).expanduser().resolve()
 
-        # STT local (extra [voice] / faster-whisper)
+        # STT local (extra [voice]: faster-whisper + vosk)
         self.whisper_model = os.getenv("LABLOG_WHISPER_MODEL", "base").strip() or "base"
         self.whisper_device = os.getenv("LABLOG_WHISPER_DEVICE", "cpu").strip() or "cpu"
         self.whisper_compute = os.getenv("LABLOG_WHISPER_COMPUTE", "int8").strip() or "int8"
         self.whisper_language = os.getenv("LABLOG_WHISPER_LANGUAGE", "es").strip() or "es"
+        _vosk_default = self.data_dir / "models" / "vosk-model-small-es-0.42"
+        self.vosk_model_path = Path(
+            os.getenv("LABLOG_VOSK_MODEL_PATH", str(_vosk_default))
+        ).expanduser().resolve()
+        self.vosk_model_url = os.getenv(
+            "LABLOG_VOSK_MODEL_URL",
+            "https://alphacephei.com/vosk/models/vosk-model-small-es-0.42.zip",
+        ).strip()
         try:
             self.voice_max_upload_mb = int(os.getenv("LABLOG_VOICE_MAX_UPLOAD_MB", "25"))
         except ValueError:

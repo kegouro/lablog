@@ -18,7 +18,7 @@ import threading
 from pathlib import Path
 
 from lablog.config import settings
-from lablog.voice.engines.base import EngineInfo, TranscriptResult
+from lablog.voice.engines.base import WHISPER_MODEL_CHOICES, EngineInfo, TranscriptResult
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +28,12 @@ _ENGINE_ID = "whisper"
 class WhisperSttEngine:
     """Whisper local vía faster-whisper.
 
-    El modelo se carga lazy en el primer ``transcribe`` y se reutiliza.
+    Cachea un modelo por tamaño (tiny/base/small/…) para poder cambiar
+    desde la UI sin reiniciar el proceso.
     """
 
     def __init__(self) -> None:
-        self._model: object | None = None
+        self._models: dict[str, object] = {}
         self._lock = threading.Lock()
 
     @property
@@ -51,7 +52,7 @@ class WhisperSttEngine:
     def description(self) -> str:
         return (
             "Transcripción offline con faster-whisper. "
-            "Gratis, sin API keys. Mejor precisión que el dictado del navegador."
+            "Gratis, sin API keys. Elige el tamaño del modelo en Preferencias."
         )
 
     def available(self) -> bool:
@@ -69,28 +70,44 @@ class WhisperSttEngine:
             available=self.available(),
             description=self.description,
             requires_extra="voice" if not self.available() else None,
+            options={
+                "models": list(WHISPER_MODEL_CHOICES),
+                "default_model": settings.whisper_model,
+                "device": settings.whisper_device,
+                "compute": settings.whisper_compute,
+            },
         )
 
-    def _load_model(self) -> object:
-        if self._model is not None:
-            return self._model
+    def _normalize_model(self, model: str | None) -> str:
+        size = (model or settings.whisper_model).strip() or "base"
+        if size not in WHISPER_MODEL_CHOICES:
+            # Permitir IDs custom de HuggingFace, pero avisar en log.
+            logger.warning("modelo Whisper no estándar: %s", size)
+        return size
+
+    def _load_model(self, size: str) -> object:
+        cached = self._models.get(size)
+        if cached is not None:
+            return cached
         with self._lock:
-            if self._model is not None:
-                return self._model
+            cached = self._models.get(size)
+            if cached is not None:
+                return cached
             from faster_whisper import WhisperModel
 
             logger.info(
                 "Cargando Whisper model=%s device=%s compute=%s",
-                settings.whisper_model,
+                size,
                 settings.whisper_device,
                 settings.whisper_compute,
             )
-            self._model = WhisperModel(
-                settings.whisper_model,
+            loaded = WhisperModel(
+                size,
                 device=settings.whisper_device,
                 compute_type=settings.whisper_compute,
             )
-            return self._model
+            self._models[size] = loaded
+            return loaded
 
     def transcribe(
         self,
@@ -98,6 +115,7 @@ class WhisperSttEngine:
         *,
         filename: str = "audio.wav",
         language: str | None = None,
+        model: str | None = None,
     ) -> TranscriptResult:
         if not audio:
             raise ValueError("audio vacío")
@@ -106,17 +124,17 @@ class WhisperSttEngine:
                 'Motor Whisper no disponible. Instala: pip install "jose-labarca-lablog[voice]"'
             )
 
+        size = self._normalize_model(model)
         lang = language or settings.whisper_language
         suffix = Path(filename).suffix.lower() or ".wav"
         if suffix not in {".wav", ".webm", ".ogg", ".mp3", ".m4a", ".mp4", ".flac", ".mpeg"}:
             suffix = ".wav"
 
-        model = self._load_model()
+        whisper_model = self._load_model(size)
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=True) as tmp:
             tmp.write(audio)
             tmp.flush()
-            # faster_whisper.WhisperModel.transcribe
-            segments, info = model.transcribe(  # type: ignore[attr-defined]
+            segments, info = whisper_model.transcribe(  # type: ignore[attr-defined]
                 tmp.name,
                 language=lang or None,
                 task="transcribe",
@@ -136,7 +154,7 @@ class WhisperSttEngine:
                 engine=self.id,
                 language=detected or lang,
                 meta={
-                    "model": settings.whisper_model,
+                    "model": size,
                     "language_probability": getattr(info, "language_probability", None),
                 },
             )

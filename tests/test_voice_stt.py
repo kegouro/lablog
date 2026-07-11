@@ -55,11 +55,13 @@ class _FakeEngine:
         *,
         filename: str = "audio.wav",
         language: str | None = None,
+        model: str | None = None,
     ) -> TranscriptResult:
         return TranscriptResult(
             text=f"heard:{audio.decode('utf-8', errors='ignore')}",
             engine=self.id,
             language=language or "es",
+            meta={"model": model} if model else {},
         )
 
 
@@ -72,13 +74,17 @@ def _clean_registry() -> None:
             unregister_engine(eid)
 
 
-def test_list_engines_includes_browser_and_whisper() -> None:
+def test_list_engines_includes_browser_whisper_vosk() -> None:
     ids = {e.id for e in list_engines()}
     assert "browser" in ids
     assert "whisper" in ids
+    assert "vosk" in ids
     browser = next(e for e in list_engines() if e.id == "browser")
     assert browser.kind == "client"
     assert browser.available is True
+    whisper = next(e for e in list_engines() if e.id == "whisper")
+    assert "models" in (whisper.options or {})
+    assert "tiny" in whisper.options["models"]
 
 
 def test_register_custom_engine() -> None:

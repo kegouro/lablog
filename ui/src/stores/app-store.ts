@@ -31,8 +31,22 @@ export interface ParameterHint {
 export type UiDensity = 'comfortable' | 'compact'
 export type EditorFont = 'sans' | 'mono' | 'serif'
 export type PreferenceProfileId = 'lab' | 'paper' | 'teaching'
-/** Motor de dictado: browser (Web Speech) o whisper (local, extra [voice]). */
-export type VoiceEngineId = 'browser' | 'whisper'
+/** Motor de dictado: browser | whisper | vosk. */
+export type VoiceEngineId = 'browser' | 'whisper' | 'vosk'
+/** Tamaño de modelo Whisper (solo aplica si voiceEngine=whisper). */
+export type WhisperModelSize = 'tiny' | 'base' | 'small' | 'medium' | 'large-v3'
+
+const WHISPER_MODELS: WhisperModelSize[] = ['tiny', 'base', 'small', 'medium', 'large-v3']
+
+function parseVoiceEngine(v: string | null): VoiceEngineId {
+  if (v === 'whisper' || v === 'vosk' || v === 'browser') return v
+  return 'browser'
+}
+
+function parseWhisperModel(v: string | null): WhisperModelSize {
+  if (v && (WHISPER_MODELS as string[]).includes(v)) return v as WhisperModelSize
+  return 'base'
+}
 
 /** Preferencias de apariencia exportables/importables. */
 export interface AppPreferences {
@@ -49,6 +63,8 @@ export interface AppPreferences {
   shortcuts?: Partial<Record<ShortcutAction, string>>
   /** Motor de dictado preferido. */
   voiceEngine?: VoiceEngineId
+  /** Modelo Whisper (tiny…large-v3). */
+  whisperModel?: WhisperModelSize
 }
 
 /** Perfiles listos: un clic cambia varios knobs a la vez. */
@@ -115,8 +131,10 @@ interface AppState {
   density: UiDensity
   editorFont: EditorFont
   reducedMotion: boolean
-  /** Motor de dictado: browser | whisper. */
+  /** Motor de dictado: browser | whisper | vosk. */
   voiceEngine: VoiceEngineId
+  /** Tamaño del modelo Whisper si voiceEngine=whisper. */
+  whisperModel: WhisperModelSize
   /** Chord por acción; ausentes → DEFAULT_SHORTCUTS. */
   shortcuts: Partial<Record<ShortcutAction, string>>
   vaultFiles: VaultFile[]
@@ -164,6 +182,7 @@ interface AppState {
   setEditorFont: (font: EditorFont) => void
   setReducedMotion: (on: boolean) => void
   setVoiceEngine: (engine: VoiceEngineId) => void
+  setWhisperModel: (model: WhisperModelSize) => void
   setShortcut: (action: ShortcutAction, chord: string) => void
   resetShortcuts: () => void
   exportPreferences: () => AppPreferences
@@ -224,12 +243,19 @@ export const useAppStore = create<AppState>((set, get) => ({
   reducedMotion: false,
   voiceEngine: ((): VoiceEngineId => {
     try {
-      const v = localStorage.getItem('lablog-voiceEngine')
-      if (v === 'whisper' || v === 'browser') return v
+      return parseVoiceEngine(localStorage.getItem('lablog-voiceEngine'))
     } catch {
       /* ignore */
     }
     return 'browser'
+  })(),
+  whisperModel: ((): WhisperModelSize => {
+    try {
+      return parseWhisperModel(localStorage.getItem('lablog-whisperModel'))
+    } catch {
+      /* ignore */
+    }
+    return 'base'
   })(),
   shortcuts: { ...DEFAULT_SHORTCUTS },
   vaultFiles: [],
@@ -294,9 +320,14 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ reducedMotion })
   },
   setVoiceEngine: (voiceEngine) => {
-    const id: VoiceEngineId = voiceEngine === 'whisper' ? 'whisper' : 'browser'
+    const id = parseVoiceEngine(voiceEngine)
     persist('lablog-voiceEngine', id)
     set({ voiceEngine: id })
+  },
+  setWhisperModel: (whisperModel) => {
+    const m = parseWhisperModel(whisperModel)
+    persist('lablog-whisperModel', m)
+    set({ whisperModel: m })
   },
   setShortcut: (action, chord) =>
     set((state) => {
@@ -323,6 +354,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       labMode: s.labMode,
       shortcuts: { ...s.shortcuts },
       voiceEngine: s.voiceEngine,
+      whisperModel: s.whisperModel,
     }
   },
   importPreferences: (prefs) => {
@@ -342,8 +374,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       if (typeof prefs.reducedMotion === 'boolean') next.reducedMotion = prefs.reducedMotion
       if (typeof prefs.labMode === 'boolean') next.labMode = prefs.labMode
-      if (prefs.voiceEngine === 'browser' || prefs.voiceEngine === 'whisper') {
+      if (prefs.voiceEngine === 'browser' || prefs.voiceEngine === 'whisper' || prefs.voiceEngine === 'vosk') {
         next.voiceEngine = prefs.voiceEngine
+      }
+      if (prefs.whisperModel) {
+        next.whisperModel = parseWhisperModel(prefs.whisperModel)
       }
       if (prefs.shortcuts && typeof prefs.shortcuts === 'object') {
         next.shortcuts = { ...DEFAULT_SHORTCUTS, ...prefs.shortcuts }
@@ -358,6 +393,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       persist('lablog-reducedMotion', String(next.reducedMotion))
       persist('lablog-labMode', String(next.labMode))
       persist('lablog-voiceEngine', next.voiceEngine)
+      persist('lablog-whisperModel', next.whisperModel)
       return next
     })
   },

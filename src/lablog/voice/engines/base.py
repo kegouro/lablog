@@ -11,6 +11,9 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
+# Tamaños Whisper aceptados en API/UI (gratis, local).
+WHISPER_MODEL_CHOICES: tuple[str, ...] = ("tiny", "base", "small", "medium", "large-v3")
+
 
 @dataclass(frozen=True, slots=True)
 class TranscriptResult:
@@ -36,6 +39,8 @@ class EngineInfo:
     available: bool
     description: str = ""
     requires_extra: str | None = None
+    # Opciones específicas del motor (modelos, paths, setup…).
+    options: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -75,9 +80,12 @@ class SttEngine(Protocol):
         *,
         filename: str = "audio.wav",
         language: str | None = None,
+        model: str | None = None,
     ) -> TranscriptResult:
         """Transcribe bytes de audio a texto plano.
 
         ``filename`` solo sirve de pista de formato (extensión).
+        ``model`` es opcional (p.ej. tamaño Whisper); los motores que no
+        lo usen lo ignoran.
         """
         ...
