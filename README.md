@@ -38,7 +38,7 @@
   <a href="README.es.md"><img alt="Español" src="https://img.shields.io/badge/lang-Espa%C3%B1ol-A1A1A6?style=for-the-badge&labelColor=1C1C1E" /></a>
   <a href="https://kegouro.github.io/lablog/"><img alt="Live preview" src="https://img.shields.io/badge/docs%20site-kegouro.github.io%2Flablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
   <a href="https://pypi.org/project/jose-labarca-lablog/"><img alt="Install from PyPI" src="https://img.shields.io/badge/install-pip%20install%20jose--labarca--lablog-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=A1A1A6" /></a>
-  <a href="https://github.com/kegouro/lablog/releases/tag/v0.3.0"><img alt="v0.3.0" src="https://img.shields.io/badge/release-v0.3.0-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
+  <a href="https://github.com/kegouro/lablog/releases/tag/v0.3.1"><img alt="v0.3.0" src="https://img.shields.io/badge/release-v0.3.1-1C1C1E?style=for-the-badge&labelColor=1C1C1E&color=48484A" /></a>
 </p>
 
 <sub>
@@ -134,7 +134,7 @@ act of producing the data.
 | Item | Value |
 | :--- | :--- |
 | Distribution | [`jose-labarca-lablog`](https://pypi.org/project/jose-labarca-lablog/) on PyPI |
-| Current release | **v0.3.1** ([notes](docs/release-notes-v0.3.0.md)) |
+| Current release | **v0.3.1** ([notes](docs/release-notes-v0.3.1.md)) |
 | Licence | MIT |
 | Primary language (engine) | Python 3.11+ |
 | Primary language (UI) | TypeScript / React 19 |
